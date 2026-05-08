@@ -61,8 +61,11 @@ The generator:
   `turbo-overlay-stack` and `turbo-overlay` by stimulus-loading's
   eager-load convention; if your app doesn't use it, the generator
   injects explicit `application.register` calls.
-- Injects `<%= overlay_stack_tag %>` before `</body>` in
-  `app/views/layouts/application.html.erb`.
+- Injects `<%= turbo_overlay_styles %>` into `<head>` and
+  `<%= overlay_stack_tag %>` before `</body>` in
+  `app/views/layouts/application.html.erb`. The styles helper emits
+  the gem's CSS once per page load, so layouts don't ship a
+  `<style>` block with every overlay response.
 - Writes an initializer at `config/initializers/turbo_overlay.rb` (on
   the first run; subsequent installs leave it alone).
 - Re-running is idempotent — files already in place are skipped. Pass
@@ -252,6 +255,7 @@ Available on controllers (when the concern is included) and views:
 | `modal_dismiss_link_to(...)`            | dismiss link inside a modal                                            |
 | `drawer_dismiss_link_to(...)`           | dismiss link inside a drawer                                           |
 | `overlay_stack_tag`                     | emits the host-page stack container (drop in `application.html.erb`)   |
+| `turbo_overlay_styles`                  | emits the gem's default stylesheet as a single `<style>` tag (drop in `<head>`) |
 | `overlay_title(value, &block)`          | sets `content_for :overlay_title`                                      |
 | `overlay_footer(value, &block)`         | sets `content_for :overlay_footer`                                     |
 | `turbo_stream.overlay(:close, scope:, type:, id:)` | turbo-stream action; closes top, all, or one overlay        |

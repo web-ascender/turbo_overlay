@@ -122,11 +122,11 @@ module TurboOverlay
         end
       end
 
-      # Inject `<%= overlay_stack_tag %>` once. Older installs may
-      # have `<%= overlay_frame_tags %>` — in that case we leave it
-      # alone (the helper still works as a deprecated alias) and ask
-      # the user to swap it during upgrade.
-      def inject_overlay_stack_tag
+      # Inject `<%= overlay_stack_tag %>` (before </body>) and
+      # `<%= turbo_overlay_styles %>` (in <head>) once. Older
+      # installs may have `<%= overlay_frame_tags %>` — that's left
+      # alone (the helper still works as a deprecated alias).
+      def inject_overlay_helpers
         return if options[:skip_layout_inject]
 
         candidates = %w[
@@ -137,24 +137,30 @@ module TurboOverlay
         layout_path = candidates.find { |p| File.exist?(File.join(destination_root, p)) }
 
         unless layout_path
-          say_status :skip, "no application layout found; add `<%= overlay_stack_tag %>` manually", :yellow
+          say_status :skip, "no application layout found; add `<%= turbo_overlay_styles %>` and `<%= overlay_stack_tag %>` manually", :yellow
           return
         end
 
-        contents = File.read(File.join(destination_root, layout_path))
-        if contents.include?("overlay_stack_tag") || contents.include?("overlay_frame_tags")
-          say_status :identical, layout_path, :blue
+        full_path = File.join(destination_root, layout_path)
+        contents  = File.read(full_path)
+        ext       = File.extname(layout_path)
+
+        if ext != ".erb"
+          say_status :skip, "#{layout_path} (#{ext[1..]} — add `= turbo_overlay_styles` and `= overlay_stack_tag` manually)", :yellow
           return
         end
 
-        case File.extname(layout_path)
-        when ".erb"
+        unless contents.include?("turbo_overlay_styles")
+          inject_into_file layout_path, before: %r{</head>} do
+            "    <%= turbo_overlay_styles %>\n  "
+          end
+        end
+
+        contents = File.read(full_path)
+        unless contents.include?("overlay_stack_tag") || contents.include?("overlay_frame_tags")
           inject_into_file layout_path, before: %r{</body>} do
             "    <%= overlay_stack_tag %>\n  "
           end
-        when ".haml", ".slim"
-          ext = File.extname(layout_path)[1..]
-          say_status :skip, "#{layout_path} (#{ext} — add `= overlay_stack_tag` manually)", :yellow
         end
       end
 

@@ -194,6 +194,17 @@ class ViewHelperTest < Minitest::Test
     assert_includes output, %(id="my_stack")
   end
 
+  # ---- turbo_overlay_styles ----
+
+  def test_turbo_overlay_styles_emits_style_tag_with_id
+    view = FakeView.new
+    output = view.turbo_overlay_styles
+    assert_includes output, %(<style)
+    assert_includes output, %(id="turbo-overlay-styles")
+    assert_includes output, "@keyframes turbo-overlay-fade-in"
+    assert_includes output, "html:has(dialog.turbo-overlay[open])"
+  end
+
   # ---- generic in-view content helpers ----
 
   def test_overlay_title_with_value

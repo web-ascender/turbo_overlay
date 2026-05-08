@@ -70,6 +70,20 @@ module TurboOverlay
           data: { controller: "turbo-overlay-stack" })
       end
 
+      # Emit the gem's default stylesheet as a single `<style>` tag.
+      # Drop in the host page's `<head>` once (the install generator
+      # injects it for you). Loads the rules in the page once instead
+      # of shipping a `<style>` block with every overlay response.
+      #
+      # Skip this helper and provide your own equivalent CSS if you
+      # want full control. Add your own rules later in the cascade
+      # to override individual values.
+      def turbo_overlay_styles
+        content_tag(:style, TurboOverlay::Styles::DEFAULT.html_safe,
+          id: "turbo-overlay-styles",
+          data: { "turbo-permanent": true })
+      end
+
       # Deprecated. Aliased to `overlay_stack_tag` for one minor cycle.
       # The previous frame-per-type model has been replaced by a
       # single shared stack container.

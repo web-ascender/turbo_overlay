@@ -1,5 +1,6 @@
 require "turbo_overlay/version"
 require "turbo_overlay/configuration"
+require "turbo_overlay/styles"
 
 module TurboOverlay
   class << self

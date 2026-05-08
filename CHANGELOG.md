@@ -6,13 +6,17 @@
 - **All themes now use a single native `<dialog>` JS controller.** Bootstrap themes keep their visual classes (`.modal-dialog`, `.modal-content`, `.offcanvas-*`, etc.) but no longer require `window.bootstrap` or jQuery — the `<dialog>` element drives open/close, stacking, and focus management. Drops the per-theme overlay controller files; one shared `overlay_controller.js` ships for everyone.
 - **Animations on by default.** Modals fade/scale-in on open, fade/scale-out on close. Drawers slide in/out from their configured edge. Backdrops fade in/out. All animations honor `prefers-reduced-motion: reduce`.
 - The Stimulus close path now adds a `turbo-overlay-closing` class, awaits `animationend` (with a 400ms safety timeout), then removes the dialog's turbo-frame.
+- **Stylesheet moved out of the response payload.** Overlay layouts no longer ship a `<style>` block on every render. Styles are emitted once into the host page's `<head>` via a new `turbo_overlay_styles` view helper (auto-injected by the install generator). Smaller per-overlay payloads, and the rules can be overridden cleanly from the host app's CSS.
 
 ### Added
 - **Bootstrap 3 drawer support.** Previously skipped because BS3 has no native offcanvas primitive — now provided as a vanilla dialog styled with BS3 panel classes.
+- `turbo_overlay_styles` view helper.
+- `.turbo-overlay-scaffold` CSS hook on Bootstrap layouts so the shared stylesheet positions the dialog and clears the BS offcanvas's own positioning rules.
 
 ### Removed
 - `window.bootstrap` and jQuery requirements for the bootstrap5 / bootstrap3 themes.
 - Per-theme overlay controllers (`{theme}_overlay_controller.js`).
+- Inline `<style>` blocks from every shipped overlay layout.
 
 ## 0.3.0
 
