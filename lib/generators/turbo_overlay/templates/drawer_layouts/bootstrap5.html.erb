@@ -4,20 +4,21 @@
   top:    "offcanvas-top",
   bottom: "offcanvas-bottom"
 }.fetch(TurboOverlay.configuration.drawer.position) %>
-<%%= turbo_frame_tag TurboOverlay.configuration.drawer.frame_id do %>
+<%%= overlay_response_wrapper(:drawer) do %>
   <div class="offcanvas <%%= offcanvas_class %>"
        tabindex="-1"
-       data-controller="turbo-drawer"
-       data-action="turbo-overlay:close@window->turbo-drawer#close"
-       aria-labelledby="turbo-drawer-title">
+       data-controller="turbo-overlay"
+       data-turbo-overlay-id-value="<%%= current_overlay_id %>"
+       data-turbo-overlay-type-value="drawer"
+       aria-labelledby="turbo-drawer-title-<%%= current_overlay_id %>">
     <%% if content_for?(:overlay_title) %>
       <div class="offcanvas-header">
-        <h5 id="turbo-drawer-title" class="offcanvas-title">
+        <h5 id="turbo-drawer-title-<%%= current_overlay_id %>" class="offcanvas-title">
           <%%= yield(:overlay_title) %>
         </h5>
         <button type="button"
                 class="btn-close"
-                data-bs-dismiss="offcanvas"
+                data-action="turbo-overlay#close"
                 aria-label="Close"></button>
       </div>
     <%% end %>

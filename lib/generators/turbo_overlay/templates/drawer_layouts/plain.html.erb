@@ -1,17 +1,19 @@
-<%%= turbo_frame_tag TurboOverlay.configuration.drawer.frame_id do %>
+<%%= overlay_response_wrapper(:drawer) do %>
   <dialog class="turbo-drawer turbo-drawer--<%%= TurboOverlay.configuration.drawer.position %>"
-          data-controller="turbo-drawer"
-          data-action="cancel->turbo-drawer#cancel turbo-overlay:close@window->turbo-drawer#close"
-          aria-labelledby="turbo-drawer-title">
+          data-controller="turbo-overlay"
+          data-turbo-overlay-id-value="<%%= current_overlay_id %>"
+          data-turbo-overlay-type-value="drawer"
+          data-action="cancel->turbo-overlay#cancel"
+          aria-labelledby="turbo-drawer-title-<%%= current_overlay_id %>">
     <div class="turbo-drawer__content">
       <%% if content_for?(:overlay_title) %>
         <header class="turbo-drawer__header">
-          <h2 id="turbo-drawer-title" class="turbo-drawer__title">
+          <h2 id="turbo-drawer-title-<%%= current_overlay_id %>" class="turbo-drawer__title">
             <%%= yield(:overlay_title) %>
           </h2>
           <button type="button"
                   class="turbo-drawer__close"
-                  data-action="turbo-drawer#close"
+                  data-action="turbo-overlay#close"
                   aria-label="Close">&times;</button>
         </header>
       <%% end %>

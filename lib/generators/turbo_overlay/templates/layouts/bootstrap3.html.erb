@@ -1,19 +1,20 @@
-<%%= turbo_frame_tag TurboOverlay.configuration.modal.frame_id do %>
+<%%= overlay_response_wrapper(:modal) do %>
   <div class="modal"
        tabindex="-1"
        role="dialog"
-       data-controller="turbo-modal"
-       data-action="turbo-overlay:close@window->turbo-modal#close"
-       aria-labelledby="turbo-modal-title">
+       data-controller="turbo-overlay"
+       data-turbo-overlay-id-value="<%%= current_overlay_id %>"
+       data-turbo-overlay-type-value="modal"
+       aria-labelledby="turbo-modal-title-<%%= current_overlay_id %>">
     <div class="modal-dialog modal-lg" role="document">
       <div class="modal-content">
         <%% if content_for?(:overlay_title) %>
           <div class="modal-header">
             <button type="button"
                     class="close"
-                    data-dismiss="modal"
+                    data-action="turbo-overlay#close"
                     aria-label="Close"><span aria-hidden="true">&times;</span></button>
-            <h4 id="turbo-modal-title" class="modal-title">
+            <h4 id="turbo-modal-title-<%%= current_overlay_id %>" class="modal-title">
               <%%= yield(:overlay_title) %>
             </h4>
           </div>

@@ -1,17 +1,19 @@
-<%%= turbo_frame_tag TurboOverlay.configuration.modal.frame_id do %>
+<%%= overlay_response_wrapper(:modal) do %>
   <dialog class="fixed inset-0 m-auto w-full max-w-lg rounded-lg p-0 backdrop:bg-black/50 backdrop:backdrop-blur-sm"
-          data-controller="turbo-modal"
-          data-action="cancel->turbo-modal#cancel turbo-overlay:close@window->turbo-modal#close"
-          aria-labelledby="turbo-modal-title">
+          data-controller="turbo-overlay"
+          data-turbo-overlay-id-value="<%%= current_overlay_id %>"
+          data-turbo-overlay-type-value="modal"
+          data-action="cancel->turbo-overlay#cancel"
+          aria-labelledby="turbo-modal-title-<%%= current_overlay_id %>">
     <div class="flex flex-col bg-white rounded-lg shadow-xl">
       <%% if content_for?(:overlay_title) %>
         <header class="flex items-center justify-between px-5 py-4 border-b border-gray-200">
-          <h2 id="turbo-modal-title" class="text-lg font-semibold text-gray-900">
+          <h2 id="turbo-modal-title-<%%= current_overlay_id %>" class="text-lg font-semibold text-gray-900">
             <%%= yield(:overlay_title) %>
           </h2>
           <button type="button"
                   class="text-gray-400 hover:text-gray-600 text-2xl leading-none"
-                  data-action="turbo-modal#close"
+                  data-action="turbo-overlay#close"
                   aria-label="Close">&times;</button>
         </header>
       <%% end %>
@@ -30,5 +32,5 @@
 <%% end %>
 
 <style>
-  html:has(dialog[data-controller~="turbo-modal"][open]) { overflow: hidden; }
+  html:has(dialog[data-controller~="turbo-overlay"][open]) { overflow: hidden; }
 </style>

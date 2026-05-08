@@ -6,12 +6,14 @@ class ViewHelperTest < Minitest::Test
     include TurboOverlay::Helpers::ViewHelper
 
     attr_reader :link_to_args, :content_for_calls, :modal_request_value, :drawer_request_value
+    attr_accessor :_current_overlay_id
 
     def initialize(modal_request: false, drawer_request: false)
       @modal_request_value  = modal_request
       @drawer_request_value = drawer_request
       @link_to_args = nil
       @content_for_calls = []
+      @_current_overlay_id = nil
     end
 
     def link_to(*args, &block)
@@ -23,12 +25,26 @@ class ViewHelperTest < Minitest::Test
       @content_for_calls << [name, value, block]
     end
 
-    def turbo_frame_tag(id)
-      %(<turbo-frame id="#{id}"></turbo-frame>)
+    def turbo_frame_tag(id, **attrs, &block)
+      attr_str = attrs.map { |k, v| %( #{k}="#{v}") }.join
+      content = block_given? ? yield : ""
+      %(<turbo-frame id="#{id}"#{attr_str}>#{content}</turbo-frame>).html_safe
+    end
+
+    def content_tag(tag, content = nil, options = {}, &block)
+      content = yield if block_given?
+      attrs = options.map do |k, v|
+        if v.is_a?(Hash)
+          v.map { |kk, vv| %( data-#{kk}="#{vv}") }.join
+        else
+          %( #{k}="#{v}")
+        end
+      end.join
+      %(<#{tag}#{attrs}>#{content}</#{tag}>).html_safe
     end
 
     def safe_join(parts)
-      parts.join
+      parts.join.html_safe
     end
 
     def modal_request?
@@ -40,11 +56,37 @@ class ViewHelperTest < Minitest::Test
     end
 
     def controller
-      nil
+      self
+    end
+
+    def respond_to?(method_name, include_private = false)
+      return true if method_name == :modal_request? || method_name == :drawer_request?
+      return true if method_name == :current_overlay_id
+      return true if method_name == :turbo_overlay_frame_re_render?
+      super
+    end
+
+    def current_overlay_id
+      @_current_overlay_id
+    end
+
+    def turbo_overlay_frame_re_render?
+      false
+    end
+
+    def turbo_stream
+      @turbo_stream ||= FakeTurboStream.new
     end
 
     def request
       nil
+    end
+  end
+
+  class FakeTurboStream
+    def append(target)
+      content = block_given? ? yield : ""
+      %(<turbo-stream action="append" target="#{target}"><template>#{content}</template></turbo-stream>)
     end
   end
 
@@ -58,31 +100,31 @@ class ViewHelperTest < Minitest::Test
 
   # ---- modal_link_to ----
 
-  def test_modal_link_to_adds_turbo_frame_data
+  def test_modal_link_to_adds_turbo_stream_and_overlay_data
     view = FakeView.new
     view.modal_link_to("Open", "/things/1")
 
     name, options, html_options = view.link_to_args
     assert_equal "Open",      name
     assert_equal "/things/1", options
-    assert_equal({ turbo_frame: "turbo_modal" }, html_options[:data])
+    assert_equal true,        html_options[:data][:turbo_stream]
+    assert_equal "modal",     html_options[:data][:turbo_overlay]
   end
 
-  def test_modal_link_to_respects_existing_data_turbo_frame
+  def test_modal_link_to_with_overlay_id
     view = FakeView.new
-    view.modal_link_to("Open", "/things/1", data: { turbo_frame: "_top" })
+    view.modal_link_to("Open", "/things/1", overlay_id: "edit_user_42")
 
     _, _, html_options = view.link_to_args
-    assert_equal "_top", html_options[:data][:turbo_frame]
+    assert_equal "edit_user_42", html_options[:data][:turbo_overlay_id]
   end
 
-  def test_modal_link_to_uses_configured_frame_id
-    TurboOverlay.configure { |c| c.modal { |m| m.frame_id = "my_modal" } }
+  def test_modal_link_to_does_not_set_overlay_id_when_omitted
     view = FakeView.new
     view.modal_link_to("Open", "/things/1")
 
     _, _, html_options = view.link_to_args
-    assert_equal({ turbo_frame: "my_modal" }, html_options[:data])
+    refute html_options[:data].key?(:turbo_overlay_id)
   end
 
   # ---- modal_dismiss_link_to ----
@@ -92,7 +134,7 @@ class ViewHelperTest < Minitest::Test
     view.modal_dismiss_link_to("Cancel", "/back")
 
     _, _, html_options = view.link_to_args
-    assert_includes html_options["data-action"], "click->turbo-modal#close"
+    assert_includes html_options["data-action"], "click->turbo-overlay#close"
     assert_equal "true", html_options["data-turbo-modal-dismiss"]
   end
 
@@ -107,21 +149,13 @@ class ViewHelperTest < Minitest::Test
 
   # ---- drawer_link_to ----
 
-  def test_drawer_link_to_adds_turbo_frame_data
+  def test_drawer_link_to_adds_turbo_stream_and_overlay_data
     view = FakeView.new
     view.drawer_link_to("Filter", "/filters")
 
     _, _, html_options = view.link_to_args
-    assert_equal({ turbo_frame: "turbo_drawer" }, html_options[:data])
-  end
-
-  def test_drawer_link_to_uses_configured_frame_id
-    TurboOverlay.configure { |c| c.drawer { |d| d.frame_id = "my_drawer" } }
-    view = FakeView.new
-    view.drawer_link_to("Filter", "/filters")
-
-    _, _, html_options = view.link_to_args
-    assert_equal({ turbo_frame: "my_drawer" }, html_options[:data])
+    assert_equal true,     html_options[:data][:turbo_stream]
+    assert_equal "drawer", html_options[:data][:turbo_overlay]
   end
 
   # ---- drawer_dismiss_link_to ----
@@ -131,7 +165,7 @@ class ViewHelperTest < Minitest::Test
     view.drawer_dismiss_link_to("Close", "/back")
 
     _, _, html_options = view.link_to_args
-    assert_includes html_options["data-action"], "click->turbo-drawer#close"
+    assert_includes html_options["data-action"], "click->turbo-overlay#close"
     assert_equal "true", html_options["data-turbo-drawer-dismiss"]
   end
 
@@ -144,31 +178,20 @@ class ViewHelperTest < Minitest::Test
     refute html_options.key?("data-turbo-drawer-dismiss")
   end
 
-  # ---- overlay_frame_tags ----
+  # ---- overlay_stack_tag ----
 
-  def test_overlay_frame_tags_emits_both_by_default
+  def test_overlay_stack_tag_emits_stack_container
     view = FakeView.new
-    output = view.overlay_frame_tags
-    assert_includes output, %(<turbo-frame id="turbo_modal">)
-    assert_includes output, %(<turbo-frame id="turbo_drawer">)
+    output = view.overlay_stack_tag
+    assert_includes output, %(id="turbo_overlay_stack")
+    assert_includes output, %(data-controller="turbo-overlay-stack")
   end
 
-  def test_overlay_frame_tags_can_be_filtered
+  def test_overlay_stack_tag_uses_configured_stack_id
+    TurboOverlay.configure { |c| c.stack_id = "my_stack" }
     view = FakeView.new
-    output = view.overlay_frame_tags(:modal)
-    assert_includes output, %(<turbo-frame id="turbo_modal">)
-    refute_includes output, %(<turbo-frame id="turbo_drawer">)
-  end
-
-  def test_overlay_frame_tags_uses_configured_frame_ids
-    TurboOverlay.configure do |c|
-      c.modal  { |m| m.frame_id = "my_modal" }
-      c.drawer { |d| d.frame_id = "my_drawer" }
-    end
-    view = FakeView.new
-    output = view.overlay_frame_tags
-    assert_includes output, %(<turbo-frame id="my_modal">)
-    assert_includes output, %(<turbo-frame id="my_drawer">)
+    output = view.overlay_stack_tag
+    assert_includes output, %(id="my_stack")
   end
 
   # ---- generic in-view content helpers ----

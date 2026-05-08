@@ -1,9 +1,10 @@
 TurboOverlay.configure do |config|
-  config.modal do |m|
-    # The id of the turbo-frame that wraps the modal on the host page.
-    # Links targeted at this frame open inside the modal.
-    # m.frame_id = "turbo_modal"
+  # The DOM id of the host-page stack container that receives
+  # appended overlays. Emit it in your application layout via
+  # `<%%= overlay_stack_tag %>`.
+  # config.stack_id = "turbo_overlay_stack"
 
+  config.modal do |m|
     # Rails request variant assigned to modal requests. Lets you ship
     # `show.html+modal.erb` next to `show.html.erb`.
     # m.variant = :modal
@@ -12,16 +13,15 @@ TurboOverlay.configure do |config|
     # m.layout_name = "turbo_modal"
 
     # Stimulus identifier the modal layout binds to.
-    # m.stimulus_identifier = "turbo-modal"
+    # m.stimulus_identifier = "turbo-overlay"
   end
 
   config.drawer do |d|
     # Same as modal, plus a position for the shipped layouts:
     # :left, :right (default), :top, :bottom.
-    # d.frame_id = "turbo_drawer"
     # d.variant  = :drawer
     # d.layout_name = "turbo_drawer"
-    # d.stimulus_identifier = "turbo-drawer"
+    # d.stimulus_identifier = "turbo-overlay"
     # d.position = :right
   end
 end

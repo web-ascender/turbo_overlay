@@ -9,7 +9,8 @@ module TurboOverlay
     #   bin/rails g turbo_overlay:install --theme bootstrap3   # modal only (BS3 has no drawer)
     #
     # Re-running is idempotent: existing files and already-injected
-    # frame tags / Stimulus registrations are detected and skipped.
+    # stack tag / Stimulus registrations are detected and skipped.
+    # Pass `--force` to overwrite existing files when upgrading.
     class InstallGenerator < ::Rails::Generators::Base
       source_root File.expand_path("templates", __dir__)
 
@@ -39,7 +40,7 @@ module TurboOverlay
       class_option :skip_layout_inject,
         type: :boolean,
         default: false,
-        desc: "Skip injecting <%= overlay_frame_tags %> into application.html.erb"
+        desc: "Skip injecting <%= overlay_stack_tag %> into application.html.erb"
 
       def validate_selection
         if options[:skip_modal] && options[:skip_drawer]
@@ -48,8 +49,6 @@ module TurboOverlay
 
         @theme = options[:theme] || ask_theme
 
-        # If the chosen theme has no drawer (e.g. bootstrap3), auto-skip
-        # drawer with a friendly note rather than erroring.
         @install_modal  = !options[:skip_modal]
         @install_drawer = !options[:skip_drawer] && DRAWER_THEMES.include?(@theme)
 
@@ -66,38 +65,37 @@ module TurboOverlay
         template "initializer.rb.tt", "config/initializers/turbo_overlay.rb"
       end
 
-      def copy_modal_files
+      def copy_modal_layout
         return unless @install_modal
 
         copy_file "layouts/#{@theme}.html.erb",
           "app/views/layouts/turbo_modal.html.erb"
-
-        unless options[:skip_javascript]
-          if stimulus_controllers_dir
-            copy_file "javascript/#{@theme}_controller.js",
-              "#{stimulus_controllers_dir}/turbo_modal_controller.js"
-          end
-        end
       end
 
-      def copy_drawer_files
+      def copy_drawer_layout
         return unless @install_drawer
 
         copy_file "drawer_layouts/#{@theme}.html.erb",
           "app/views/layouts/turbo_drawer.html.erb"
+      end
 
-        unless options[:skip_javascript]
-          if stimulus_controllers_dir
-            copy_file "drawer_javascript/#{@theme}_controller.js",
-              "#{stimulus_controllers_dir}/turbo_drawer_controller.js"
-          end
-        end
+      # The stack controller is theme-agnostic; the per-overlay
+      # controller is theme-specific. Both install into the host
+      # app's Stimulus controllers directory under the conventional
+      # filenames so eager-loading picks them up automatically.
+      def copy_javascript_controllers
+        return if options[:skip_javascript]
+        return unless stimulus_controllers_dir
+
+        copy_file "javascript/stack_controller.js",
+          "#{stimulus_controllers_dir}/turbo_overlay_stack_controller.js"
+
+        copy_file "javascript/#{@theme}_overlay_controller.js",
+          "#{stimulus_controllers_dir}/turbo_overlay_controller.js"
       end
 
       # If `controllers/index.js` uses Stimulus' eager-load convention,
-      # nothing to do (filenames map to identifiers automatically).
-      # Otherwise, append the import + register lines for whichever
-      # controllers we just installed.
+      # nothing to do. Otherwise, append the import + register lines.
       def register_stimulus_controllers
         return if options[:skip_javascript]
 
@@ -112,15 +110,13 @@ module TurboOverlay
         end
 
         lines = []
-        if @install_modal && !contents.include?("turbo_modal_controller")
-          identifier = TurboOverlay.configuration.modal.stimulus_identifier
-          lines << %(import TurboModalController from "./turbo_modal_controller")
-          lines << %(application.register("#{identifier}", TurboModalController))
+        unless contents.include?("turbo_overlay_stack_controller")
+          lines << %(import TurboOverlayStackController from "./turbo_overlay_stack_controller")
+          lines << %(application.register("turbo-overlay-stack", TurboOverlayStackController))
         end
-        if @install_drawer && !contents.include?("turbo_drawer_controller")
-          identifier = TurboOverlay.configuration.drawer.stimulus_identifier
-          lines << %(import TurboDrawerController from "./turbo_drawer_controller")
-          lines << %(application.register("#{identifier}", TurboDrawerController))
+        unless contents.include?("turbo_overlay_controller")
+          lines << %(import TurboOverlayController from "./turbo_overlay_controller")
+          lines << %(application.register("turbo-overlay", TurboOverlayController))
         end
 
         if lines.any?
@@ -130,11 +126,11 @@ module TurboOverlay
         end
       end
 
-      # Inject `<%= overlay_frame_tags %>` once. The helper emits
-      # frames for whichever overlay types are configured, so the
-      # layout doesn't need editing when a future overlay type is
-      # added.
-      def inject_overlay_frame_tags
+      # Inject `<%= overlay_stack_tag %>` once. Older installs may
+      # have `<%= overlay_frame_tags %>` — in that case we leave it
+      # alone (the helper still works as a deprecated alias) and ask
+      # the user to swap it during upgrade.
+      def inject_overlay_stack_tag
         return if options[:skip_layout_inject]
 
         candidates = %w[
@@ -145,18 +141,12 @@ module TurboOverlay
         layout_path = candidates.find { |p| File.exist?(File.join(destination_root, p)) }
 
         unless layout_path
-          say_status :skip, "no application layout found; add `<%= overlay_frame_tags %>` manually", :yellow
+          say_status :skip, "no application layout found; add `<%= overlay_stack_tag %>` manually", :yellow
           return
         end
 
         contents = File.read(File.join(destination_root, layout_path))
-        modal_id  = TurboOverlay.configuration.modal.frame_id
-        drawer_id = TurboOverlay.configuration.drawer.frame_id
-        if contents.include?("overlay_frame_tags") ||
-           contents.include?(%(turbo_frame_tag "#{modal_id}")) ||
-           contents.include?(%(turbo_frame_tag "#{drawer_id}")) ||
-           contents.include?(%(turbo-frame id="#{modal_id}")) ||
-           contents.include?(%(turbo-frame id="#{drawer_id}"))
+        if contents.include?("overlay_stack_tag") || contents.include?("overlay_frame_tags")
           say_status :identical, layout_path, :blue
           return
         end
@@ -164,11 +154,11 @@ module TurboOverlay
         case File.extname(layout_path)
         when ".erb"
           inject_into_file layout_path, before: %r{</body>} do
-            "    <%= overlay_frame_tags %>\n  "
+            "    <%= overlay_stack_tag %>\n  "
           end
         when ".haml", ".slim"
           ext = File.extname(layout_path)[1..]
-          say_status :skip, "#{layout_path} (#{ext} — add `= overlay_frame_tags` manually)", :yellow
+          say_status :skip, "#{layout_path} (#{ext} — add `= overlay_stack_tag` manually)", :yellow
         end
       end
 
@@ -224,6 +214,12 @@ module TurboOverlay
           Then open links:
 
           #{link_examples.map { |l| "    #{l}" }.join("\n")}
+
+          Overlays stack — opening one from inside another slides it on top
+          rather than replacing. Close from server code with:
+
+            turbo_stream.overlay(:close)              # close the top
+            turbo_stream.overlay(:close, scope: :all) # close everything
 
         MSG
       end

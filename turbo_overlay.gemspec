@@ -6,14 +6,14 @@ Gem::Specification.new do |spec|
   spec.authors     = ["Joel Schneider"]
   spec.email       = ["joel.schneider@webascender.com"]
 
-  spec.summary     = "Render any Rails view inside a modal or drawer using Turbo Frames."
+  spec.summary     = "Render any Rails view inside a stackable modal or drawer using Turbo Streams."
   spec.description = <<~DESC
-    Turbo Overlay turns any controller action into a modal-friendly endpoint.
-    A single Turbo Frame on the host page captures overlay-bound links;
-    the gem detects those requests, swaps in an overlay layout, exposes a
-    request variant for view-level customization, and ships a custom
-    turbo-stream action plus Stimulus controller for closing the overlay
-    on success. Themes for Tailwind, Bootstrap 5, Bootstrap 3, and plain
+    Turbo Overlay turns any controller action into a modal- or drawer-friendly
+    endpoint. A single stack container on the host page receives streamed
+    overlays; the gem detects overlay requests, swaps in an overlay layout,
+    exposes a request variant for view-level customization, and ships a custom
+    turbo-stream action plus Stimulus controllers for opening, stacking, and
+    closing overlays. Themes for Tailwind, Bootstrap 5, Bootstrap 3, and plain
     CSS are installable via generator.
   DESC
   spec.homepage    = "https://github.com/jmschneider/turbo_overlay"
@@ -34,7 +34,7 @@ Gem::Specification.new do |spec|
   ].select { |f| File.file?(f) }
 
   spec.add_dependency "rails", ">= 6.1"
-  spec.add_dependency "turbo-rails", ">= 1.0"
+  spec.add_dependency "turbo-rails", ">= 2.0"
 
   spec.add_development_dependency "minitest", ">= 5.0"
   spec.add_development_dependency "rake", ">= 13.0"
