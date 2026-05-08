@@ -1,32 +1,32 @@
-<%%= overlay_response_wrapper(:modal) do %>
+<%= overlay_response_wrapper(:modal) do %>
   <dialog class="turbo-overlay turbo-overlay--modal fixed inset-0 m-auto w-full max-w-lg rounded-lg p-0 backdrop:bg-black/50 backdrop:backdrop-blur-sm"
           data-controller="turbo-overlay"
-          data-turbo-overlay-id-value="<%%= current_overlay_id %>"
+          data-turbo-overlay-id-value="<%= current_overlay_id %>"
           data-turbo-overlay-type-value="modal"
           data-action="cancel->turbo-overlay#cancel"
-          aria-labelledby="turbo-modal-title-<%%= current_overlay_id %>">
+          aria-labelledby="turbo-modal-title-<%= current_overlay_id %>">
     <div class="flex flex-col bg-white rounded-lg shadow-xl">
-      <%% if content_for?(:overlay_title) %>
+      <% if content_for?(:overlay_title) %>
         <header class="flex items-center justify-between px-5 py-4 border-b border-gray-200">
-          <h2 id="turbo-modal-title-<%%= current_overlay_id %>" class="text-lg font-semibold text-gray-900">
-            <%%= yield(:overlay_title) %>
+          <h2 id="turbo-modal-title-<%= current_overlay_id %>" class="text-lg font-semibold text-gray-900">
+            <%= yield(:overlay_title) %>
           </h2>
           <button type="button"
                   class="text-gray-400 hover:text-gray-600 text-2xl leading-none"
                   data-action="turbo-overlay#close"
                   aria-label="Close">&times;</button>
         </header>
-      <%% end %>
+      <% end %>
 
       <div class="px-5 py-4">
-        <%%= yield %>
+        <%= yield %>
       </div>
 
-      <%% if content_for?(:overlay_footer) %>
+      <% if content_for?(:overlay_footer) %>
         <footer class="flex items-center justify-end gap-2 px-5 py-4 border-t border-gray-200">
-          <%%= yield(:overlay_footer) %>
+          <%= yield(:overlay_footer) %>
         </footer>
-      <%% end %>
+      <% end %>
     </div>
   </dialog>
-<%% end %>
+<% end %>

@@ -1,32 +1,32 @@
-<%%= overlay_response_wrapper(:modal) do %>
+<%= overlay_response_wrapper(:modal) do %>
   <dialog class="turbo-overlay turbo-overlay--modal turbo-modal"
           data-controller="turbo-overlay"
-          data-turbo-overlay-id-value="<%%= current_overlay_id %>"
+          data-turbo-overlay-id-value="<%= current_overlay_id %>"
           data-turbo-overlay-type-value="modal"
           data-action="cancel->turbo-overlay#cancel"
-          aria-labelledby="turbo-modal-title-<%%= current_overlay_id %>">
+          aria-labelledby="turbo-modal-title-<%= current_overlay_id %>">
     <div class="turbo-modal__content">
-      <%% if content_for?(:overlay_title) %>
+      <% if content_for?(:overlay_title) %>
         <header class="turbo-modal__header">
-          <h2 id="turbo-modal-title-<%%= current_overlay_id %>" class="turbo-modal__title">
-            <%%= yield(:overlay_title) %>
+          <h2 id="turbo-modal-title-<%= current_overlay_id %>" class="turbo-modal__title">
+            <%= yield(:overlay_title) %>
           </h2>
           <button type="button"
                   class="turbo-modal__close"
                   data-action="turbo-overlay#close"
                   aria-label="Close">&times;</button>
         </header>
-      <%% end %>
+      <% end %>
 
       <div class="turbo-modal__body">
-        <%%= yield %>
+        <%= yield %>
       </div>
 
-      <%% if content_for?(:overlay_footer) %>
+      <% if content_for?(:overlay_footer) %>
         <footer class="turbo-modal__footer">
-          <%%= yield(:overlay_footer) %>
+          <%= yield(:overlay_footer) %>
         </footer>
-      <%% end %>
+      <% end %>
     </div>
   </dialog>
-<%% end %>
+<% end %>
