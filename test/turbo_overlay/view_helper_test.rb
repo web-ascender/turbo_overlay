@@ -127,6 +127,31 @@ class ViewHelperTest < Minitest::Test
     refute html_options[:data].key?(:turbo_overlay_id)
   end
 
+  def test_modal_link_to_targets_top_to_escape_parent_frame
+    view = FakeView.new
+    view.modal_link_to("Open", "/things/1")
+
+    _, _, html_options = view.link_to_args
+    assert_equal "_top", html_options[:data][:turbo_frame]
+  end
+
+  def test_modal_link_to_respects_explicit_turbo_frame_data
+    view = FakeView.new
+    view.modal_link_to("Open", "/things/1", data: { turbo_frame: "sidebar" })
+
+    _, _, html_options = view.link_to_args
+    assert_equal "sidebar", html_options[:data][:turbo_frame]
+  end
+
+  def test_modal_link_to_respects_explicit_data_turbo_frame_attribute
+    view = FakeView.new
+    view.modal_link_to("Open", "/things/1", "data-turbo-frame" => "sidebar")
+
+    _, _, html_options = view.link_to_args
+    refute html_options[:data].key?(:turbo_frame)
+    assert_equal "sidebar", html_options["data-turbo-frame"]
+  end
+
   # ---- modal_dismiss_link_to ----
 
   def test_modal_dismiss_link_to_inside_modal_adds_dismiss_action

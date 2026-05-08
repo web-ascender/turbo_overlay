@@ -190,6 +190,10 @@ module TurboOverlay
         data[:turbo_stream] = true unless data.key?(:turbo_stream) || html_options.key?("data-turbo-stream")
         data[:turbo_overlay] = type.to_s unless data.key?(:turbo_overlay) || html_options.key?("data-turbo-overlay")
         data[:turbo_overlay_id] = overlay_id.to_s if overlay_id && !data.key?(:turbo_overlay_id) && !html_options.key?("data-turbo-overlay-id")
+        # Break out of any enclosing per-overlay turbo-frame so a click
+        # on a modal/drawer link from inside an open overlay opens a
+        # new (stacked) overlay instead of replacing the current one.
+        data[:turbo_frame] = "_top" unless data.key?(:turbo_frame) || html_options.key?("data-turbo-frame")
         html_options[:data] = data unless data.empty?
 
         [options, html_options]
