@@ -1,0 +1,60 @@
+<%= turbo_frame_tag TurboOverlay.configuration.drawer.frame_id do %>
+  <dialog class="turbo-drawer turbo-drawer--<%= TurboOverlay.configuration.drawer.position %>"
+          data-controller="turbo-drawer"
+          data-action="cancel->turbo-drawer#cancel turbo-overlay:close@window->turbo-drawer#close"
+          aria-labelledby="turbo-drawer-title">
+    <div class="turbo-drawer__content">
+      <% if content_for?(:overlay_title) %>
+        <header class="turbo-drawer__header">
+          <h2 id="turbo-drawer-title" class="turbo-drawer__title">
+            <%= yield(:overlay_title) %>
+          </h2>
+          <button type="button"
+                  class="turbo-drawer__close"
+                  data-action="turbo-drawer#close"
+                  aria-label="Close">&times;</button>
+        </header>
+      <% end %>
+
+      <div class="turbo-drawer__body">
+        <%= yield %>
+      </div>
+
+      <% if content_for?(:overlay_footer) %>
+        <footer class="turbo-drawer__footer">
+          <%= yield(:overlay_footer) %>
+        </footer>
+      <% end %>
+    </div>
+  </dialog>
+<% end %>
+
+<style>
+  dialog.turbo-drawer {
+    border: 0; padding: 0; margin: 0;
+    background: white;
+    box-shadow: 0 0 30px rgba(0, 0, 0, 0.15);
+    max-width: 100vw; max-height: 100vh;
+  }
+  dialog.turbo-drawer::backdrop { background: rgba(0, 0, 0, 0.5); }
+  dialog.turbo-drawer--right  { inset: 0 0 0 auto; height: 100vh; width: 24rem; }
+  dialog.turbo-drawer--left   { inset: 0 auto 0 0; height: 100vh; width: 24rem; }
+  dialog.turbo-drawer--top    { inset: 0 0 auto 0; width: 100vw; max-height: 50vh; }
+  dialog.turbo-drawer--bottom { inset: auto 0 0 0; width: 100vw; max-height: 50vh; }
+
+  .turbo-drawer__content { display: flex; flex-direction: column; height: 100%; }
+  .turbo-drawer__header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 1rem 1.25rem; border-bottom: 1px solid #e5e7eb;
+  }
+  .turbo-drawer__title { margin: 0; font-size: 1.125rem; font-weight: 600; }
+  .turbo-drawer__close {
+    background: none; border: 0; font-size: 1.5rem; cursor: pointer; line-height: 1;
+  }
+  .turbo-drawer__body { padding: 1.25rem; flex: 1; overflow-y: auto; }
+  .turbo-drawer__footer {
+    padding: 1rem 1.25rem; border-top: 1px solid #e5e7eb;
+    display: flex; justify-content: flex-end; gap: 0.5rem;
+  }
+  html:has(dialog.turbo-drawer[open]) { overflow: hidden; }
+</style>

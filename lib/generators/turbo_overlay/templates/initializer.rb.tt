@@ -15,5 +15,13 @@ TurboOverlay.configure do |config|
     # m.stimulus_identifier = "turbo-modal"
   end
 
-  # v0.2 will add `config.drawer do |d| ... end` for drawer overlays.
+  config.drawer do |d|
+    # Same as modal, plus a position for the shipped layouts:
+    # :left, :right (default), :top, :bottom.
+    # d.frame_id = "turbo_drawer"
+    # d.variant  = :drawer
+    # d.layout_name = "turbo_drawer"
+    # d.stimulus_identifier = "turbo-drawer"
+    # d.position = :right
+  end
 end

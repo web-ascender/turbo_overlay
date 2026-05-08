@@ -2,30 +2,63 @@ require "rails/generators/base"
 
 module TurboOverlay
   module Generators
+    # Single install generator for modal + drawer.
+    #
+    #   bin/rails g turbo_overlay:install --theme tailwind
+    #   bin/rails g turbo_overlay:install --theme tailwind --skip-drawer
+    #   bin/rails g turbo_overlay:install --theme bootstrap3   # modal only (BS3 has no drawer)
+    #
+    # Re-running is idempotent: existing files and already-injected
+    # frame tags / Stimulus registrations are detected and skipped.
     class InstallGenerator < ::Rails::Generators::Base
       source_root File.expand_path("templates", __dir__)
 
-      THEMES = %w[tailwind bootstrap5 bootstrap3 plain].freeze
+      MODAL_THEMES  = %w[tailwind bootstrap5 bootstrap3 plain].freeze
+      DRAWER_THEMES = %w[tailwind bootstrap5 plain].freeze
 
       class_option :theme,
         type: :string,
         default: nil,
-        desc: "Theme to install: #{THEMES.join(", ")}"
+        desc: "Theme to install. Modal: #{MODAL_THEMES.join(", ")}. Drawer: #{DRAWER_THEMES.join(", ")}."
+
+      class_option :skip_modal,
+        type: :boolean,
+        default: false,
+        desc: "Skip modal install"
+
+      class_option :skip_drawer,
+        type: :boolean,
+        default: false,
+        desc: "Skip drawer install"
 
       class_option :skip_javascript,
         type: :boolean,
         default: false,
-        desc: "Skip copying the Stimulus controller"
+        desc: "Skip copying Stimulus controllers"
 
       class_option :skip_layout_inject,
         type: :boolean,
         default: false,
-        desc: "Skip auto-inserting <turbo-frame> into application.html.erb"
+        desc: "Skip injecting <%= overlay_frame_tags %> into application.html.erb"
 
-      def choose_theme
+      def validate_selection
+        if options[:skip_modal] && options[:skip_drawer]
+          raise Thor::Error, "Nothing to install — both --skip-modal and --skip-drawer were given."
+        end
+
         @theme = options[:theme] || ask_theme
-        unless THEMES.include?(@theme)
-          raise Thor::Error, "Unknown theme: #{@theme}. Choose one of: #{THEMES.join(", ")}"
+
+        # If the chosen theme has no drawer (e.g. bootstrap3), auto-skip
+        # drawer with a friendly note rather than erroring.
+        @install_modal  = !options[:skip_modal]
+        @install_drawer = !options[:skip_drawer] && DRAWER_THEMES.include?(@theme)
+
+        if !options[:skip_drawer] && !DRAWER_THEMES.include?(@theme)
+          say_status :skip, "drawer not available for theme '#{@theme}' (no native drawer primitive)", :yellow
+        end
+
+        if @install_modal && !MODAL_THEMES.include?(@theme)
+          raise Thor::Error, "Modal theme '#{@theme}' not recognized. Choose from: #{MODAL_THEMES.join(", ")}."
         end
       end
 
@@ -33,28 +66,39 @@ module TurboOverlay
         template "initializer.rb.tt", "config/initializers/turbo_overlay.rb"
       end
 
-      def copy_layout
-        copy_file "layouts/#{@theme}.html.erb", "app/views/layouts/turbo_modal.html.erb"
-      end
+      def copy_modal_files
+        return unless @install_modal
 
-      def copy_stimulus_controller
-        return if options[:skip_javascript]
+        copy_file "layouts/#{@theme}.html.erb",
+          "app/views/layouts/turbo_modal.html.erb"
 
-        controllers_path = "app/javascript/controllers"
-        unless File.directory?(File.join(destination_root, controllers_path))
-          say_status :skip, "#{controllers_path} not found; skipping JS controller", :yellow
-          return
+        unless options[:skip_javascript]
+          if stimulus_controllers_dir
+            copy_file "javascript/#{@theme}_controller.js",
+              "#{stimulus_controllers_dir}/turbo_modal_controller.js"
+          end
         end
-
-        copy_file "javascript/#{@theme}_controller.js",
-          "#{controllers_path}/turbo_modal_controller.js"
       end
 
-      # If the host's controllers/index.js uses Stimulus' eager-load
-      # convention, our `turbo_modal_controller.js` is auto-registered
-      # as `turbo-modal` — nothing more to do. Otherwise, inject the
-      # explicit import + register lines.
-      def register_stimulus_controller
+      def copy_drawer_files
+        return unless @install_drawer
+
+        copy_file "drawer_layouts/#{@theme}.html.erb",
+          "app/views/layouts/turbo_drawer.html.erb"
+
+        unless options[:skip_javascript]
+          if stimulus_controllers_dir
+            copy_file "drawer_javascript/#{@theme}_controller.js",
+              "#{stimulus_controllers_dir}/turbo_drawer_controller.js"
+          end
+        end
+      end
+
+      # If `controllers/index.js` uses Stimulus' eager-load convention,
+      # nothing to do (filenames map to identifiers automatically).
+      # Otherwise, append the import + register lines for whichever
+      # controllers we just installed.
+      def register_stimulus_controllers
         return if options[:skip_javascript]
 
         index_path = "app/javascript/controllers/index.js"
@@ -67,24 +111,30 @@ module TurboOverlay
           return
         end
 
-        if contents.include?("turbo_modal_controller")
-          say_status :identical, index_path, :blue
-          return
+        lines = []
+        if @install_modal && !contents.include?("turbo_modal_controller")
+          identifier = TurboOverlay.configuration.modal.stimulus_identifier
+          lines << %(import TurboModalController from "./turbo_modal_controller")
+          lines << %(application.register("#{identifier}", TurboModalController))
+        end
+        if @install_drawer && !contents.include?("turbo_drawer_controller")
+          identifier = TurboOverlay.configuration.drawer.stimulus_identifier
+          lines << %(import TurboDrawerController from "./turbo_drawer_controller")
+          lines << %(application.register("#{identifier}", TurboDrawerController))
         end
 
-        identifier = TurboOverlay.configuration.modal.stimulus_identifier
-        append_to_file index_path do
-          <<~JS
-
-            import TurboModalController from "./turbo_modal_controller"
-            application.register("#{identifier}", TurboModalController)
-          JS
+        if lines.any?
+          append_to_file index_path, "\n" + lines.join("\n") + "\n"
+        else
+          say_status :identical, index_path, :blue
         end
       end
 
-      # Inject the modal turbo-frame into application.html.erb just
-      # before </body>. Skipped if already present.
-      def inject_turbo_frame_into_layout
+      # Inject `<%= overlay_frame_tags %>` once. The helper emits
+      # frames for whichever overlay types are configured, so the
+      # layout doesn't need editing when a future overlay type is
+      # added.
+      def inject_overlay_frame_tags
         return if options[:skip_layout_inject]
 
         candidates = %w[
@@ -95,15 +145,18 @@ module TurboOverlay
         layout_path = candidates.find { |p| File.exist?(File.join(destination_root, p)) }
 
         unless layout_path
-          say_status :skip, "no application layout found; add the frame manually", :yellow
+          say_status :skip, "no application layout found; add `<%= overlay_frame_tags %>` manually", :yellow
           return
         end
 
-        frame_id = TurboOverlay.configuration.modal.frame_id
         contents = File.read(File.join(destination_root, layout_path))
-        if contents.include?(%(turbo_frame_tag "#{frame_id}")) ||
-           contents.include?(%(turbo_frame_tag :"#{frame_id}")) ||
-           contents.include?(%(turbo-frame id="#{frame_id}"))
+        modal_id  = TurboOverlay.configuration.modal.frame_id
+        drawer_id = TurboOverlay.configuration.drawer.frame_id
+        if contents.include?("overlay_frame_tags") ||
+           contents.include?(%(turbo_frame_tag "#{modal_id}")) ||
+           contents.include?(%(turbo_frame_tag "#{drawer_id}")) ||
+           contents.include?(%(turbo-frame id="#{modal_id}")) ||
+           contents.include?(%(turbo-frame id="#{drawer_id}"))
           say_status :identical, layout_path, :blue
           return
         end
@@ -111,23 +164,53 @@ module TurboOverlay
         case File.extname(layout_path)
         when ".erb"
           inject_into_file layout_path, before: %r{</body>} do
-            %(    <%= turbo_frame_tag "#{frame_id}" %>\n  )
+            "    <%= overlay_frame_tags %>\n  "
           end
-        when ".haml"
-          say_status :skip, "#{layout_path} (haml — add `= turbo_frame_tag \"#{frame_id}\"` manually)", :yellow
-        when ".slim"
-          say_status :skip, "#{layout_path} (slim — add `= turbo_frame_tag \"#{frame_id}\"` manually)", :yellow
+        when ".haml", ".slim"
+          ext = File.extname(layout_path)[1..]
+          say_status :skip, "#{layout_path} (#{ext} — add `= overlay_frame_tags` manually)", :yellow
         end
       end
 
       def show_post_install_message
+        installed = []
+        installed << "modal"  if @install_modal
+        installed << "drawer" if @install_drawer
+
+        layout_resolver =
+          if @install_modal && @install_drawer
+            <<~RUBY.indent(6)
+              def resolve_layout
+                return modal_layout_name  if modal_request?
+                return drawer_layout_name if drawer_request?
+                "application"
+              end
+            RUBY
+          elsif @install_modal
+            <<~RUBY.indent(6)
+              def resolve_layout
+                modal_request? ? modal_layout_name : "application"
+              end
+            RUBY
+          else
+            <<~RUBY.indent(6)
+              def resolve_layout
+                drawer_request? ? drawer_layout_name : "application"
+              end
+            RUBY
+          end
+
+        link_examples = []
+        link_examples << '<%= modal_link_to  "New",     new_thing_path %>'  if @install_modal
+        link_examples << '<%= drawer_link_to "Filters", filters_path %>'    if @install_drawer
+
         say <<~MSG, :green
 
-          Turbo Overlay installed with the #{@theme} theme.
+          Turbo Overlay installed (#{installed.join(" + ")}) with the #{@theme} theme.
 
           One thing left to wire up — include the controller concern in
-          ApplicationController and swap to the modal layout for modal
-          requests:
+          ApplicationController and swap to the matching layout per
+          request:
 
             class ApplicationController < ActionController::Base
               include TurboOverlay::Controller
@@ -135,14 +218,12 @@ module TurboOverlay
 
               private
 
-              def resolve_layout
-                modal_request? ? modal_layout_name : "application"
-              end
+          #{layout_resolver.chomp}
             end
 
-          Then open links in the modal:
+          Then open links:
 
-            <%= modal_link_to "New", new_thing_path %>
+          #{link_examples.map { |l| "    #{l}" }.join("\n")}
 
         MSG
       end
@@ -150,8 +231,15 @@ module TurboOverlay
       private
 
       def ask_theme
-        say "Available themes: #{THEMES.join(", ")}"
-        ask("Which theme would you like to install?", default: "tailwind", limited_to: THEMES)
+        say "Available themes: #{MODAL_THEMES.join(", ")} (drawer drops bootstrap3)"
+        ask("Which theme would you like to install?", default: "tailwind", limited_to: MODAL_THEMES)
+      end
+
+      def stimulus_controllers_dir
+        path = "app/javascript/controllers"
+        return path if File.directory?(File.join(destination_root, path))
+        say_status :skip, "#{path} not found; skipping JS controllers", :yellow
+        nil
       end
     end
   end
