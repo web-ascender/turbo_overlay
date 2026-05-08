@@ -1,0 +1,54 @@
+<%= turbo_frame_tag TurboOverlay.configuration.modal.frame_id do %>
+  <dialog class="turbo-modal"
+          data-controller="turbo-modal"
+          data-action="cancel->turbo-modal#cancel turbo-overlay:close@window->turbo-modal#close"
+          aria-labelledby="turbo-modal-title">
+    <div class="turbo-modal__content">
+      <% if content_for?(:overlay_title) %>
+        <header class="turbo-modal__header">
+          <h2 id="turbo-modal-title" class="turbo-modal__title">
+            <%= yield(:overlay_title) %>
+          </h2>
+          <button type="button"
+                  class="turbo-modal__close"
+                  data-action="turbo-modal#close"
+                  aria-label="Close">&times;</button>
+        </header>
+      <% end %>
+
+      <div class="turbo-modal__body">
+        <%= yield %>
+      </div>
+
+      <% if content_for?(:overlay_footer) %>
+        <footer class="turbo-modal__footer">
+          <%= yield(:overlay_footer) %>
+        </footer>
+      <% end %>
+    </div>
+  </dialog>
+<% end %>
+
+<style>
+  dialog.turbo-modal {
+    border: 0; padding: 0; border-radius: 8px;
+    max-width: 32rem; width: 90vw;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.25);
+  }
+  dialog.turbo-modal::backdrop { background: rgba(0, 0, 0, 0.5); }
+  .turbo-modal__content { display: flex; flex-direction: column; }
+  .turbo-modal__header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 1rem 1.25rem; border-bottom: 1px solid #e5e7eb;
+  }
+  .turbo-modal__title { margin: 0; font-size: 1.125rem; font-weight: 600; }
+  .turbo-modal__close {
+    background: none; border: 0; font-size: 1.5rem; cursor: pointer; line-height: 1;
+  }
+  .turbo-modal__body { padding: 1.25rem; }
+  .turbo-modal__footer {
+    padding: 1rem 1.25rem; border-top: 1px solid #e5e7eb;
+    display: flex; justify-content: flex-end; gap: 0.5rem;
+  }
+  html:has(dialog.turbo-modal[open]) { overflow: hidden; }
+</style>
