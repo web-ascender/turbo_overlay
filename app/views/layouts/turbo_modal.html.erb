@@ -1,5 +1,5 @@
 <%= overlay_response_wrapper(:modal) do %>
-  <dialog class="turbo-modal"
+  <dialog class="turbo-overlay turbo-overlay--modal turbo-modal"
           data-controller="turbo-overlay"
           data-turbo-overlay-id-value="<%= current_overlay_id %>"
           data-turbo-overlay-type-value="modal"
@@ -52,5 +52,23 @@
     padding: 1rem 1.25rem; border-top: 1px solid #e5e7eb;
     display: flex; justify-content: flex-end; gap: 0.5rem;
   }
+
+  dialog.turbo-modal[open]              { animation: turbo-overlay-fade-in 0.15s ease-out; }
+  dialog.turbo-modal[open]::backdrop    { animation: turbo-overlay-backdrop-in 0.15s ease-out; }
+  dialog.turbo-modal.turbo-overlay-closing             { animation: turbo-overlay-fade-out 0.15s ease-out forwards; }
+  dialog.turbo-modal.turbo-overlay-closing::backdrop   { animation: turbo-overlay-backdrop-out 0.15s ease-out forwards; }
+
+  @keyframes turbo-overlay-fade-in     { from { opacity: 0; transform: scale(0.97); } to { opacity: 1; transform: scale(1); } }
+  @keyframes turbo-overlay-fade-out    { from { opacity: 1; transform: scale(1); }    to { opacity: 0; transform: scale(0.97); } }
+  @keyframes turbo-overlay-backdrop-in  { from { background: rgba(0,0,0,0); } to { background: rgba(0,0,0,0.5); } }
+  @keyframes turbo-overlay-backdrop-out { from { background: rgba(0,0,0,0.5); } to { background: rgba(0,0,0,0); } }
+
+  @media (prefers-reduced-motion: reduce) {
+    dialog.turbo-modal[open],
+    dialog.turbo-modal[open]::backdrop,
+    dialog.turbo-modal.turbo-overlay-closing,
+    dialog.turbo-modal.turbo-overlay-closing::backdrop { animation: none; }
+  }
+
   html:has(dialog.turbo-modal[open]) { overflow: hidden; }
 </style>

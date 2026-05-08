@@ -1,11 +1,10 @@
 <%%= overlay_response_wrapper(:modal) do %>
-  <div class="modal"
-       tabindex="-1"
-       role="dialog"
-       data-controller="turbo-overlay"
-       data-turbo-overlay-id-value="<%%= current_overlay_id %>"
-       data-turbo-overlay-type-value="modal"
-       aria-labelledby="turbo-modal-title-<%%= current_overlay_id %>">
+  <dialog class="turbo-overlay turbo-overlay--modal"
+          data-controller="turbo-overlay"
+          data-turbo-overlay-id-value="<%%= current_overlay_id %>"
+          data-turbo-overlay-type-value="modal"
+          data-action="cancel->turbo-overlay#cancel"
+          aria-labelledby="turbo-modal-title-<%%= current_overlay_id %>">
     <div class="modal-dialog modal-lg" role="document">
       <div class="modal-content">
         <%% if content_for?(:overlay_title) %>
@@ -31,5 +30,34 @@
         <%% end %>
       </div>
     </div>
-  </div>
+  </dialog>
 <%% end %>
+
+<style>
+  /* Native <dialog> wrapper — Bootstrap 3 modal markup lives inside. */
+  dialog.turbo-overlay--modal {
+    border: 0; padding: 0; margin: 0; background: transparent;
+    width: 100%; height: 100%; max-width: none; max-height: none;
+    overflow-y: auto;
+  }
+  dialog.turbo-overlay--modal::backdrop { background: rgba(0, 0, 0, 0.5); }
+
+  dialog.turbo-overlay--modal[open]              { animation: turbo-overlay-fade-in 0.15s ease-out; }
+  dialog.turbo-overlay--modal[open]::backdrop    { animation: turbo-overlay-backdrop-in 0.15s ease-out; }
+  dialog.turbo-overlay--modal.turbo-overlay-closing             { animation: turbo-overlay-fade-out 0.15s ease-out forwards; }
+  dialog.turbo-overlay--modal.turbo-overlay-closing::backdrop   { animation: turbo-overlay-backdrop-out 0.15s ease-out forwards; }
+
+  @keyframes turbo-overlay-fade-in     { from { opacity: 0; transform: scale(0.97); } to { opacity: 1; transform: scale(1); } }
+  @keyframes turbo-overlay-fade-out    { from { opacity: 1; transform: scale(1); }    to { opacity: 0; transform: scale(0.97); } }
+  @keyframes turbo-overlay-backdrop-in  { from { background: rgba(0,0,0,0); } to { background: rgba(0,0,0,0.5); } }
+  @keyframes turbo-overlay-backdrop-out { from { background: rgba(0,0,0,0.5); } to { background: rgba(0,0,0,0); } }
+
+  @media (prefers-reduced-motion: reduce) {
+    dialog.turbo-overlay--modal[open],
+    dialog.turbo-overlay--modal[open]::backdrop,
+    dialog.turbo-overlay--modal.turbo-overlay-closing,
+    dialog.turbo-overlay--modal.turbo-overlay-closing::backdrop { animation: none; }
+  }
+
+  html:has(dialog.turbo-overlay[open]) { overflow: hidden; }
+</style>

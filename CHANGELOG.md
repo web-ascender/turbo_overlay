@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+- **All themes now use a single native `<dialog>` JS controller.** Bootstrap themes keep their visual classes (`.modal-dialog`, `.modal-content`, `.offcanvas-*`, etc.) but no longer require `window.bootstrap` or jQuery — the `<dialog>` element drives open/close, stacking, and focus management. Drops the per-theme overlay controller files; one shared `overlay_controller.js` ships for everyone.
+- **Animations on by default.** Modals fade/scale-in on open, fade/scale-out on close. Drawers slide in/out from their configured edge. Backdrops fade in/out. All animations honor `prefers-reduced-motion: reduce`.
+- The Stimulus close path now adds a `turbo-overlay-closing` class, awaits `animationend` (with a 400ms safety timeout), then removes the dialog's turbo-frame.
+
+### Added
+- **Bootstrap 3 drawer support.** Previously skipped because BS3 has no native offcanvas primitive — now provided as a vanilla dialog styled with BS3 panel classes.
+
+### Removed
+- `window.bootstrap` and jQuery requirements for the bootstrap5 / bootstrap3 themes.
+- Per-theme overlay controllers (`{theme}_overlay_controller.js`).
+
 ## 0.3.0
 
 **Stacking support.** Overlays now stack: open a modal/drawer from inside another and the new one slides on top instead of replacing. Dismissing affects only the topmost overlay; the layer beneath is revealed. This is a breaking internal change — public helper *signatures* are preserved but the underlying transport, layouts, and Stimulus controllers were rewritten.

@@ -56,8 +56,8 @@ The generator:
   `app/views/layouts/turbo_modal.html.erb`,
   `app/views/layouts/turbo_drawer.html.erb`).
 - Copies two Stimulus controllers — `turbo_overlay_stack_controller.js`
-  (the host-page stack registry) and `turbo_overlay_controller.js` (the
-  per-overlay controller, theme-specific). Auto-registered as
+  (the host-page stack registry) and `turbo_overlay_controller.js`
+  (the per-overlay controller, theme-agnostic). Auto-registered as
   `turbo-overlay-stack` and `turbo-overlay` by stimulus-loading's
   eager-load convention; if your app doesn't use it, the generator
   injects explicit `application.register` calls.
@@ -258,12 +258,19 @@ Available on controllers (when the concern is included) and views:
 
 ## Themes
 
-| Theme        | Modal | Drawer | Notes                                                |
-|--------------|:-----:|:------:|------------------------------------------------------|
-| `tailwind`   | ✓     | ✓      | Native `<dialog>`, Tailwind classes, no JS framework |
-| `bootstrap5` | ✓     | ✓      | BS5 modal / offcanvas, requires `window.bootstrap`   |
-| `bootstrap3` | ✓     | —      | BS3 modal, requires jQuery (no native drawer)        |
-| `plain`      | ✓     | ✓      | Native `<dialog>`, minimal vanilla CSS               |
+| Theme        | Modal | Drawer | Notes                                                       |
+|--------------|:-----:|:------:|-------------------------------------------------------------|
+| `tailwind`   | ✓     | ✓      | Native `<dialog>`, Tailwind classes                         |
+| `bootstrap5` | ✓     | ✓      | Native `<dialog>` wrapping BS5 modal/offcanvas markup       |
+| `bootstrap3` | ✓     | ✓      | Native `<dialog>` wrapping BS3 modal markup; vanilla drawer |
+| `plain`      | ✓     | ✓      | Native `<dialog>`, minimal vanilla CSS                      |
+
+Every theme uses the same JavaScript controller. The Bootstrap themes
+keep BS's visual classes inside the dialog so they fit a Bootstrap
+app, but they don't depend on `window.bootstrap` or jQuery — the
+`<dialog>` element drives open/close, stacking, and focus management.
+Drawers ship with slide-in/out animations; modals fade and scale.
+Animations honor `prefers-reduced-motion: reduce`.
 
 The generators copy the chosen theme's layout and Stimulus controller
 into your app. All copied files are yours — edit, rename, restyle as
@@ -272,11 +279,8 @@ needed.
 If you skip the generators, the gem ships engine-level `plain`
 layouts for both modal and drawer that work out of the box.
 
-**Stacking notes.** Native `<dialog>.showModal()` (used by `plain` and
-`tailwind`) stacks via the browser top layer — no extra work. For
-Bootstrap 5/3 the gem manually bumps z-index per stack depth, which
-covers the common cases (modal-on-modal, drawer-on-modal, etc.); deep
-stacks of mixed primitives may need theme tweaks.
+**Stacking** is handled by the browser's `<dialog>` top-layer for
+every theme — no z-index management required.
 
 ## Architecture
 

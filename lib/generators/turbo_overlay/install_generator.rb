@@ -15,7 +15,7 @@ module TurboOverlay
       source_root File.expand_path("templates", __dir__)
 
       MODAL_THEMES  = %w[tailwind bootstrap5 bootstrap3 plain].freeze
-      DRAWER_THEMES = %w[tailwind bootstrap5 plain].freeze
+      DRAWER_THEMES = %w[tailwind bootstrap5 bootstrap3 plain].freeze
 
       class_option :theme,
         type: :string,
@@ -50,14 +50,10 @@ module TurboOverlay
         @theme = options[:theme] || ask_theme
 
         @install_modal  = !options[:skip_modal]
-        @install_drawer = !options[:skip_drawer] && DRAWER_THEMES.include?(@theme)
+        @install_drawer = !options[:skip_drawer]
 
-        if !options[:skip_drawer] && !DRAWER_THEMES.include?(@theme)
-          say_status :skip, "drawer not available for theme '#{@theme}' (no native drawer primitive)", :yellow
-        end
-
-        if @install_modal && !MODAL_THEMES.include?(@theme)
-          raise Thor::Error, "Modal theme '#{@theme}' not recognized. Choose from: #{MODAL_THEMES.join(", ")}."
+        unless MODAL_THEMES.include?(@theme)
+          raise Thor::Error, "Theme '#{@theme}' not recognized. Choose from: #{MODAL_THEMES.join(", ")}."
         end
       end
 
@@ -79,10 +75,10 @@ module TurboOverlay
           "app/views/layouts/turbo_drawer.html.erb"
       end
 
-      # The stack controller is theme-agnostic; the per-overlay
-      # controller is theme-specific. Both install into the host
-      # app's Stimulus controllers directory under the conventional
-      # filenames so eager-loading picks them up automatically.
+      # Both controllers are theme-agnostic — themes contribute
+      # markup and CSS, not JavaScript. Installs under the
+      # conventional filenames so stimulus-loading's eager-load
+      # convention picks them up automatically.
       def copy_javascript_controllers
         return if options[:skip_javascript]
         return unless stimulus_controllers_dir
@@ -90,7 +86,7 @@ module TurboOverlay
         copy_file "javascript/stack_controller.js",
           "#{stimulus_controllers_dir}/turbo_overlay_stack_controller.js"
 
-        copy_file "javascript/#{@theme}_overlay_controller.js",
+        copy_file "javascript/overlay_controller.js",
           "#{stimulus_controllers_dir}/turbo_overlay_controller.js"
       end
 
@@ -227,7 +223,7 @@ module TurboOverlay
       private
 
       def ask_theme
-        say "Available themes: #{MODAL_THEMES.join(", ")} (drawer drops bootstrap3)"
+        say "Available themes: #{MODAL_THEMES.join(", ")}"
         ask("Which theme would you like to install?", default: "tailwind", limited_to: MODAL_THEMES)
       end
 
