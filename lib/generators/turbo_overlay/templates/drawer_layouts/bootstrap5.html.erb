@@ -10,7 +10,7 @@
           data-controller="turbo-overlay"
           data-turbo-overlay-id-value="<%= current_overlay_id %>"
           data-turbo-overlay-type-value="drawer"
-          data-action="cancel->turbo-overlay#cancel"
+          data-action="cancel->turbo-overlay#cancel click->turbo-overlay#backdropClick"
           aria-labelledby="turbo-drawer-title-<%= current_overlay_id %>">
     <div class="offcanvas <%= offcanvas_class %> show" tabindex="-1">
       <% if content_for?(:overlay_title) %>

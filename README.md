@@ -213,6 +213,20 @@ turbo_stream.overlay(:close, id: "edit_user_42")          # close one specific
 > surprise dismissals when a form inside the overlay should leave it
 > open (wizard step, search, inline edit).
 
+### User-initiated dismissal
+
+Out of the box the user can dismiss the top overlay by pressing
+**ESC** or **clicking the backdrop**. Both go through the same
+animated close path as the close button. To opt a specific overlay
+out of backdrop-click dismissal — e.g. a form with unsaved input —
+set the value to `false` on the `<dialog>`:
+
+```erb
+<dialog ...
+        data-controller="turbo-overlay"
+        data-turbo-overlay-backdrop-dismiss-value="false">
+```
+
 On validation failure, just `render :new, status: :unprocessable_entity`.
 The form lives inside a per-overlay turbo-frame, so Rails re-renders
 the form and Turbo replaces the frame's contents in place — the
