@@ -38,20 +38,23 @@ module TurboOverlay
       dialog.turbo-modal {
         border: 0; padding: 0; border-radius: 8px;
         max-width: 32rem; width: 90vw;
+        max-height: 90vh;
         box-shadow: 0 20px 50px rgba(0, 0, 0, 0.25);
       }
       dialog.turbo-modal::backdrop { background: rgba(0, 0, 0, 0.5); }
-      .turbo-modal__content { display: flex; flex-direction: column; }
+      .turbo-modal__content { display: flex; flex-direction: column; max-height: 90vh; }
       .turbo-modal__header {
         display: flex; align-items: center; justify-content: space-between;
         padding: 1rem 1.25rem; border-bottom: 1px solid #e5e7eb;
+        flex-shrink: 0;
       }
       .turbo-modal__title { margin: 0; font-size: 1.125rem; font-weight: 600; }
       .turbo-modal__close { background: none; border: 0; font-size: 1.5rem; cursor: pointer; line-height: 1; }
-      .turbo-modal__body { padding: 1.25rem; }
+      .turbo-modal__body { padding: 1.25rem; flex: 1; overflow-y: auto; }
       .turbo-modal__footer {
         padding: 1rem 1.25rem; border-top: 1px solid #e5e7eb;
         display: flex; justify-content: flex-end; gap: 0.5rem;
+        flex-shrink: 0;
       }
 
       dialog.turbo-drawer {
