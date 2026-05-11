@@ -14,8 +14,8 @@ ships a turbo-stream action for dismissing whichever overlay is open
 the new overlay slides on top instead of replacing it. Dismissing
 affects only the topmost layer.
 
-Themes for **Tailwind**, **Bootstrap 5**, **Bootstrap 3** (modal only),
-and **plain CSS** are installable via generators.
+Themes for **Tailwind**, **Bootstrap 5**, **Bootstrap 3**, and
+**plain CSS** ship in the gem and switch via a single config option.
 
 ## Requirements
 
@@ -30,48 +30,78 @@ Add to your Gemfile:
 gem "turbo_overlay"
 ```
 
-Then run the install generator. By default it installs both modal and
-drawer; pass `--skip-modal` or `--skip-drawer` if you only want one:
+Then run the install generator:
 
 ```bash
 bundle install
-
-# both modal + drawer (default)
 bin/rails generate turbo_overlay:install --theme tailwind
-
-# modal only
-bin/rails generate turbo_overlay:install --theme tailwind --skip-drawer
-
-# drawer only
-bin/rails generate turbo_overlay:install --theme tailwind --skip-modal
 ```
 
-Themes: `tailwind`, `bootstrap5`, `bootstrap3`, `plain`. Bootstrap 3
-has no native drawer/offcanvas, so passing `--theme bootstrap3`
-auto-skips the drawer install with a notice.
+Themes: `plain` (default), `tailwind`, `bootstrap5`, `bootstrap3`.
 
-The generator:
+The generator wires the host app and scaffolds the modal/drawer
+chrome you'll customize:
 
-- Copies the overlay layouts you selected (e.g.
-  `app/views/layouts/turbo_modal.html.erb`,
-  `app/views/layouts/turbo_drawer.html.erb`).
-- Copies two Stimulus controllers — `turbo_overlay_stack_controller.js`
-  (the host-page stack registry) and `turbo_overlay_controller.js`
-  (the per-overlay controller, theme-agnostic). Auto-registered as
-  `turbo-overlay-stack` and `turbo-overlay` by stimulus-loading's
-  eager-load convention; if your app doesn't use it, the generator
-  injects explicit `application.register` calls.
-- Injects `<%= turbo_overlay_styles %>` into `<head>` and
-  `<%= overlay_stack_tag %>` before `</body>` in
-  `app/views/layouts/application.html.erb`. The styles helper emits
-  the gem's CSS once per page load, so layouts don't ship a
-  `<style>` block with every overlay response.
-- Writes an initializer at `config/initializers/turbo_overlay.rb` (on
-  the first run; subsequent installs leave it alone).
-- Re-running is idempotent — files already in place are skipped. Pass
-  `--force` to overwrite when upgrading.
+- Copies `_modal.html.erb` and `_drawer.html.erb` (in the chosen
+  theme) to `app/views/turbo_overlay/`. These are *your* files —
+  edit freely. Tailwind / similar content scanners pick them up here
+  automatically (which they can't if the file lives inside the gem).
+- Writes `config/initializers/turbo_overlay.rb`.
+- Injects `<%= overlay_stack_tag %>` before `</body>` in
+  `app/views/layouts/application.html.erb`.
+- For **importmap-rails** apps: appends
+  `import { register } from "turbo_overlay"; register(application)` to
+  your Stimulus entry (typically `app/javascript/controllers/index.js`).
+- For **propshaft** apps: injects a `stylesheet_link_tag "turbo_overlay"`
+  into your application layout (next to the existing one). Propshaft
+  doesn't rewrite CSS `@import` URLs to digested paths, so a separate
+  link tag is the right primitive.
+- For **sprockets** apps: injects `*= require turbo_overlay` into your
+  manifest CSS.
+- For **jsbundling / cssbundling** apps: prints the snippet you need to
+  add (either to your bundler entry or via load-path config) — see
+  "Bundling apps" below.
 
-You own all the copied files — customize freely.
+Re-running is idempotent — anything already in place is left alone.
+Pass `--force` to overwrite existing chrome partials when switching
+themes.
+
+If you skip the install generator entirely, the gem ships a plain
+`<dialog>` chrome as a fallback — modals and drawers work, just
+unstyled beyond the gem's CSS.
+
+### Bundling apps
+
+jsbundling-rails (esbuild/rollup/webpack/bun) and cssbundling-rails
+apps have two paths:
+
+1. **Reference the gem in place** — add the gem's `app/javascript`
+   and/or `app/assets/stylesheets` directories to your bundler's
+   resolve paths. Then write the same imports as importmap apps:
+
+    ```js
+    import { register } from "turbo_overlay"
+    register(application)
+    ```
+
+    ```css
+    @import "turbo_overlay";
+    ```
+
+2. **Eject** — copy the gem's JS or CSS into your app and import
+   locally. Run any combination of:
+
+    ```bash
+    bin/rails g turbo_overlay:eject --js
+    bin/rails g turbo_overlay:eject --css
+    bin/rails g turbo_overlay:eject --layouts
+    ```
+
+    (Chrome partials are not part of eject — they're already in your
+    app after `turbo_overlay:install`.)
+
+    Ejected files become yours; gem upgrades to those files no longer
+    flow through.
 
 The one remaining step is `ApplicationController`. Include the
 controller concern and add a layout method that swaps to the matching
@@ -254,6 +284,29 @@ TurboOverlay.configure do |config|
 end
 ```
 
+### Customizing the chrome
+
+The install generator copies two partials into your app:
+
+- `app/views/turbo_overlay/_modal.html.erb`
+- `app/views/turbo_overlay/_drawer.html.erb`
+
+These are *your* files. Edit them freely — change classes, add a
+brand container, restyle the close button. They're rendered as
+layouts (`render layout: ...`), so they use `<%= yield %>` for the
+body and read `content_for(:overlay_title)` /
+`content_for(:overlay_footer)` for the slots. Keep the `<dialog>`
+element's `data-controller="turbo-overlay"` and its data values so
+the Stimulus controllers can attach.
+
+If you delete these files, the gem's plain fallback partials kick in.
+To switch themes (e.g. plain → tailwind), re-run install with
+`--force`:
+
+```bash
+bin/rails g turbo_overlay:install --theme tailwind --force
+```
+
 ## Helpers
 
 Available on controllers (when the concern is included) and views:
@@ -269,7 +322,6 @@ Available on controllers (when the concern is included) and views:
 | `modal_dismiss_link_to(...)`            | dismiss link inside a modal                                            |
 | `drawer_dismiss_link_to(...)`           | dismiss link inside a drawer                                           |
 | `overlay_stack_tag`                     | emits the host-page stack container (drop in `application.html.erb`)   |
-| `turbo_overlay_styles`                  | emits the gem's default stylesheet as a single `<style>` tag (drop in `<head>`) |
 | `overlay_title(value, &block)`          | sets `content_for :overlay_title`                                      |
 | `overlay_footer(value, &block)`         | sets `content_for :overlay_footer`                                     |
 | `turbo_stream.overlay(:close, scope:, type:, id:)` | turbo-stream action; closes top, all, or one overlay        |
@@ -278,24 +330,20 @@ Available on controllers (when the concern is included) and views:
 
 | Theme        | Modal | Drawer | Notes                                                       |
 |--------------|:-----:|:------:|-------------------------------------------------------------|
+| `plain`      | ✓     | ✓      | Native `<dialog>`, minimal vanilla CSS                      |
 | `tailwind`   | ✓     | ✓      | Native `<dialog>`, Tailwind classes                         |
 | `bootstrap5` | ✓     | ✓      | Native `<dialog>` wrapping BS5 modal/offcanvas markup       |
 | `bootstrap3` | ✓     | ✓      | Native `<dialog>` wrapping BS3 modal markup; vanilla drawer |
-| `plain`      | ✓     | ✓      | Native `<dialog>`, minimal vanilla CSS                      |
 
-Every theme uses the same JavaScript controller. The Bootstrap themes
-keep BS's visual classes inside the dialog so they fit a Bootstrap
-app, but they don't depend on `window.bootstrap` or jQuery — the
-`<dialog>` element drives open/close, stacking, and focus management.
-Drawers ship with slide-in/out animations; modals fade and scale.
-Animations honor `prefers-reduced-motion: reduce`.
-
-The generators copy the chosen theme's layout and Stimulus controller
-into your app. All copied files are yours — edit, rename, restyle as
-needed.
-
-If you skip the generators, the gem ships engine-level `plain`
-layouts for both modal and drawer that work out of the box.
+Every theme uses the same JavaScript and CSS — the only thing that
+varies is the chrome partial Rails renders inside the dialog. Pick a
+theme via `config.theme = :tailwind` and you're done; no file copying
+required. Bootstrap themes keep BS's visual classes inside the dialog
+so they fit a Bootstrap app, but they don't depend on
+`window.bootstrap` or jQuery — the `<dialog>` element drives
+open/close, stacking, and focus management. Drawers ship with
+slide-in/out animations; modals fade and scale. Animations honor
+`prefers-reduced-motion: reduce`.
 
 **Stacking** is handled by the browser's `<dialog>` top-layer for
 every theme — no z-index management required.

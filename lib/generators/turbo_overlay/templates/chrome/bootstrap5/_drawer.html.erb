@@ -1,0 +1,37 @@
+<% position = TurboOverlay.configuration.drawer.position %>
+<% offcanvas_class = {
+  right:  "offcanvas-end",
+  left:   "offcanvas-start",
+  top:    "offcanvas-top",
+  bottom: "offcanvas-bottom"
+}.fetch(position) %>
+<dialog class="turbo-overlay turbo-overlay--drawer turbo-overlay--drawer-<%= position %> turbo-overlay-scaffold"
+        data-controller="turbo-overlay"
+        data-turbo-overlay-id-value="<%= current_overlay_id %>"
+        data-turbo-overlay-type-value="drawer"
+        data-action="cancel->turbo-overlay#cancel click->turbo-overlay#backdropClick"
+        aria-labelledby="turbo-drawer-title-<%= current_overlay_id %>">
+  <div class="offcanvas <%= offcanvas_class %> show" tabindex="-1">
+    <% if content_for?(:overlay_title) %>
+      <div class="offcanvas-header">
+        <h5 id="turbo-drawer-title-<%= current_overlay_id %>" class="offcanvas-title">
+          <%= yield(:overlay_title) %>
+        </h5>
+        <button type="button"
+                class="btn-close"
+                data-action="turbo-overlay#close"
+                aria-label="Close"></button>
+      </div>
+    <% end %>
+
+    <div class="offcanvas-body">
+      <%= yield %>
+    </div>
+
+    <% if content_for?(:overlay_footer) %>
+      <div class="offcanvas-footer p-3 border-top d-flex justify-content-end gap-2">
+        <%= yield(:overlay_footer) %>
+      </div>
+    <% end %>
+  </div>
+</dialog>

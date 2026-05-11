@@ -1,0 +1,32 @@
+<dialog class="turbo-overlay turbo-overlay--modal turbo-overlay-scaffold"
+        data-controller="turbo-overlay"
+        data-turbo-overlay-id-value="<%= current_overlay_id %>"
+        data-turbo-overlay-type-value="modal"
+        data-action="cancel->turbo-overlay#cancel click->turbo-overlay#backdropClick"
+        aria-labelledby="turbo-modal-title-<%= current_overlay_id %>">
+  <div class="modal-dialog modal-lg" role="document">
+    <div class="modal-content">
+      <% if content_for?(:overlay_title) %>
+        <div class="modal-header">
+          <h5 id="turbo-modal-title-<%= current_overlay_id %>" class="modal-title">
+            <%= yield(:overlay_title) %>
+          </h5>
+          <button type="button"
+                  class="btn-close"
+                  data-action="turbo-overlay#close"
+                  aria-label="Close"></button>
+        </div>
+      <% end %>
+
+      <div class="modal-body">
+        <%= yield %>
+      </div>
+
+      <% if content_for?(:overlay_footer) %>
+        <div class="modal-footer">
+          <%= yield(:overlay_footer) %>
+        </div>
+      <% end %>
+    </div>
+  </div>
+</dialog>

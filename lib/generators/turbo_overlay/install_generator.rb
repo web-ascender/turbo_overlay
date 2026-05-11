@@ -2,58 +2,54 @@ require "rails/generators/base"
 
 module TurboOverlay
   module Generators
-    # Single install generator for modal + drawer.
+    # Wires the host app to use turbo_overlay. Detects the host's JS
+    # and CSS toolchain, then either injects the required one-liners
+    # or prints the snippets the user needs to paste. Also copies the
+    # chosen chrome partials into `app/views/turbo_overlay/` so the
+    # app owns its modal/drawer appearance from day one (and so
+    # Tailwind / similar scanners can see the markup).
     #
+    #   bin/rails g turbo_overlay:install
     #   bin/rails g turbo_overlay:install --theme tailwind
-    #   bin/rails g turbo_overlay:install --theme tailwind --skip-drawer
-    #   bin/rails g turbo_overlay:install --theme bootstrap3   # modal only (BS3 has no drawer)
     #
     # Re-running is idempotent: existing files and already-injected
-    # stack tag / Stimulus registrations are detected and skipped.
-    # Pass `--force` to overwrite existing files when upgrading.
+    # wiring are detected and skipped. Pass `--force` to overwrite
+    # files when upgrading.
     class InstallGenerator < ::Rails::Generators::Base
       source_root File.expand_path("templates", __dir__)
 
-      MODAL_THEMES  = %w[tailwind bootstrap5 bootstrap3 plain].freeze
-      DRAWER_THEMES = %w[tailwind bootstrap5 bootstrap3 plain].freeze
+      THEMES = %w[plain tailwind bootstrap5 bootstrap3].freeze
 
       class_option :theme,
         type: :string,
-        default: nil,
-        desc: "Theme to install. Modal: #{MODAL_THEMES.join(", ")}. Drawer: #{DRAWER_THEMES.join(", ")}."
-
-      class_option :skip_modal,
-        type: :boolean,
-        default: false,
-        desc: "Skip modal install"
-
-      class_option :skip_drawer,
-        type: :boolean,
-        default: false,
-        desc: "Skip drawer install"
-
-      class_option :skip_javascript,
-        type: :boolean,
-        default: false,
-        desc: "Skip copying Stimulus controllers"
+        default: "plain",
+        desc: "Chrome theme to scaffold. One of: #{THEMES.join(", ")}."
 
       class_option :skip_layout_inject,
         type: :boolean,
         default: false,
-        desc: "Skip injecting <%= overlay_stack_tag %> into application.html.erb"
+        desc: "Skip injecting `<%= overlay_stack_tag %>` into application.html.erb"
 
-      def validate_selection
-        if options[:skip_modal] && options[:skip_drawer]
-          raise Thor::Error, "Nothing to install — both --skip-modal and --skip-drawer were given."
-        end
+      class_option :skip_javascript,
+        type: :boolean,
+        default: false,
+        desc: "Skip wiring the Stimulus registration"
 
-        @theme = options[:theme] || ask_theme
+      class_option :skip_stylesheet,
+        type: :boolean,
+        default: false,
+        desc: "Skip wiring the stylesheet import"
 
-        @install_modal  = !options[:skip_modal]
-        @install_drawer = !options[:skip_drawer]
+      class_option :skip_chrome,
+        type: :boolean,
+        default: false,
+        desc: "Skip copying the modal/drawer chrome partials into app/views/turbo_overlay/"
 
-        unless MODAL_THEMES.include?(@theme)
-          raise Thor::Error, "Theme '#{@theme}' not recognized. Choose from: #{MODAL_THEMES.join(", ")}."
+      def validate_theme
+        @theme = options[:theme].to_s
+        unless THEMES.include?(@theme)
+          raise Thor::Error,
+            "Theme '#{@theme}' not recognized. Choose from: #{THEMES.join(", ")}."
         end
       end
 
@@ -61,148 +57,72 @@ module TurboOverlay
         template "initializer.rb.tt", "config/initializers/turbo_overlay.rb"
       end
 
-      def copy_modal_layout
-        return unless @install_modal
+      def copy_chrome_partials
+        return if options[:skip_chrome]
 
-        copy_file "layouts/#{@theme}.html.erb",
-          "app/views/layouts/turbo_modal.html.erb"
+        modal_src  = chrome_source_path("_modal.html.erb")
+        drawer_src = chrome_source_path("_drawer.html.erb")
+        copy_file modal_src,  "app/views/turbo_overlay/_modal.html.erb"
+        copy_file drawer_src, "app/views/turbo_overlay/_drawer.html.erb"
       end
 
-      def copy_drawer_layout
-        return unless @install_drawer
-
-        copy_file "drawer_layouts/#{@theme}.html.erb",
-          "app/views/layouts/turbo_drawer.html.erb"
-      end
-
-      # Both controllers are theme-agnostic — themes contribute
-      # markup and CSS, not JavaScript. Installs under the
-      # conventional filenames so stimulus-loading's eager-load
-      # convention picks them up automatically.
-      def copy_javascript_controllers
-        return if options[:skip_javascript]
-        return unless stimulus_controllers_dir
-
-        copy_file "javascript/stack_controller.js",
-          "#{stimulus_controllers_dir}/turbo_overlay_stack_controller.js"
-
-        copy_file "javascript/overlay_controller.js",
-          "#{stimulus_controllers_dir}/turbo_overlay_controller.js"
-      end
-
-      # If `controllers/index.js` uses Stimulus' eager-load convention,
-      # nothing to do. Otherwise, append the import + register lines.
-      def register_stimulus_controllers
-        return if options[:skip_javascript]
-
-        index_path = "app/javascript/controllers/index.js"
-        full_path  = File.join(destination_root, index_path)
-        return unless File.exist?(full_path)
-
-        contents = File.read(full_path)
-        if contents.include?("eagerLoadControllersFrom") || contents.include?("eagerLoadControllers")
-          say_status :identical, "#{index_path} (auto-loaded via stimulus-loading)", :blue
-          return
-        end
-
-        lines = []
-        unless contents.include?("turbo_overlay_stack_controller")
-          lines << %(import TurboOverlayStackController from "./turbo_overlay_stack_controller")
-          lines << %(application.register("turbo-overlay-stack", TurboOverlayStackController))
-        end
-        unless contents.include?("turbo_overlay_controller")
-          lines << %(import TurboOverlayController from "./turbo_overlay_controller")
-          lines << %(application.register("turbo-overlay", TurboOverlayController))
-        end
-
-        if lines.any?
-          append_to_file index_path, "\n" + lines.join("\n") + "\n"
-        else
-          say_status :identical, index_path, :blue
-        end
-      end
-
-      # Inject `<%= overlay_stack_tag %>` (before </body>) and
-      # `<%= turbo_overlay_styles %>` (in <head>) once. Older
-      # installs may have `<%= overlay_frame_tags %>` — that's left
-      # alone (the helper still works as a deprecated alias).
-      def inject_overlay_helpers
+      def inject_stack_tag
         return if options[:skip_layout_inject]
 
-        candidates = %w[
-          app/views/layouts/application.html.erb
-          app/views/layouts/application.html.haml
-          app/views/layouts/application.html.slim
-        ]
-        layout_path = candidates.find { |p| File.exist?(File.join(destination_root, p)) }
-
+        layout_path = locate_application_layout
         unless layout_path
-          say_status :skip, "no application layout found; add `<%= turbo_overlay_styles %>` and `<%= overlay_stack_tag %>` manually", :yellow
+          say_status :skip, "no application.html.erb found; add `<%= overlay_stack_tag %>` before </body> manually", :yellow
           return
         end
 
-        full_path = File.join(destination_root, layout_path)
-        contents  = File.read(full_path)
-        ext       = File.extname(layout_path)
-
-        if ext != ".erb"
-          say_status :skip, "#{layout_path} (#{ext[1..]} — add `= turbo_overlay_styles` and `= overlay_stack_tag` manually)", :yellow
+        contents = File.read(File.join(destination_root, layout_path))
+        if contents.include?("overlay_stack_tag") || contents.include?("overlay_frame_tags")
+          say_status :identical, layout_path, :blue
           return
         end
 
-        unless contents.include?("turbo_overlay_styles")
-          inject_into_file layout_path, before: %r{</head>} do
-            "    <%= turbo_overlay_styles %>\n  "
-          end
+        inject_into_file layout_path, before: %r{</body>} do
+          "    <%= overlay_stack_tag %>\n  "
         end
+      end
 
-        contents = File.read(full_path)
-        unless contents.include?("overlay_stack_tag") || contents.include?("overlay_frame_tags")
-          inject_into_file layout_path, before: %r{</body>} do
-            "    <%= overlay_stack_tag %>\n  "
-          end
+      def wire_javascript
+        return if options[:skip_javascript]
+
+        @js_setup = detect_js_setup
+        case @js_setup
+        when :importmap
+          wire_importmap_stimulus_entry
+        when :jsbundling
+          @js_instructions_only = true
+        else
+          @js_instructions_only = true
+        end
+      end
+
+      def wire_stylesheet
+        return if options[:skip_stylesheet]
+
+        @css_setup = detect_css_setup
+        case @css_setup
+        when :sprockets
+          wire_sprockets_stylesheet
+        when :propshaft
+          wire_propshaft_stylesheet
+        when :cssbundling
+          @css_instructions_only = true
+        else
+          @css_instructions_only = true
         end
       end
 
       def show_post_install_message
-        installed = []
-        installed << "modal"  if @install_modal
-        installed << "drawer" if @install_drawer
-
-        layout_resolver =
-          if @install_modal && @install_drawer
-            <<~RUBY.indent(6)
-              def resolve_layout
-                return modal_layout_name  if modal_request?
-                return drawer_layout_name if drawer_request?
-                "application"
-              end
-            RUBY
-          elsif @install_modal
-            <<~RUBY.indent(6)
-              def resolve_layout
-                modal_request? ? modal_layout_name : "application"
-              end
-            RUBY
-          else
-            <<~RUBY.indent(6)
-              def resolve_layout
-                drawer_request? ? drawer_layout_name : "application"
-              end
-            RUBY
-          end
-
-        link_examples = []
-        link_examples << '<%= modal_link_to  "New",     new_thing_path %>'  if @install_modal
-        link_examples << '<%= drawer_link_to "Filters", filters_path %>'    if @install_drawer
-
         say <<~MSG, :green
 
-          Turbo Overlay installed (#{installed.join(" + ")}) with the #{@theme} theme.
+          Turbo Overlay installed with the #{@theme} theme.
 
-          One thing left to wire up — include the controller concern in
-          ApplicationController and swap to the matching layout per
-          request:
+          Wire the controller concern in ApplicationController and swap to
+          the matching layout per overlay request:
 
             class ApplicationController < ActionController::Base
               include TurboOverlay::Controller
@@ -210,34 +130,211 @@ module TurboOverlay
 
               private
 
-          #{layout_resolver.chomp}
+              def resolve_layout
+                return modal_layout_name  if modal_request?
+                return drawer_layout_name if drawer_request?
+                "application"
+              end
             end
 
-          Then open links:
+          Then open views as overlays:
 
-          #{link_examples.map { |l| "    #{l}" }.join("\n")}
-
-          Overlays stack — opening one from inside another slides it on top
-          rather than replacing. Close from server code with:
-
-            turbo_stream.overlay(:close)              # close the top
-            turbo_stream.overlay(:close, scope: :all) # close everything
+            <%= modal_link_to  "New",     new_thing_path %>
+            <%= drawer_link_to "Filters", filters_path %>
 
         MSG
+
+        print_js_instructions_if_needed
+        print_css_instructions_if_needed
       end
 
       private
 
-      def ask_theme
-        say "Available themes: #{MODAL_THEMES.join(", ")}"
-        ask("Which theme would you like to install?", default: "tailwind", limited_to: MODAL_THEMES)
+      def chrome_source_path(filename)
+        "chrome/#{@theme}/#{filename}"
       end
 
-      def stimulus_controllers_dir
-        path = "app/javascript/controllers"
-        return path if File.directory?(File.join(destination_root, path))
-        say_status :skip, "#{path} not found; skipping JS controllers", :yellow
-        nil
+      def locate_application_layout
+        %w[
+          app/views/layouts/application.html.erb
+          app/views/layouts/application.html.haml
+          app/views/layouts/application.html.slim
+        ].find { |p| File.exist?(File.join(destination_root, p)) }
+      end
+
+      def detect_js_setup
+        return :importmap if File.exist?(File.join(destination_root, "config/importmap.rb"))
+
+        pkg = File.join(destination_root, "package.json")
+        if File.exist?(pkg)
+          json = File.read(pkg)
+          return :jsbundling if %w[esbuild rollup webpack bun].any? { |b| json.include?(%("#{b}")) }
+        end
+
+        :unknown
+      end
+
+      def detect_css_setup
+        gemfile = File.join(destination_root, "Gemfile")
+        if File.exist?(gemfile)
+          content = File.read(gemfile)
+          return :cssbundling if content.match?(/^\s*gem\s+["'](cssbundling-rails|dartsass-rails|tailwindcss-rails|sassc-rails)["']/)
+          return :propshaft   if content.match?(/^\s*gem\s+["']propshaft["']/)
+          return :sprockets   if content.match?(/^\s*gem\s+["']sprockets-rails["']/)
+        end
+
+        # Fall back to looking for a stylesheet file.
+        return :sprockets if File.exist?(File.join(destination_root, "app/assets/stylesheets/application.css"))
+        return :sprockets if File.exist?(File.join(destination_root, "app/assets/stylesheets/application.scss"))
+
+        :unknown
+      end
+
+      def wire_importmap_stimulus_entry
+        candidates = %w[
+          app/javascript/controllers/index.js
+          app/javascript/application.js
+        ]
+        path = candidates.find { |p| File.exist?(File.join(destination_root, p)) }
+        unless path
+          @js_instructions_only = true
+          return
+        end
+
+        contents = File.read(File.join(destination_root, path))
+        if contents.include?(%(from "turbo_overlay")) || contents.include?(%(from 'turbo_overlay'))
+          say_status :identical, path, :blue
+          return
+        end
+
+        append_to_file path, <<~JS
+
+          import { register as registerTurboOverlay } from "turbo_overlay"
+          registerTurboOverlay(application)
+        JS
+      end
+
+      def wire_sprockets_stylesheet
+        candidates = %w[
+          app/assets/stylesheets/application.css
+          app/assets/stylesheets/application.css.scss
+          app/assets/stylesheets/application.scss
+        ]
+        path = candidates.find { |p| File.exist?(File.join(destination_root, p)) }
+        unless path
+          @css_instructions_only = true
+          return
+        end
+
+        contents = File.read(File.join(destination_root, path))
+        if contents.include?("turbo_overlay")
+          say_status :identical, path, :blue
+          return
+        end
+
+        if path.end_with?(".css")
+          # Manifest-style: inject `*= require turbo_overlay` into the
+          # sprockets require block. Fall back to appending an import.
+          if contents.include?("*= require_tree")
+            inject_into_file path, before: " *= require_tree" do
+              " *= require turbo_overlay\n"
+            end
+          elsif contents.match?(/\*=\s+require_self/)
+            inject_into_file path, after: /\*=\s+require_self\n/ do
+              " *= require turbo_overlay\n"
+            end
+          else
+            append_to_file path, %(\n@import "turbo_overlay";\n)
+          end
+        else
+          append_to_file path, %(\n@import "turbo_overlay";\n)
+        end
+      end
+
+      def wire_propshaft_stylesheet
+        # Propshaft doesn't rewrite `@import` URLs to digested paths,
+        # so we can't inject `@import "turbo_overlay.css"` into the
+        # app's manifest CSS — the browser would 404 on the
+        # un-digested URL. Inject a `stylesheet_link_tag` into the
+        # application layout instead so propshaft emits a separately
+        # digested `<link>` for the gem's CSS.
+        layout_path = locate_application_layout
+        unless layout_path && layout_path.end_with?(".erb")
+          @css_instructions_only = true
+          return
+        end
+
+        contents = File.read(File.join(destination_root, layout_path))
+        if contents.include?(%(stylesheet_link_tag "turbo_overlay")) ||
+           contents.include?(%(stylesheet_link_tag 'turbo_overlay'))
+          say_status :identical, layout_path, :blue
+          return
+        end
+
+        # Insert after the first existing `stylesheet_link_tag` line we
+        # find; otherwise fall back to printing instructions.
+        first_link = contents.lines.find { |l| l.include?("stylesheet_link_tag") }
+        unless first_link
+          @css_instructions_only = true
+          return
+        end
+
+        indent = first_link[/^\s*/]
+        new_line = %(#{indent}<%= stylesheet_link_tag "turbo_overlay", "data-turbo-track": "reload" %>\n)
+
+        # Thor's `after:` matches a String literally; pass the raw line.
+        inject_into_file layout_path, after: first_link do
+          new_line
+        end
+      end
+
+      def print_js_instructions_if_needed
+        return unless @js_instructions_only
+
+        say <<~MSG, :yellow
+
+          Couldn't auto-wire the JS. Add these lines to your Stimulus entry
+          (typically app/javascript/controllers/index.js or your bundler's
+          equivalent):
+
+            import { register as registerTurboOverlay } from "turbo_overlay"
+            registerTurboOverlay(application)
+
+          jsbundling-rails apps: add the gem's `app/javascript` directory
+          to your bundler's resolve paths, OR run
+          `bin/rails g turbo_overlay:eject --js` to copy the controllers
+          into your app.
+
+        MSG
+      end
+
+      def print_css_instructions_if_needed
+        return unless @css_instructions_only
+
+        say <<~MSG, :yellow
+
+          Couldn't auto-wire the stylesheet. Pick the option that matches
+          your setup:
+
+            # propshaft — add to app/views/layouts/application.html.erb:
+            <%= stylesheet_link_tag "turbo_overlay", "data-turbo-track": "reload" %>
+
+            # sprockets manifest — add to app/assets/stylesheets/application.css:
+            *= require turbo_overlay
+
+            # cssbundling / dartsass / tailwind v4 — add to your source CSS:
+            @import "turbo_overlay";
+
+          Propshaft does not rewrite CSS `@import` URLs to digested
+          asset paths; use a separate `stylesheet_link_tag` instead so
+          the gem's CSS is served with a fingerprinted URL.
+
+          cssbundling apps may also need to add the gem's
+          `app/assets/stylesheets` directory to the bundler's load paths,
+          OR run `bin/rails g turbo_overlay:eject --css` to copy the
+          stylesheet into your app.
+
+        MSG
       end
     end
   end

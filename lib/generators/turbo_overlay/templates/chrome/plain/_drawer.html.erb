@@ -1,0 +1,31 @@
+<% position = TurboOverlay.configuration.drawer.position %>
+<dialog class="turbo-overlay turbo-overlay--drawer turbo-overlay--drawer-<%= position %> turbo-drawer"
+        data-controller="turbo-overlay"
+        data-turbo-overlay-id-value="<%= current_overlay_id %>"
+        data-turbo-overlay-type-value="drawer"
+        data-action="cancel->turbo-overlay#cancel click->turbo-overlay#backdropClick"
+        aria-labelledby="turbo-drawer-title-<%= current_overlay_id %>">
+  <div class="turbo-drawer__content">
+    <% if content_for?(:overlay_title) %>
+      <header class="turbo-drawer__header">
+        <h2 id="turbo-drawer-title-<%= current_overlay_id %>" class="turbo-drawer__title">
+          <%= yield(:overlay_title) %>
+        </h2>
+        <button type="button"
+                class="turbo-drawer__close"
+                data-action="turbo-overlay#close"
+                aria-label="Close">&times;</button>
+      </header>
+    <% end %>
+
+    <div class="turbo-drawer__body">
+      <%= yield %>
+    </div>
+
+    <% if content_for?(:overlay_footer) %>
+      <footer class="turbo-drawer__footer">
+        <%= yield(:overlay_footer) %>
+      </footer>
+    <% end %>
+  </div>
+</dialog>
