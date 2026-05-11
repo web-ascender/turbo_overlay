@@ -62,12 +62,27 @@ module TurboOverlay
       # once.
       #
       #   <%= overlay_stack_tag %>
+      #
+      # When the host app has an `app/views/turbo_overlay/_confirm.html.erb`
+      # partial (copied by `turbo_overlay:install`), also emits a
+      # sibling `<template id="turbo_overlay_confirm_template">`
+      # containing the rendered partial. The JS confirm hook clones
+      # this template on each `data-turbo-confirm` click; if it is
+      # absent, the hook falls back to the browser-native `confirm()`.
       def overlay_stack_tag
         stack_id = TurboOverlay.configuration.stack_id
-        content_tag(:div, "".html_safe,
+        stack = content_tag(:div, "".html_safe,
           id: stack_id,
           class: "turbo-overlay-stack",
           data: { controller: "turbo-overlay-stack" })
+
+        return stack unless respond_to?(:lookup_context) && lookup_context
+        return stack unless lookup_context.exists?("turbo_overlay/confirm", [], true)
+
+        template = content_tag(:template,
+          render(partial: "turbo_overlay/confirm"),
+          id: "turbo_overlay_confirm_template")
+        safe_join([stack, template])
       end
 
       # Deprecated. Aliased to `overlay_stack_tag` for one minor cycle.

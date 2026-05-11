@@ -61,7 +61,7 @@ module TurboOverlay
           JS ejected. Update your Stimulus entry to import locally:
 
             import { register as registerTurboOverlay } from "./turbo_overlay/index"
-            registerTurboOverlay(application)
+            registerTurboOverlay(application, { confirm: true })
 
           And remove the gem's importmap pin if you had one.
 

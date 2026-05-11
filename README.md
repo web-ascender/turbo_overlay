@@ -42,16 +42,20 @@ Themes: `plain` (default), `tailwind`, `bootstrap5`, `bootstrap3`.
 The generator wires the host app and scaffolds the modal/drawer
 chrome you'll customize:
 
-- Copies `_modal.html.erb` and `_drawer.html.erb` (in the chosen
-  theme) to `app/views/turbo_overlay/`. These are *your* files —
-  edit freely. Tailwind / similar content scanners pick them up here
-  automatically (which they can't if the file lives inside the gem).
+- Copies `_modal.html.erb`, `_drawer.html.erb`, and `_confirm.html.erb`
+  (in the chosen theme) to `app/views/turbo_overlay/`. These are *your*
+  files — edit freely. Tailwind / similar content scanners pick them
+  up here automatically (which they can't if the file lives inside the
+  gem).
 - Writes `config/initializers/turbo_overlay.rb`.
 - Injects `<%= overlay_stack_tag %>` before `</body>` in
   `app/views/layouts/application.html.erb`.
 - For **importmap-rails** apps: appends
-  `import { register } from "turbo_overlay"; register(application)` to
-  your Stimulus entry (typically `app/javascript/controllers/index.js`).
+  `import { register } from "turbo_overlay"; register(application, { confirm: true })`
+  to your Stimulus entry (typically
+  `app/javascript/controllers/index.js`). The `{ confirm: true }` flag
+  routes `data-turbo-confirm` through the gem's themed modal — see
+  "Themed confirm dialogs" below.
 - For **propshaft** apps: injects a `stylesheet_link_tag "turbo_overlay"`
   into your application layout (next to the existing one). Propshaft
   doesn't rewrite CSS `@import` URLs to digested paths, so a separate
@@ -262,6 +266,41 @@ The form lives inside a per-overlay turbo-frame, so Rails re-renders
 the form and Turbo replaces the frame's contents in place — the
 overlay stays open and shows errors. No special handling required.
 
+### Themed confirm dialogs
+
+`data-turbo-confirm` on links and forms normally pops the
+browser-native `confirm()`. Pass `{ confirm: true }` to `register` and
+they go through the gem's themed modal instead — same dialog, same
+animations, same stacking. No server round-trip; the dialog body is
+cloned from a `<template>` rendered into the page once by
+`overlay_stack_tag`.
+
+```js
+import { register } from "turbo_overlay"
+register(application, { confirm: true })
+```
+
+```erb
+<%= button_to "Delete", user_path(@user),
+              method: :delete,
+              data: { turbo_confirm: "Really delete this user?" } %>
+```
+
+The install generator drops a themed `app/views/turbo_overlay/_confirm.html.erb`
+into your app. Edit it to change button labels or markup — JS only
+depends on three data attributes:
+
+| Attribute                                  | Role                                |
+|--------------------------------------------|-------------------------------------|
+| `[data-turbo-overlay-confirm-message]`     | element whose text becomes the message |
+| `[data-turbo-overlay-confirm-cancel]`      | clicking resolves the promise as cancel |
+| `[data-turbo-overlay-confirm-accept]`      | clicking resolves the promise as accept |
+
+The confirm partial renders *inside* `_modal.html.erb`, so it inherits
+your modal chrome (dialog wrapper, close animations, theme). If you
+delete `_confirm.html.erb` the hook falls back to the browser-native
+`confirm()`.
+
 ## Configuration
 
 ```ruby
@@ -286,10 +325,11 @@ end
 
 ### Customizing the chrome
 
-The install generator copies two partials into your app:
+The install generator copies three partials into your app:
 
 - `app/views/turbo_overlay/_modal.html.erb`
 - `app/views/turbo_overlay/_drawer.html.erb`
+- `app/views/turbo_overlay/_confirm.html.erb`
 
 These are *your* files. Edit them freely — change classes, add a
 brand container, restyle the close button. They're rendered as
@@ -297,7 +337,9 @@ layouts (`render layout: ...`), so they use `<%= yield %>` for the
 body and read `content_for(:overlay_title)` /
 `content_for(:overlay_footer)` for the slots. Keep the `<dialog>`
 element's `data-controller="turbo-overlay"` and its data values so
-the Stimulus controllers can attach.
+the Stimulus controllers can attach. The confirm partial renders
+inside the modal partial (via `render "turbo_overlay/modal" do ... %>`),
+so retheming the modal carries through to confirm automatically.
 
 If you delete these files, the gem's plain fallback partials kick in.
 To switch themes (e.g. plain → tailwind), re-run install with

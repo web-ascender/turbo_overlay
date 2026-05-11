@@ -60,10 +60,12 @@ module TurboOverlay
       def copy_chrome_partials
         return if options[:skip_chrome]
 
-        modal_src  = chrome_source_path("_modal.html.erb")
-        drawer_src = chrome_source_path("_drawer.html.erb")
-        copy_file modal_src,  "app/views/turbo_overlay/_modal.html.erb"
-        copy_file drawer_src, "app/views/turbo_overlay/_drawer.html.erb"
+        modal_src   = chrome_source_path("_modal.html.erb")
+        drawer_src  = chrome_source_path("_drawer.html.erb")
+        confirm_src = chrome_source_path("_confirm.html.erb")
+        copy_file modal_src,   "app/views/turbo_overlay/_modal.html.erb"
+        copy_file drawer_src,  "app/views/turbo_overlay/_drawer.html.erb"
+        copy_file confirm_src, "app/views/turbo_overlay/_confirm.html.erb"
       end
 
       def inject_stack_tag
@@ -210,7 +212,7 @@ module TurboOverlay
         append_to_file path, <<~JS
 
           import { register as registerTurboOverlay } from "turbo_overlay"
-          registerTurboOverlay(application)
+          registerTurboOverlay(application, { confirm: true })
         JS
       end
 
@@ -298,7 +300,7 @@ module TurboOverlay
           equivalent):
 
             import { register as registerTurboOverlay } from "turbo_overlay"
-            registerTurboOverlay(application)
+            registerTurboOverlay(application, { confirm: true })
 
           jsbundling-rails apps: add the gem's `app/javascript` directory
           to your bundler's resolve paths, OR run

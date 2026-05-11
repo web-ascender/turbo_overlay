@@ -2,11 +2,21 @@ require "test_helper"
 require "turbo_overlay/helpers/view_helper"
 
 class ViewHelperTest < Minitest::Test
+  class FakeLookupContext
+    def initialize(exists:)
+      @exists = exists
+    end
+
+    def exists?(*_args)
+      @exists
+    end
+  end
+
   class FakeView
     include TurboOverlay::Helpers::ViewHelper
 
     attr_reader :link_to_args, :content_for_calls, :modal_request_value, :drawer_request_value
-    attr_accessor :_current_overlay_id
+    attr_accessor :_current_overlay_id, :_lookup_context, :_render_returns
 
     def initialize(modal_request: false, drawer_request: false)
       @modal_request_value  = modal_request
@@ -14,6 +24,16 @@ class ViewHelperTest < Minitest::Test
       @link_to_args = nil
       @content_for_calls = []
       @_current_overlay_id = nil
+      @_lookup_context = nil
+      @_render_returns = ""
+    end
+
+    def lookup_context
+      @_lookup_context
+    end
+
+    def render(*_args)
+      @_render_returns.to_s.html_safe
     end
 
     def link_to(*args, &block)
@@ -63,6 +83,7 @@ class ViewHelperTest < Minitest::Test
       return true if method_name == :modal_request? || method_name == :drawer_request?
       return true if method_name == :current_overlay_id
       return true if method_name == :turbo_overlay_frame_re_render?
+      return true if method_name == :lookup_context
       super
     end
 
@@ -217,6 +238,22 @@ class ViewHelperTest < Minitest::Test
     view = FakeView.new
     output = view.overlay_stack_tag
     assert_includes output, %(id="my_stack")
+  end
+
+  def test_overlay_stack_tag_omits_confirm_template_when_partial_missing
+    view = FakeView.new
+    view._lookup_context = FakeLookupContext.new(exists: false)
+    output = view.overlay_stack_tag
+    refute_includes output, %(turbo_overlay_confirm_template)
+  end
+
+  def test_overlay_stack_tag_emits_confirm_template_when_partial_present
+    view = FakeView.new
+    view._lookup_context = FakeLookupContext.new(exists: true)
+    view._render_returns = %(<dialog data-controller="turbo-overlay">CONFIRM_BODY</dialog>)
+    output = view.overlay_stack_tag
+    assert_includes output, %(<template id="turbo_overlay_confirm_template">)
+    assert_includes output, %(CONFIRM_BODY)
   end
 
   # ---- generic in-view content helpers ----

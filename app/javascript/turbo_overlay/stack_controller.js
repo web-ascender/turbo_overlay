@@ -80,6 +80,86 @@ function registerFetchHook() {
   })
 }
 
+// Replaces window.confirm for `data-turbo-confirm` links/forms with
+// the gem's themed modal. Opt-in via `register(application, { confirm: true })`.
+//
+// On each invocation we clone `<template id="turbo_overlay_confirm_template">`
+// (server-rendered by `overlay_stack_tag` from the host app's
+// `app/views/turbo_overlay/_confirm.html.erb` partial), wire its
+// accept/cancel buttons + ESC + backdrop to a Promise, generate a
+// unique overlay id, and append it inside a `<turbo-frame>` to the
+// stack container. The existing `turbo-overlay` controller handles
+// `showModal()` + animations + stack registration on Stimulus connect.
+//
+// If the template element is missing (e.g. host app hasn't generated
+// the partial yet, or has deleted it), we fall back to the
+// browser-native `window.confirm` so the trigger still works.
+export function registerConfirm() {
+  if (typeof window === "undefined") return
+  const Turbo = window.Turbo
+  if (!Turbo || !Turbo.config || !Turbo.config.forms) return
+  if (window._turboOverlayConfirmRegistered) return
+  window._turboOverlayConfirmRegistered = true
+
+  Turbo.config.forms.confirm = (message) => promptConfirm(message)
+}
+
+function promptConfirm(message) {
+  const template = document.getElementById("turbo_overlay_confirm_template")
+  const stack = document.querySelector("[data-controller~='turbo-overlay-stack']")
+  const dialog = template && template.content && template.content.querySelector("dialog")
+  if (!template || !stack || !dialog) {
+    return Promise.resolve(window.confirm(message))
+  }
+
+  const clone = dialog.cloneNode(true)
+  const id = "confirm-" + Math.random().toString(36).slice(2, 10)
+  clone.setAttribute("data-turbo-overlay-id-value", id)
+  clone.setAttribute("aria-labelledby", "turbo-modal-title-" + id)
+  const title = clone.querySelector("[id^='turbo-modal-title-']")
+  if (title) title.id = "turbo-modal-title-" + id
+
+  const messageEl = clone.querySelector("[data-turbo-overlay-confirm-message]")
+  if (messageEl) messageEl.textContent = message
+
+  const frame = document.createElement("turbo-frame")
+  frame.id = "turbo_overlay_modal_" + id
+  frame.className = "turbo-overlay-frame"
+  frame.appendChild(clone)
+
+  return new Promise((resolve) => {
+    let settled = false
+    const settleOnly = (value) => {
+      if (settled) return
+      settled = true
+      resolve(value)
+    }
+    // Button clicks need to also close the dialog (ESC and backdrop
+    // click go through the existing turbo-overlay controller, which
+    // closes the dialog itself).
+    const dismiss = (value) => {
+      const dispatchClose = !settled
+      settleOnly(value)
+      if (dispatchClose) {
+        window.dispatchEvent(new CustomEvent("turbo-overlay:close", { detail: { id } }))
+      }
+    }
+
+    const accept = clone.querySelector("[data-turbo-overlay-confirm-accept]")
+    const cancel = clone.querySelector("[data-turbo-overlay-confirm-cancel]")
+    if (accept) accept.addEventListener("click", (e) => { e.preventDefault(); dismiss(true) })
+    if (cancel) cancel.addEventListener("click", (e) => { e.preventDefault(); dismiss(false) })
+    // ESC fires native `cancel` synchronously; resolve immediately so
+    // Turbo doesn't wait on the close animation. Backdrop click closes
+    // through the existing controller; its eventual `close` event is
+    // our catch-all.
+    clone.addEventListener("cancel", () => settleOnly(false))
+    clone.addEventListener("close",  () => settleOnly(false))
+
+    stack.appendChild(frame)
+  })
+}
+
 registerStreamAction()
 registerFetchHook()
 

@@ -1,0 +1,13 @@
+<%# Confirm dialog body, rendered inside the modal partial. Edit
+    freely — JS only depends on these data attributes:
+      [data-turbo-overlay-confirm-message] — text insertion point
+      [data-turbo-overlay-confirm-cancel]  — cancels (resolves false)
+      [data-turbo-overlay-confirm-accept]  — accepts (resolves true)
+%>
+<%= render "turbo_overlay/modal" do %>
+  <p data-turbo-overlay-confirm-message></p>
+  <div class="modal-footer" style="border:0;padding:0;padding-top:15px;text-align:right;">
+    <button type="button" class="btn btn-default" data-turbo-overlay-confirm-cancel>Cancel</button>
+    <button type="button" class="btn btn-primary" data-turbo-overlay-confirm-accept>OK</button>
+  </div>
+<% end %>
