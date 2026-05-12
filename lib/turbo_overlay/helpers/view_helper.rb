@@ -256,8 +256,13 @@ module TurboOverlay
             id: "turbo_overlay_loading_#{variant}_template")
         end
 
-        if content_for?(:turbo_overlay_hint)
-          body = content_for(:turbo_overlay_hint)
+        # Hint body resolution: explicit `turbo_overlay_hint do … end`
+        # capture wins; otherwise auto-render the action's
+        # `+hint.erb` variant template if one exists. The auto-render
+        # path is gated on `_turbo_overlay_hintable_request?` so a
+        # regular page render doesn't pay the cost.
+        body = _turbo_overlay_resolved_hint_body
+        if body
           hint_body = if lookup_context.exists?("turbo_overlay/hint", [], true)
             # Render the partial as a layout so the user's body lands
             # at `<%= yield %>`. Same pattern used by the modal/drawer
@@ -399,6 +404,34 @@ module TurboOverlay
       end
 
       private
+
+      # Resolve the hint body for `overlay_stack_tag`. Explicit
+      # `turbo_overlay_hint` capture wins; on a hintable request, if
+      # the action has a `+hint` variant template, render it as the
+      # body so users don't have to duplicate hint content between
+      # `show.html+hint.erb` and a `turbo_overlay_hint do … end` in
+      # `show.html.erb`.
+      def _turbo_overlay_resolved_hint_body
+        return content_for(:turbo_overlay_hint) if content_for?(:turbo_overlay_hint)
+        return nil unless _turbo_overlay_hintable_request?
+        return nil unless _turbo_overlay_action_hint_variant_exists?
+        render(
+          template: _turbo_overlay_action_template_path,
+          variants: [:hint],
+          layout: false
+        )
+      end
+
+      def _turbo_overlay_action_template_path
+        return nil unless controller.respond_to?(:controller_path) && controller.respond_to?(:action_name)
+        "#{controller.controller_path}/#{controller.action_name}"
+      end
+
+      def _turbo_overlay_action_hint_variant_exists?
+        path = _turbo_overlay_action_template_path
+        return false unless path
+        lookup_context.exists?(path, [], false, [], variants: [:hint])
+      end
 
       # Whether the hint template should be rendered for this request.
       # True for prefetches and explicit `:hint` variant fetches.

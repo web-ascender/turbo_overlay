@@ -373,6 +373,18 @@ Either way the `turbo_hint` layout wraps the chosen body in the same
 `<template id="turbo-overlay-hint">` shape the inline path emits, so
 the JS extractor has one code path.
 
+#### One template, both paths
+
+When you have `show.html+hint.erb` you don't *also* have to put
+`<% turbo_overlay_hint do %>` in `show.html.erb` for the prefetch
+path. `overlay_stack_tag` notices the action has a `+hint` variant
+template and auto-renders it as the hint body for prefetch responses.
+The explicit `turbo_overlay_hint do … end` capture still wins when
+present — useful if the prefetch hint should differ from the
+explicit-fetch hint. The auto-render is gated on
+`turbo_overlay_hintable_request?`, so a regular page render never
+incurs the cost of rendering the `+hint` template.
+
 #### Pending placeholder while the hint loads
 
 After `show_delay_ms`, if the hint content isn't cached yet, the gem

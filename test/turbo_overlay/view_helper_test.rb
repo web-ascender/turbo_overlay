@@ -47,13 +47,15 @@ class ViewHelperTest < Minitest::Test
     include TurboOverlay::Helpers::ViewHelper
 
     attr_reader :link_to_args, :content_for_calls, :modal_request_value, :drawer_request_value, :popover_request_value
-    attr_accessor :_current_overlay_id, :_lookup_context, :_render_returns, :_hintable_request
+    attr_accessor :_current_overlay_id, :_lookup_context, :_render_returns, :_hintable_request, :_controller_path, :_action_name
 
-    def initialize(modal_request: false, drawer_request: false, popover_request: false, hintable_request: true)
+    def initialize(modal_request: false, drawer_request: false, popover_request: false, hintable_request: true, controller_path: "users", action_name: "show")
       # Default `hintable_request: true` so the existing hint-emission
       # tests don't have to opt in. Tests that exercise the non-hintable
       # path pass `hintable_request: false`.
       @_hintable_request     = hintable_request
+      @_controller_path      = controller_path
+      @_action_name          = action_name
       @modal_request_value   = modal_request
       @drawer_request_value  = drawer_request
       @popover_request_value = popover_request
@@ -137,11 +139,20 @@ class ViewHelperTest < Minitest::Test
       return true if method_name == :turbo_overlay_frame_re_render?
       return true if method_name == :lookup_context
       return true if method_name == :turbo_overlay_hintable_request?
+      return true if method_name == :controller_path || method_name == :action_name
       super
     end
 
     def turbo_overlay_hintable_request?
       @_hintable_request
+    end
+
+    def controller_path
+      @_controller_path
+    end
+
+    def action_name
+      @_action_name
     end
 
     def current_overlay_id
@@ -734,6 +745,53 @@ class ViewHelperTest < Minitest::Test
     output = view.overlay_stack_tag
     refute_includes output, %(<template id="turbo-overlay-hint">)
     refute_includes output, "PREVIEW"
+  end
+
+  # ---- auto-render +hint variant template ----
+
+  def test_overlay_stack_tag_auto_renders_action_hint_variant_when_no_explicit_capture
+    view = FakeView.new(controller_path: "users", action_name: "show")
+    view._lookup_context = FakeLookupContext.new(exists: {
+      "users/show" => { variants: [:hint] }
+    })
+    view._render_returns = "AUTO_HINT_BODY"
+    output = view.overlay_stack_tag
+    assert_includes output, %(<template id="turbo-overlay-hint">)
+    assert_includes output, "AUTO_HINT_BODY"
+  end
+
+  def test_overlay_stack_tag_skips_auto_hint_on_non_hintable_request
+    view = FakeView.new(hintable_request: false,
+                        controller_path: "users", action_name: "show")
+    view._lookup_context = FakeLookupContext.new(exists: {
+      "users/show" => { variants: [:hint] }
+    })
+    view._render_returns = "AUTO_HINT_BODY"
+    output = view.overlay_stack_tag
+    refute_includes output, %(<template id="turbo-overlay-hint">)
+    refute_includes output, "AUTO_HINT_BODY"
+  end
+
+  def test_overlay_stack_tag_skips_auto_hint_when_no_variant_template
+    view = FakeView.new(controller_path: "users", action_name: "show")
+    view._lookup_context = FakeLookupContext.new(exists: false)
+    view._render_returns = "AUTO_HINT_BODY"
+    output = view.overlay_stack_tag
+    refute_includes output, %(<template id="turbo-overlay-hint">)
+    refute_includes output, "AUTO_HINT_BODY"
+  end
+
+  def test_explicit_turbo_overlay_hint_wins_over_auto_render
+    view = FakeView.new(controller_path: "users", action_name: "show")
+    view._lookup_context = FakeLookupContext.new(exists: {
+      "users/show" => { variants: [:hint] }
+    })
+    # If auto-render fired we'd see this string in the output.
+    view._render_returns = "AUTO_HINT_BODY"
+    view.turbo_overlay_hint("EXPLICIT_BODY")
+    output = view.overlay_stack_tag
+    assert_includes output, "EXPLICIT_BODY"
+    refute_includes output, "AUTO_HINT_BODY"
   end
 
   def test_overlay_stack_tag_emits_hint_template_when_content_present
