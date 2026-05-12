@@ -31,6 +31,7 @@ module TurboOverlay
     OVERLAY_TYPE_HEADER     = "X-Turbo-Overlay".freeze
     OVERLAY_ID_HEADER       = "X-Turbo-Overlay-Id".freeze
     OVERLAY_POSITION_HEADER = "X-Turbo-Overlay-Position".freeze
+    OVERLAY_BACKDROP_HEADER = "X-Turbo-Overlay-Backdrop".freeze
 
     included do
       prepend_before_action :_turbo_overlay_force_html_format
@@ -40,7 +41,7 @@ module TurboOverlay
       helper_method :modal_request?, :modal_layout_name,
         :drawer_request?, :drawer_layout_name,
         :overlay_request?, :current_overlay_id, :current_overlay_type,
-        :current_overlay_position
+        :current_overlay_position, :current_overlay_backdrop?
     end
 
     # ----- modal -----
@@ -107,6 +108,16 @@ module TurboOverlay
       @_turbo_overlay_position = _resolve_overlay_position
     end
 
+    # Whether the current overlay request should render with a
+    # backdrop. Defaults to `true`; only `false` when the link helper
+    # explicitly passed `backdrop: false` (carried in the
+    # `X-Turbo-Overlay-Backdrop` header). Drawer partials switch the
+    # `<dialog>` open mode and CSS based on this.
+    def current_overlay_backdrop?
+      return @_turbo_overlay_backdrop if defined?(@_turbo_overlay_backdrop)
+      @_turbo_overlay_backdrop = _resolve_overlay_backdrop
+    end
+
     # True for the initial open of an overlay (an `X-Turbo-Overlay`
     # request that is not a form re-render inside an existing
     # overlay frame). Used internally to decide between turbo-stream
@@ -164,6 +175,11 @@ module TurboOverlay
       value = request.headers[OVERLAY_POSITION_HEADER].to_s
       return nil if value.empty?
       value.to_sym
+    end
+
+    def _resolve_overlay_backdrop
+      return true unless respond_to?(:request) && request
+      request.headers[OVERLAY_BACKDROP_HEADER].to_s != "false"
     end
 
     def _turbo_overlay_set_variant

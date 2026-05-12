@@ -80,6 +80,9 @@ function registerFetchHook() {
     if (trigger.dataset.turboOverlayPosition) {
       headers["X-Turbo-Overlay-Position"] = trigger.dataset.turboOverlayPosition
     }
+    if (trigger.dataset.turboOverlayBackdrop === "false") {
+      headers["X-Turbo-Overlay-Backdrop"] = "false"
+    }
   })
 }
 

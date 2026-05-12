@@ -21,6 +21,7 @@ export default class extends Controller {
   static values = {
     id: String,
     type: String,
+    backdrop: { type: Boolean, default: true },
     backdropDismiss: { type: Boolean, default: true }
   }
 
@@ -41,11 +42,29 @@ export default class extends Controller {
       : true
 
     if (registered && this.dialog && !this.dialog.open) {
-      try { this.dialog.showModal() } catch (_) { this.dialog.setAttribute("open", "") }
+      if (this.backdropValue) {
+        try { this.dialog.showModal() } catch (_) { this.dialog.setAttribute("open", "") }
+      } else {
+        // Non-modal: page remains interactive (no backdrop, no focus
+        // trap, scrollable). Native `cancel` doesn't fire on ESC for
+        // non-modal dialogs, so synthesize it via keydown.
+        try { this.dialog.show() } catch (_) { this.dialog.setAttribute("open", "") }
+        this._escHandler = (event) => {
+          if (event.key !== "Escape" || event.defaultPrevented) return
+          if (this.stack && this.stack.topEntry() && this.stack.topEntry().id !== this.idValue) return
+          event.preventDefault()
+          this.cancel(event)
+        }
+        document.addEventListener("keydown", this._escHandler)
+      }
     }
   }
 
   disconnect() {
+    if (this._escHandler) {
+      document.removeEventListener("keydown", this._escHandler)
+      this._escHandler = null
+    }
     queueMicrotask(() => {
       if (!document.body.contains(this.element) && this.stack) {
         this.stack.unregister(this.idValue)

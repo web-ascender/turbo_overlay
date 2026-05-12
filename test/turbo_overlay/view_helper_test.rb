@@ -220,6 +220,30 @@ class ViewHelperTest < Minitest::Test
     refute html_options[:data].key?(:turbo_overlay_position)
   end
 
+  def test_drawer_link_to_with_backdrop_false_sets_data_attribute
+    view = FakeView.new
+    view.drawer_link_to("Inspector", "/inspect", backdrop: false)
+
+    _, _, html_options = view.link_to_args
+    assert_equal "false", html_options[:data][:turbo_overlay_backdrop]
+  end
+
+  def test_drawer_link_to_with_backdrop_true_omits_data_attribute
+    view = FakeView.new
+    view.drawer_link_to("Inspector", "/inspect", backdrop: true)
+
+    _, _, html_options = view.link_to_args
+    refute html_options[:data].key?(:turbo_overlay_backdrop)
+  end
+
+  def test_drawer_link_to_omits_backdrop_attribute_when_not_provided
+    view = FakeView.new
+    view.drawer_link_to("Filter", "/filters")
+
+    _, _, html_options = view.link_to_args
+    refute html_options[:data].key?(:turbo_overlay_backdrop)
+  end
+
   # ---- drawer_dismiss_link_to ----
 
   def test_drawer_dismiss_link_to_inside_drawer_adds_dismiss_action

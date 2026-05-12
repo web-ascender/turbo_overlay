@@ -47,6 +47,14 @@ module TurboOverlay
       # `TurboOverlay.configuration.drawer.position`.
       #
       #   <%= drawer_link_to "Nav", nav_path, position: :left %>
+      #
+      # `backdrop: false` opens the drawer non-modally: no dimmed
+      # backdrop, the page stays scrollable, and text on the page
+      # remains selectable so users can copy/paste between the page
+      # and the drawer. Click outside the drawer is also ignored
+      # (no backdrop to click). ESC still closes.
+      #
+      #   <%= drawer_link_to "Inspector", inspect_path, backdrop: false %>
       def drawer_link_to(name = nil, options = nil, html_options = nil, &block)
         _overlay_link_to(:drawer, name, options, html_options, &block)
       end
@@ -118,6 +126,15 @@ module TurboOverlay
       def current_overlay_position
         return controller.current_overlay_position if controller.respond_to?(:current_overlay_position)
         nil
+      end
+
+      # Whether the current overlay request should render with a
+      # backdrop (the default) or non-modally (`backdrop: false` on
+      # the link helper). Drawer partials switch the `<dialog>` open
+      # mode and CSS based on this.
+      def current_overlay_backdrop?
+        return controller.current_overlay_backdrop? if controller.respond_to?(:current_overlay_backdrop?)
+        true
       end
 
       # The DOM id of the per-overlay turbo-frame for the current
@@ -203,12 +220,18 @@ module TurboOverlay
         html_options = (html_options || {}).dup
         overlay_id   = html_options.delete(:overlay_id) || html_options.delete("overlay_id")
         position     = html_options.delete(:position)   || html_options.delete("position")
+        has_backdrop = html_options.key?(:backdrop) || html_options.key?("backdrop")
+        backdrop     = html_options.delete(:backdrop)
+        backdrop     = html_options.delete("backdrop") if backdrop.nil? && has_backdrop
 
         data = (html_options[:data] || {}).dup
         data[:turbo_stream] = true unless data.key?(:turbo_stream) || html_options.key?("data-turbo-stream")
         data[:turbo_overlay] = type.to_s unless data.key?(:turbo_overlay) || html_options.key?("data-turbo-overlay")
         data[:turbo_overlay_id] = overlay_id.to_s if overlay_id && !data.key?(:turbo_overlay_id) && !html_options.key?("data-turbo-overlay-id")
         data[:turbo_overlay_position] = position.to_s if position && !data.key?(:turbo_overlay_position) && !html_options.key?("data-turbo-overlay-position")
+        if has_backdrop && backdrop == false && !data.key?(:turbo_overlay_backdrop) && !html_options.key?("data-turbo-overlay-backdrop")
+          data[:turbo_overlay_backdrop] = "false"
+        end
         # Break out of any enclosing per-overlay turbo-frame so a click
         # on a modal/drawer link from inside an open overlay opens a
         # new (stacked) overlay instead of replacing the current one.

@@ -1,8 +1,10 @@
 <% position = current_overlay_position || TurboOverlay.configuration.drawer.position %>
-<dialog class="turbo-overlay turbo-overlay--drawer turbo-overlay--drawer-<%= position %> turbo-drawer"
+<% backdrop = current_overlay_backdrop? %>
+<dialog class="turbo-overlay turbo-overlay--drawer turbo-overlay--drawer-<%= position %> turbo-drawer<%= " turbo-overlay--no-backdrop" unless backdrop %>"
         data-controller="turbo-overlay"
         data-turbo-overlay-id-value="<%= current_overlay_id %>"
         data-turbo-overlay-type-value="drawer"
+        data-turbo-overlay-backdrop-value="<%= backdrop %>"
         data-action="cancel->turbo-overlay#cancel click->turbo-overlay#backdropClick"
         aria-labelledby="turbo-drawer-title-<%= current_overlay_id %>">
   <div class="turbo-drawer__content">

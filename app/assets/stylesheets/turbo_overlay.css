@@ -105,5 +105,13 @@ dialog.turbo-overlay--drawer.turbo-overlay-closing::backdrop   { animation: turb
   dialog.turbo-overlay.turbo-overlay-closing::backdrop { animation: none !important; }
 }
 
-/* === Scroll lock when any overlay is open === */
-html:has(dialog.turbo-overlay[open]) { overflow: hidden; }
+/* === Non-modal drawer (opened via dialog.show(), no ::backdrop) === */
+/* Non-modal <dialog> defaults to position: absolute (anchored to the
+   document), which breaks the side-pinned inset rules above. Force
+   fixed so the drawer stays anchored to the viewport. */
+dialog.turbo-overlay--no-backdrop { position: fixed; }
+
+/* === Scroll lock when any modal overlay is open === */
+/* Skip non-backdrop drawers — they're meant to coexist with page
+   interaction, including scrolling. */
+html:has(dialog.turbo-overlay[open]:not(.turbo-overlay--no-backdrop)) { overflow: hidden; }
