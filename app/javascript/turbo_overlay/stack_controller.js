@@ -1,4 +1,5 @@
 import { Controller } from "@hotwired/stimulus"
+import { computePopoverPosition } from "turbo_overlay/popover_position"
 
 // Stack registry + cross-cutting wiring for turbo_overlay.
 //
@@ -43,6 +44,172 @@ function generateOverlayId() {
   return "ov-" + Math.random().toString(36).slice(2, 10)
 }
 
+// Clone the matching `turbo_overlay_loading_<type>_template` into the
+// stack and open it immediately. Inherits the trigger's link options
+// (backdrop, drawer position, close button suppression, popover
+// position/align/offset) so the placeholder reads visually the same
+// as the eventual chrome. Tagged with `data-turbo-overlay-loading-id`
+// matching the X-Turbo-Overlay-Id header so the loading element can
+// be removed when the real frame lands or the request errors out.
+function spawnLoadingOverlay(link) {
+  const type = link.dataset.turboOverlay
+  const id   = link.dataset.turboOverlayId
+  if (!type || !id) return
+
+  const template = document.getElementById(`turbo_overlay_loading_${type}_template`)
+  if (!template || !template.content) return
+
+  const stack = document.querySelector("[data-controller~='turbo-overlay-stack']")
+  if (!stack) return
+
+  const fragment = template.content.cloneNode(true)
+  const root = fragment.firstElementChild
+  if (!root) return
+
+  root.dataset.turboOverlayLoadingId = id
+  root.dataset.turboOverlayLoadingType = type
+
+  const backdrop = link.dataset.turboOverlayBackdrop !== "false"
+  if (!backdrop) root.classList.add("turbo-overlay--no-backdrop")
+
+  if (type === "drawer") {
+    // Drawer position class: per-link override, falls back to the
+    // CSS default (`turbo-overlay--drawer-right` baked into the
+    // shipped partial). Only add when the link provided one, so the
+    // partial's baked-in default keeps working.
+    const position = link.dataset.turboOverlayPosition
+    if (position) {
+      // Strip any baseline position class the partial includes so the
+      // override wins without specificity tricks.
+      root.classList.remove(
+        "turbo-overlay--drawer-right",
+        "turbo-overlay--drawer-left",
+        "turbo-overlay--drawer-top",
+        "turbo-overlay--drawer-bottom"
+      )
+      root.classList.add(`turbo-overlay--drawer-${position}`)
+    }
+  }
+
+  if (link.dataset.turboOverlayClose === "false") {
+    root.dataset.turboOverlayClose = "false"
+  }
+
+  stack.appendChild(root)
+
+  if (root.tagName === "DIALOG") {
+    const useModal = (type === "modal") || (type === "drawer" && backdrop)
+    try {
+      if (useModal) root.showModal(); else root.show()
+    } catch (_) {
+      root.setAttribute("open", "")
+    }
+  }
+
+  if (type === "popover") {
+    positionLoadingPopover(root, link)
+  }
+}
+
+function positionLoadingPopover(root, link) {
+  const anchorRect = link.getBoundingClientRect()
+  const dialogRect = root.getBoundingClientRect()
+  const viewport = {
+    width:  document.documentElement.clientWidth,
+    height: document.documentElement.clientHeight
+  }
+  const position = link.dataset.turboOverlayPosition || "bottom"
+  const align    = link.dataset.turboOverlayAlign    || "start"
+  const offsetRaw = link.dataset.turboOverlayOffset
+  const offset    = offsetRaw == null ? 4 : parseInt(offsetRaw, 10) || 0
+
+  const { top, left } = computePopoverPosition({
+    anchor: anchorRect,
+    dialog: dialogRect,
+    viewport,
+    position, align, offset,
+    autoFlip: true
+  })
+
+  root.style.position = "fixed"
+  root.style.top      = `${top}px`
+  root.style.left     = `${left}px`
+  root.style.margin   = "0"
+}
+
+function removeLoadingOverlay(id) {
+  if (!id) return
+  const escaped = (window.CSS && typeof window.CSS.escape === "function")
+    ? window.CSS.escape(id)
+    : String(id).replace(/[^a-zA-Z0-9_-]/g, "\\$&")
+  const el = document.querySelector(`[data-turbo-overlay-loading-id="${escaped}"]`)
+  if (!el) return
+  if (el.tagName === "DIALOG" && el.open) {
+    try { el.close() } catch (_) { /* ignore */ }
+  }
+  el.remove()
+}
+
+function clearAllLoadingOverlays() {
+  const all = document.querySelectorAll("[data-turbo-overlay-loading-id]")
+  all.forEach((el) => {
+    if (el.tagName === "DIALOG" && el.open) {
+      try { el.close() } catch (_) { /* ignore */ }
+    }
+    el.remove()
+  })
+}
+
+// Drop the loading placeholder when:
+//   - the matching server-rendered frame arrives in a turbo-stream
+//   - the request errors out (network failure, 4xx/5xx)
+//   - the user navigates away while a request is in flight
+function registerLoadingHook() {
+  if (typeof document === "undefined") return
+  if (window._turboOverlayLoadingHookRegistered) return
+  window._turboOverlayLoadingHookRegistered = true
+
+  document.addEventListener("turbo:before-stream-render", (event) => {
+    const stream = event.detail && event.detail.newStream
+    if (!stream || !stream.templateElement) return
+    const frames = stream.templateElement.content.querySelectorAll(
+      "turbo-frame[id^='turbo_overlay_']"
+    )
+    frames.forEach((frame) => {
+      const rest = frame.id.substring("turbo_overlay_".length)
+      const underscore = rest.indexOf("_")
+      if (underscore < 0) return
+      removeLoadingOverlay(rest.substring(underscore + 1))
+    })
+  })
+
+  document.addEventListener("turbo:fetch-request-error", (event) => {
+    const id = _readOverlayIdFromFetchEvent(event)
+    if (id) removeLoadingOverlay(id)
+  })
+
+  document.addEventListener("turbo:before-fetch-response", (event) => {
+    const response = event.detail && event.detail.fetchResponse
+    if (!response || response.succeeded) return
+    const id = _readOverlayIdFromFetchEvent(event)
+    if (id) removeLoadingOverlay(id)
+  })
+
+  document.addEventListener("turbo:visit", () => {
+    clearAllLoadingOverlays()
+  })
+}
+
+function _readOverlayIdFromFetchEvent(event) {
+  const detail = event.detail || {}
+  const request = detail.fetchRequest || detail.request
+  if (!request) return null
+  const headers = (request.fetchOptions && request.fetchOptions.headers) ||
+                  (typeof request.headers === "object" ? request.headers : null)
+  if (!headers) return null
+  return headers["X-Turbo-Overlay-Id"] || headers["x-turbo-overlay-id"] || null
+}
+
 function registerFetchHook() {
   if (typeof document === "undefined") return
   if (window._turboOverlayFetchHookRegistered) return
@@ -73,14 +240,14 @@ function registerFetchHook() {
       : null
     if (!link) return
 
-    // Popovers need an anchor reference. Generate an id client-side
-    // when the link didn't supply one so we can key the trigger
-    // registry, then back-fill the data attribute so the same id
-    // ships in X-Turbo-Overlay-Id and lands on the rendered dialog.
+    // Mint an overlay id client-side when the link didn't supply one.
+    // Popovers need it for the trigger registry; every type needs it
+    // so the loading-state element can be tagged with the same id the
+    // server will use to render the real frame.
+    if (!link.dataset.turboOverlayId) {
+      link.dataset.turboOverlayId = generateOverlayId()
+    }
     if (link.dataset.turboOverlay === "popover") {
-      if (!link.dataset.turboOverlayId) {
-        link.dataset.turboOverlayId = generateOverlayId()
-      }
       popoverTriggers.set(link.dataset.turboOverlayId, link)
     }
 
@@ -123,6 +290,10 @@ function registerFetchHook() {
     if (trigger.dataset.turboOverlayClose === "false") {
       headers["X-Turbo-Overlay-Close"] = "false"
     }
+
+    // Now that the request is actually in flight (past Turbo's
+    // confirm prompt etc.), drop a loading placeholder into the stack.
+    spawnLoadingOverlay(trigger)
   })
 }
 
@@ -245,11 +416,13 @@ function promptConfirm(message, formElement, submitter) {
 
 registerStreamAction()
 registerFetchHook()
+registerLoadingHook()
 
 export default class extends Controller {
   connect() {
     registerStreamAction()
     registerFetchHook()
+    registerLoadingHook()
     this.entries = []
 
     this._closeHandler = (event) => this.handleCloseEvent(event)

@@ -169,6 +169,33 @@ dialog.turbo-overlay--popover.turbo-overlay-closing  { animation: turbo-overlay-
   .turbo-overlay-hint[data-state] { animation: none !important; }
 }
 
+/* === Loading state (cloned client-side while a request is in flight) === */
+/* Wrapped in :where() so themes that drop their own classes on the
+   loading partial win without specificity battles. */
+:where(.turbo-overlay-loading__body) {
+  display: flex; align-items: center; justify-content: center;
+  min-height: 8rem; padding: 2rem;
+}
+:where(.turbo-overlay-loading__spinner) {
+  display: inline-block;
+  width: 1.5rem; height: 1.5rem;
+  border: 3px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  opacity: 0.6;
+  animation: turbo-overlay-loading-spin 0.8s linear infinite;
+}
+@keyframes turbo-overlay-loading-spin { to { transform: rotate(360deg); } }
+
+/* Drawer loading should fill its panel rather than rely on min-height. */
+:where(dialog.turbo-overlay--drawer.turbo-overlay--loading .turbo-overlay-loading__body) {
+  min-height: 100%;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .turbo-overlay-loading__spinner { animation: none !important; }
+}
+
 /* === Non-modal drawer (opened via dialog.show(), no ::backdrop) === */
 /* Non-modal <dialog> defaults to position: absolute (anchored to the
    document), which breaks the side-pinned inset rules above. Force
