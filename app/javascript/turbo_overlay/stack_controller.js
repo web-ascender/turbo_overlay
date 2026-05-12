@@ -77,6 +77,9 @@ function registerFetchHook() {
     if (trigger.dataset.turboOverlayId) {
       headers["X-Turbo-Overlay-Id"] = trigger.dataset.turboOverlayId
     }
+    if (trigger.dataset.turboOverlayPosition) {
+      headers["X-Turbo-Overlay-Position"] = trigger.dataset.turboOverlayPosition
+    }
   })
 }
 

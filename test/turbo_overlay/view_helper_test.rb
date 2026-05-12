@@ -204,6 +204,22 @@ class ViewHelperTest < Minitest::Test
     assert_equal "drawer", html_options[:data][:turbo_overlay]
   end
 
+  def test_drawer_link_to_with_position_sets_data_attribute
+    view = FakeView.new
+    view.drawer_link_to("Filter", "/filters", position: :left)
+
+    _, _, html_options = view.link_to_args
+    assert_equal "left", html_options[:data][:turbo_overlay_position]
+  end
+
+  def test_drawer_link_to_omits_position_when_not_provided
+    view = FakeView.new
+    view.drawer_link_to("Filter", "/filters")
+
+    _, _, html_options = view.link_to_args
+    refute html_options[:data].key?(:turbo_overlay_position)
+  end
+
   # ---- drawer_dismiss_link_to ----
 
   def test_drawer_dismiss_link_to_inside_drawer_adds_dismiss_action

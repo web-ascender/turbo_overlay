@@ -1,4 +1,4 @@
-<% position = TurboOverlay.configuration.drawer.position %>
+<% position = current_overlay_position || TurboOverlay.configuration.drawer.position %>
 <% offcanvas_class = {
   right:  "offcanvas-end",
   left:   "offcanvas-start",

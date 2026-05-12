@@ -27,9 +27,10 @@ module TurboOverlay
   module Controller
     extend ActiveSupport::Concern
 
-    OVERLAY_FRAME_PREFIX = "turbo_overlay_".freeze
-    OVERLAY_TYPE_HEADER  = "X-Turbo-Overlay".freeze
-    OVERLAY_ID_HEADER    = "X-Turbo-Overlay-Id".freeze
+    OVERLAY_FRAME_PREFIX    = "turbo_overlay_".freeze
+    OVERLAY_TYPE_HEADER     = "X-Turbo-Overlay".freeze
+    OVERLAY_ID_HEADER       = "X-Turbo-Overlay-Id".freeze
+    OVERLAY_POSITION_HEADER = "X-Turbo-Overlay-Position".freeze
 
     included do
       prepend_before_action :_turbo_overlay_force_html_format
@@ -38,7 +39,8 @@ module TurboOverlay
 
       helper_method :modal_request?, :modal_layout_name,
         :drawer_request?, :drawer_layout_name,
-        :overlay_request?, :current_overlay_id, :current_overlay_type
+        :overlay_request?, :current_overlay_id, :current_overlay_type,
+        :current_overlay_position
     end
 
     # ----- modal -----
@@ -95,6 +97,16 @@ module TurboOverlay
       @_turbo_overlay_id = _resolve_overlay_id
     end
 
+    # The per-link position override for the current overlay request,
+    # parsed from the `X-Turbo-Overlay-Position` header. Returns a
+    # Symbol (`:left`, `:right`, `:top`, `:bottom`) or `nil` when the
+    # link didn't supply one. Drawer partials use this with a
+    # fallback to `TurboOverlay.configuration.drawer.position`.
+    def current_overlay_position
+      return @_turbo_overlay_position if defined?(@_turbo_overlay_position)
+      @_turbo_overlay_position = _resolve_overlay_position
+    end
+
     # True for the initial open of an overlay (an `X-Turbo-Overlay`
     # request that is not a form re-render inside an existing
     # overlay frame). Used internally to decide between turbo-stream
@@ -144,6 +156,14 @@ module TurboOverlay
       end
 
       SecureRandom.alphanumeric(8)
+    end
+
+    def _resolve_overlay_position
+      return nil unless respond_to?(:request) && request
+
+      value = request.headers[OVERLAY_POSITION_HEADER].to_s
+      return nil if value.empty?
+      value.to_sym
     end
 
     def _turbo_overlay_set_variant

@@ -1,4 +1,4 @@
-<% position = TurboOverlay.configuration.drawer.position %>
+<% position = current_overlay_position || TurboOverlay.configuration.drawer.position %>
 <% position_classes = {
   right:  "inset-y-0 right-0 left-auto h-screen w-96 max-w-full",
   left:   "inset-y-0 left-0 right-auto h-screen w-96 max-w-full",

@@ -40,6 +40,13 @@ module TurboOverlay
       # stacking and `overlay_id:` semantics as `modal_link_to`.
       #
       #   <%= drawer_link_to "Filters", filters_path %>
+      #
+      # `position:` overrides the configured drawer side for this one
+      # link (`:left`, `:right`, `:top`, `:bottom`). When omitted the
+      # drawer opens on the side set by
+      # `TurboOverlay.configuration.drawer.position`.
+      #
+      #   <%= drawer_link_to "Nav", nav_path, position: :left %>
       def drawer_link_to(name = nil, options = nil, html_options = nil, &block)
         _overlay_link_to(:drawer, name, options, html_options, &block)
       end
@@ -101,6 +108,15 @@ module TurboOverlay
       # `turbo_stream.overlay(:close, id: current_overlay_id)`.
       def current_overlay_id
         return controller.current_overlay_id if controller.respond_to?(:current_overlay_id)
+        nil
+      end
+
+      # The per-link position override for the current overlay
+      # request, or `nil` when the link didn't supply one. Drawer
+      # partials read this with a fallback to
+      # `TurboOverlay.configuration.drawer.position`.
+      def current_overlay_position
+        return controller.current_overlay_position if controller.respond_to?(:current_overlay_position)
         nil
       end
 
@@ -186,11 +202,13 @@ module TurboOverlay
       def _overlay_normalize_link_args(type, options, html_options)
         html_options = (html_options || {}).dup
         overlay_id   = html_options.delete(:overlay_id) || html_options.delete("overlay_id")
+        position     = html_options.delete(:position)   || html_options.delete("position")
 
         data = (html_options[:data] || {}).dup
         data[:turbo_stream] = true unless data.key?(:turbo_stream) || html_options.key?("data-turbo-stream")
         data[:turbo_overlay] = type.to_s unless data.key?(:turbo_overlay) || html_options.key?("data-turbo-overlay")
         data[:turbo_overlay_id] = overlay_id.to_s if overlay_id && !data.key?(:turbo_overlay_id) && !html_options.key?("data-turbo-overlay-id")
+        data[:turbo_overlay_position] = position.to_s if position && !data.key?(:turbo_overlay_position) && !html_options.key?("data-turbo-overlay-position")
         # Break out of any enclosing per-overlay turbo-frame so a click
         # on a modal/drawer link from inside an open overlay opens a
         # new (stacked) overlay instead of replacing the current one.
