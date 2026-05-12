@@ -292,6 +292,15 @@ gem hooks `turbo:before-fetch-response`, finds the template in the
 prefetched HTML, caches the fragment by URL, and shows it on hover
 delay.
 
+**The block only runs for hintable requests.** On regular page
+navigations, form submissions, and anything that isn't a Turbo
+prefetch or `:hint` variant fetch, `turbo_overlay_hint` is a no-op —
+the block isn't evaluated, the template tag isn't emitted, and any
+DB queries / partial renders inside the block don't run. Detection
+uses `Sec-Purpose: prefetch` (the W3C standard, what Turbo sends on
+hover-prefetch) and `X-Turbo-Overlay: hint` for the explicit fetch
+path.
+
 #### Compose with overlay link helpers
 
 `hint:` / `hint_url:` work on every overlay helper:

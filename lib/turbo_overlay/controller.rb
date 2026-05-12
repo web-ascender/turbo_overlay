@@ -48,7 +48,8 @@ module TurboOverlay
         :overlay_request?, :current_overlay_id, :current_overlay_type,
         :current_overlay_position, :current_overlay_align,
         :current_overlay_offset, :current_overlay_backdrop?,
-        :current_overlay_close?
+        :current_overlay_close?, :turbo_overlay_prefetch_request?,
+        :turbo_overlay_hintable_request?
     end
 
     # ----- modal -----
@@ -98,6 +99,25 @@ module TurboOverlay
     # partials.
     def overlay_request?
       !current_overlay_type.nil?
+    end
+
+    # True if the current request is a Turbo hover prefetch. Detected
+    # via the `Sec-Purpose: prefetch` request header (W3C standard,
+    # what Turbo sends) with `Purpose: prefetch` accepted as a
+    # fallback for older user agents. Used by `turbo_overlay_hint` to
+    # skip its block on regular page renders.
+    def turbo_overlay_prefetch_request?
+      return false unless respond_to?(:request) && request
+      return true if request.headers["Sec-Purpose"].to_s.include?("prefetch")
+      request.headers["Purpose"].to_s == "prefetch"
+    end
+
+    # True if the current request will use the hint template the page
+    # captures via `turbo_overlay_hint do … end` — either a hover
+    # prefetch (which the gem's JS extracts the template from) or an
+    # explicit `:hint` variant fetch.
+    def turbo_overlay_hintable_request?
+      hint_request? || turbo_overlay_prefetch_request?
     end
 
     # Returns `:modal`, `:drawer`, `:popover`, or `nil`. Detected from

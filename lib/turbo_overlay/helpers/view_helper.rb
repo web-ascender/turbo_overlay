@@ -153,7 +153,17 @@ module TurboOverlay
       #     <h3><%= @user.name %></h3>
       #     <p>Last seen <%= time_ago_in_words(@user.last_seen_at) %> ago</p>
       #   <% end %>
+      #
+      # No-op on requests that won't use the hint template — regular
+      # page navigations, form submissions, anything that isn't a Turbo
+      # prefetch or `:hint` variant fetch. The block isn't evaluated,
+      # so any DB queries or partial renders inside it don't run when
+      # the user is actually viewing the page. Detection uses the
+      # `Sec-Purpose: prefetch` request header (W3C standard, what
+      # Turbo sends) and `X-Turbo-Overlay: hint` for the explicit
+      # variant fetch path.
       def turbo_overlay_hint(value = nil, &block)
+        return unless _turbo_overlay_hintable_request?
         content_for(:turbo_overlay_hint, value, &block)
       end
 
@@ -389,6 +399,21 @@ module TurboOverlay
       end
 
       private
+
+      # Whether the hint template should be rendered for this request.
+      # True for prefetches and explicit `:hint` variant fetches.
+      # Mirrors the controller-side `turbo_overlay_hintable_request?`
+      # so the view helper works whether or not the host included
+      # `TurboOverlay::Controller` (e.g. in test contexts).
+      def _turbo_overlay_hintable_request?
+        if controller.respond_to?(:turbo_overlay_hintable_request?)
+          return controller.turbo_overlay_hintable_request?
+        end
+        return false unless respond_to?(:request) && request
+        return true if hint_request?
+        return true if request.headers["Sec-Purpose"].to_s.include?("prefetch")
+        request.headers["Purpose"].to_s == "prefetch"
+      end
 
       # Render `turbo_overlay/<name>` for the given variant, preferring
       # `_<name>.html+<variant>.erb` and falling back to a shared

@@ -47,9 +47,13 @@ class ViewHelperTest < Minitest::Test
     include TurboOverlay::Helpers::ViewHelper
 
     attr_reader :link_to_args, :content_for_calls, :modal_request_value, :drawer_request_value, :popover_request_value
-    attr_accessor :_current_overlay_id, :_lookup_context, :_render_returns
+    attr_accessor :_current_overlay_id, :_lookup_context, :_render_returns, :_hintable_request
 
-    def initialize(modal_request: false, drawer_request: false, popover_request: false)
+    def initialize(modal_request: false, drawer_request: false, popover_request: false, hintable_request: true)
+      # Default `hintable_request: true` so the existing hint-emission
+      # tests don't have to opt in. Tests that exercise the non-hintable
+      # path pass `hintable_request: false`.
+      @_hintable_request     = hintable_request
       @modal_request_value   = modal_request
       @drawer_request_value  = drawer_request
       @popover_request_value = popover_request
@@ -132,7 +136,12 @@ class ViewHelperTest < Minitest::Test
       return true if method_name == :current_overlay_id
       return true if method_name == :turbo_overlay_frame_re_render?
       return true if method_name == :lookup_context
+      return true if method_name == :turbo_overlay_hintable_request?
       super
+    end
+
+    def turbo_overlay_hintable_request?
+      @_hintable_request
     end
 
     def current_overlay_id
@@ -702,6 +711,29 @@ class ViewHelperTest < Minitest::Test
     name, value, _block = view.content_for_calls.first
     assert_equal :turbo_overlay_hint, name
     assert_equal "preview body", value
+  end
+
+  def test_turbo_overlay_hint_is_noop_on_non_hintable_request
+    view = FakeView.new(hintable_request: false)
+    view.turbo_overlay_hint("preview body")
+    # Block / value not captured: no content_for call should have fired.
+    assert_empty view.content_for_calls
+  end
+
+  def test_turbo_overlay_hint_does_not_evaluate_block_on_non_hintable_request
+    view = FakeView.new(hintable_request: false)
+    evaluated = false
+    view.turbo_overlay_hint { evaluated = true; "preview body" }
+    refute evaluated, "block should not run on non-hintable requests"
+  end
+
+  def test_overlay_stack_tag_omits_hint_template_on_non_hintable_request
+    view = FakeView.new(hintable_request: false)
+    view._lookup_context = FakeLookupContext.new(exists: false)
+    view.turbo_overlay_hint("PREVIEW")
+    output = view.overlay_stack_tag
+    refute_includes output, %(<template id="turbo-overlay-hint">)
+    refute_includes output, "PREVIEW"
   end
 
   def test_overlay_stack_tag_emits_hint_template_when_content_present
