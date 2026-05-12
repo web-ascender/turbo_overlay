@@ -223,11 +223,22 @@ export default class extends Controller {
   // data-action="click->turbo-overlay#backdropClick" — clicks on the
   // dialog's ::backdrop register with the dialog as event.target.
   // Children that bubble up have a different target and are ignored.
+  // Themes whose chrome wraps the dialog in an element that fills the
+  // dialog (e.g. Bootstrap5's `<div class="modal">`, which exists to
+  // scope `--bs-modal-*`) mark that wrapper with
+  // `data-turbo-overlay-backdrop` so clicks on its uncovered area are
+  // also treated as backdrop clicks.
   // Opt out per-overlay with data-turbo-overlay-backdrop-dismiss-value="false".
   backdropClick(event) {
     if (!this.backdropDismissValue) return
-    if (event.target !== this.dialog) return
-    this.cancel(event)
+    const target = event.target
+    if (target === this.dialog) {
+      this.cancel(event)
+      return
+    }
+    if (target && target.hasAttribute && target.hasAttribute("data-turbo-overlay-backdrop")) {
+      this.cancel(event)
+    }
   }
 
   _animatedClose() {
