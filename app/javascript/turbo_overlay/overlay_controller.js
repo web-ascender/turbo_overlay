@@ -64,6 +64,11 @@ export default class extends Controller {
         try { this.dialog.show() } catch (_) { this.dialog.setAttribute("open", "") }
         this._installEscHandler()
       }
+    } else if (registered && this.dialog && this.dialog.open && !this.backdropValue) {
+      // Non-modal path after a morph from loading: dialog is already
+      // open in non-modal mode, but the ESC handler hasn't been
+      // installed yet (the placeholder didn't have a controller).
+      this._installEscHandler()
     }
   }
 

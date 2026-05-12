@@ -12,36 +12,43 @@
         data-action="cancel->turbo-overlay#cancel click->turbo-overlay#backdropClick"
         aria-labelledby="turbo-modal-title-<%= turbo_overlay_id %>"
         <% end %>>
-  <div class="modal-dialog modal-lg" role="document">
-    <div class="modal-content position-relative">
-      <% if !loading && content_for?(:overlay_title) %>
-        <div class="modal-header">
-          <h5 id="turbo-modal-title-<%= turbo_overlay_id %>" class="modal-title">
-            <%= yield(:overlay_title) %>
-          </h5>
-          <% if close_button %>
-            <button type="button"
-                    class="btn-close"
-                    data-action="turbo-overlay#close"
-                    aria-label="Close"></button>
-          <% end %>
-        </div>
-      <% elsif !loading && close_button %>
-        <button type="button"
-                class="btn-close position-absolute top-0 end-0 m-3"
-                data-action="turbo-overlay#close"
-                aria-label="Close"></button>
-      <% end %>
+  <%# .modal wrapper scopes the --bs-modal-* CSS variables that
+      .modal-content reads for background, border, and padding.
+      d-block overrides Bootstrap's display:none; position-static
+      neutralizes its position:fixed so the native <dialog>'s own
+      top-layer positioning still drives placement. %>
+  <div class="modal d-block position-static">
+    <div class="modal-dialog modal-dialog-centered modal-lg" role="document">
+      <div class="modal-content position-relative">
+        <% if !loading && content_for?(:overlay_title) %>
+          <div class="modal-header">
+            <h5 id="turbo-modal-title-<%= turbo_overlay_id %>" class="modal-title">
+              <%= yield(:overlay_title) %>
+            </h5>
+            <% if close_button %>
+              <button type="button"
+                      class="btn-close"
+                      data-action="turbo-overlay#close"
+                      aria-label="Close"></button>
+            <% end %>
+          </div>
+        <% elsif !loading && close_button %>
+          <button type="button"
+                  class="btn-close position-absolute top-0 end-0 m-3"
+                  data-action="turbo-overlay#close"
+                  aria-label="Close"></button>
+        <% end %>
 
-      <div class="modal-body">
-        <%= yield %>
+        <div class="modal-body">
+          <%= yield %>
+        </div>
+
+        <% if !loading && content_for?(:overlay_footer) %>
+          <div class="modal-footer">
+            <%= yield(:overlay_footer) %>
+          </div>
+        <% end %>
       </div>
-
-      <% if !loading && content_for?(:overlay_footer) %>
-        <div class="modal-footer">
-          <%= yield(:overlay_footer) %>
-        </div>
-      <% end %>
     </div>
   </div>
 </dialog>

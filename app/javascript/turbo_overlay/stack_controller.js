@@ -32,6 +32,20 @@ function registerStreamAction() {
 // round-trip to the server.
 const popoverTriggers = new Map()
 
+// Overlay ids whose loading placeholder the user dismissed before the
+// server response arrived. We always try to abort the in-flight fetch
+// via AbortController so the response never lands, but the set is a
+// belt-and-suspenders fallback for the (theoretical) case where the
+// response is already in `before-stream-render` when the user clicks
+// dismiss.
+const dismissedLoadingIds = new Set()
+
+// AbortController per overlay-id keyed in-flight request. Lives long
+// enough to cancel the fetch when the user closes the loading
+// placeholder; cleaned up on response (success or failure), on visit,
+// and on morph-in.
+const inflightAborts = new Map()
+
 export function getPopoverTrigger(id) {
   return popoverTriggers.get(id) || null
 }
@@ -48,9 +62,14 @@ function generateOverlayId() {
 // stack and open it immediately. Inherits the trigger's link options
 // (backdrop, drawer position, close button suppression, popover
 // position/align/offset) so the placeholder reads visually the same
-// as the eventual chrome. Tagged with `data-turbo-overlay-loading-id`
-// matching the X-Turbo-Overlay-Id header so the loading element can
-// be removed when the real frame lands or the request errors out.
+// as the eventual chrome.
+//
+// The placeholder dialog is wrapped in a `<turbo-frame>` that matches
+// the id the server will eventually render. When the real response
+// arrives, `before-stream-render` morphs the new dialog's attributes
+// and children INTO this same dialog node so the overlay never
+// closes and re-opens — the entry animation only plays once, when
+// the placeholder first appears.
 function spawnLoadingOverlay(link) {
   const type = link.dataset.turboOverlay
   const id   = link.dataset.turboOverlayId
@@ -65,9 +84,6 @@ function spawnLoadingOverlay(link) {
   const fragment = template.content.cloneNode(true)
   const root = fragment.firstElementChild
   if (!root) return
-
-  root.dataset.turboOverlayLoadingId = id
-  root.dataset.turboOverlayLoadingType = type
 
   const backdrop = link.dataset.turboOverlayBackdrop !== "false"
   if (!backdrop) root.classList.add("turbo-overlay--no-backdrop")
@@ -95,7 +111,19 @@ function spawnLoadingOverlay(link) {
     root.dataset.turboOverlayClose = "false"
   }
 
-  stack.appendChild(root)
+  // Wrap the placeholder dialog in a turbo-frame whose id matches the
+  // server-side frame id. The placeholder IS the frame's initial
+  // content; on response we morph the new content over this same
+  // dialog so the open animation never re-runs. The loading marker
+  // lives on the frame so removal handlers tear down both layers.
+  const frame = document.createElement("turbo-frame")
+  frame.id = `turbo_overlay_${type}_${id}`
+  frame.className = "turbo-overlay-frame"
+  frame.dataset.turboOverlayLoadingId = id
+  frame.dataset.turboOverlayLoadingType = type
+  frame.appendChild(root)
+
+  stack.appendChild(frame)
 
   if (root.tagName === "DIALOG") {
     const useModal = (type === "modal") || (type === "drawer" && backdrop)
@@ -106,8 +134,50 @@ function spawnLoadingOverlay(link) {
     }
   }
 
+  attachLoadingDismissHandlers(root, frame, id)
+
   if (type === "popover") {
     positionLoadingPopover(root, link)
+  }
+}
+
+// Loading placeholders have no Stimulus controller (the chrome partial
+// is rendered with `loading: true`, which strips data-controller and
+// data-action). Dismissal is wired directly here: ESC fires native
+// `cancel` on modal dialogs; clicking the dialog itself
+// (target === dialog) is a backdrop click. On dismiss we abort the
+// in-flight fetch so the response never lands. The class guard makes
+// the listeners no-op after a morph swaps the placeholder into the
+// live overlay (the live dialog handles its own ESC/backdrop via the
+// Stimulus controller).
+function attachLoadingDismissHandlers(dialog, frame, id) {
+  if (!dialog || !frame || !id) return
+
+  const dismiss = (event) => {
+    if (!dialog.classList.contains("turbo-overlay--loading")) return
+    if (event && typeof event.preventDefault === "function") event.preventDefault()
+
+    const aborter = inflightAborts.get(id)
+    if (aborter) {
+      try { aborter.abort() } catch (_) { /* ignore */ }
+      inflightAborts.delete(id)
+    }
+    // Safety net: if abort somehow doesn't prevent the response,
+    // before-stream-render will drop the matching frame.
+    dismissedLoadingIds.add(id)
+
+    if (dialog.tagName === "DIALOG" && dialog.open) {
+      try { dialog.close() } catch (_) { /* ignore */ }
+    }
+    frame.remove()
+  }
+
+  dialog.addEventListener("cancel", dismiss)
+
+  if (dialog.tagName === "DIALOG") {
+    dialog.addEventListener("click", (event) => {
+      if (event.target === dialog) dismiss(event)
+    })
   }
 }
 
@@ -137,27 +207,75 @@ function positionLoadingPopover(root, link) {
   root.style.margin   = "0"
 }
 
+function cssEscape(value) {
+  return (window.CSS && typeof window.CSS.escape === "function")
+    ? window.CSS.escape(value)
+    : String(value).replace(/[^a-zA-Z0-9_-]/g, "\\$&")
+}
+
+function findLoadingFrame(id) {
+  if (!id) return null
+  return document.querySelector(`[data-turbo-overlay-loading-id="${cssEscape(id)}"]`)
+}
+
 function removeLoadingOverlay(id) {
-  if (!id) return
-  const escaped = (window.CSS && typeof window.CSS.escape === "function")
-    ? window.CSS.escape(id)
-    : String(id).replace(/[^a-zA-Z0-9_-]/g, "\\$&")
-  const el = document.querySelector(`[data-turbo-overlay-loading-id="${escaped}"]`)
-  if (!el) return
-  if (el.tagName === "DIALOG" && el.open) {
-    try { el.close() } catch (_) { /* ignore */ }
+  const frame = findLoadingFrame(id)
+  if (!frame) return
+  const dialog = frame.querySelector("dialog")
+  if (dialog && dialog.open) {
+    try { dialog.close() } catch (_) { /* ignore */ }
   }
-  el.remove()
+  frame.remove()
+  inflightAborts.delete(id)
 }
 
 function clearAllLoadingOverlays() {
-  const all = document.querySelectorAll("[data-turbo-overlay-loading-id]")
-  all.forEach((el) => {
-    if (el.tagName === "DIALOG" && el.open) {
-      try { el.close() } catch (_) { /* ignore */ }
+  const frames = document.querySelectorAll("[data-turbo-overlay-loading-id]")
+  frames.forEach((frame) => {
+    const dialog = frame.querySelector("dialog")
+    if (dialog && dialog.open) {
+      try { dialog.close() } catch (_) { /* ignore */ }
     }
-    el.remove()
+    frame.remove()
   })
+  inflightAborts.forEach((aborter) => {
+    try { aborter.abort() } catch (_) { /* ignore */ }
+  })
+  inflightAborts.clear()
+  dismissedLoadingIds.clear()
+}
+
+// Morph the placeholder dialog so it becomes the live overlay:
+// transfer every attribute from the incoming dialog (except `open`,
+// which the placeholder already has) and replace the children. The
+// dialog DOM node never closes — it stays in the top layer (or at its
+// fixed position) the entire time — so the overlay's open animation
+// only plays once, when the placeholder first appeared.
+//
+// Stimulus's MutationObserver picks up `data-controller="turbo-overlay"`
+// landing on the dialog and connects the controller. The controller's
+// connect path already handles "dialog is already open" by skipping
+// showModal/show.
+function morphDialogInPlace(existing, incoming) {
+  // `open` already drives the placeholder's open state — re-applying
+  // it from the server payload is a no-op at best and breaks top-layer
+  // identity at worst. `style` holds the popover's inline anchor
+  // positioning, which we want to keep until the controller re-runs
+  // _positionPopover; the partial never emits a style attribute, so
+  // skipping it costs nothing.
+  const incomingAttrNames = new Set()
+  for (const attr of Array.from(incoming.attributes)) {
+    if (attr.name === "open" || attr.name === "style") continue
+    incomingAttrNames.add(attr.name)
+    if (existing.getAttribute(attr.name) !== attr.value) {
+      existing.setAttribute(attr.name, attr.value)
+    }
+  }
+  for (const attr of Array.from(existing.attributes)) {
+    if (attr.name === "open" || attr.name === "style") continue
+    if (!incomingAttrNames.has(attr.name)) existing.removeAttribute(attr.name)
+  }
+  existing.replaceChildren(...incoming.childNodes)
 }
 
 // Drop the loading placeholder when:
@@ -172,14 +290,45 @@ function registerLoadingHook() {
   document.addEventListener("turbo:before-stream-render", (event) => {
     const stream = event.detail && event.detail.newStream
     if (!stream || !stream.templateElement) return
-    const frames = stream.templateElement.content.querySelectorAll(
+    const incomingFrames = stream.templateElement.content.querySelectorAll(
       "turbo-frame[id^='turbo_overlay_']"
     )
-    frames.forEach((frame) => {
-      const rest = frame.id.substring("turbo_overlay_".length)
+    incomingFrames.forEach((incomingFrame) => {
+      const rest = incomingFrame.id.substring("turbo_overlay_".length)
       const underscore = rest.indexOf("_")
       if (underscore < 0) return
-      removeLoadingOverlay(rest.substring(underscore + 1))
+      const id = rest.substring(underscore + 1)
+
+      // User dismissed the placeholder mid-flight (and the abort
+      // didn't beat the response). Drop the frame so nothing renders.
+      if (dismissedLoadingIds.has(id)) {
+        dismissedLoadingIds.delete(id)
+        incomingFrame.remove()
+        return
+      }
+
+      const placeholderFrame = findLoadingFrame(id)
+      if (!placeholderFrame) return  // no loading shown; let stream render normally
+
+      const incomingDialog    = incomingFrame.querySelector("dialog.turbo-overlay")
+      const placeholderDialog = placeholderFrame.querySelector("dialog.turbo-overlay")
+      if (!incomingDialog || !placeholderDialog) {
+        // Unexpected payload — fall back to a plain swap.
+        removeLoadingOverlay(id)
+        return
+      }
+
+      // Morph in place: same dialog node, new attributes + content.
+      // The dialog stays open the entire time, so no entry animation
+      // re-runs and there's no visual gap.
+      morphDialogInPlace(placeholderDialog, incomingDialog)
+      delete placeholderFrame.dataset.turboOverlayLoadingId
+      delete placeholderFrame.dataset.turboOverlayLoadingType
+      inflightAborts.delete(id)
+
+      // Frame is now the live frame; drop the incoming so the stream
+      // append doesn't add a duplicate.
+      incomingFrame.remove()
     })
   })
 
@@ -189,10 +338,14 @@ function registerLoadingHook() {
   })
 
   document.addEventListener("turbo:before-fetch-response", (event) => {
-    const response = event.detail && event.detail.fetchResponse
-    if (!response || response.succeeded) return
     const id = _readOverlayIdFromFetchEvent(event)
-    if (id) removeLoadingOverlay(id)
+    if (!id) return
+    // Successful responses are torn down in before-stream-render once
+    // the new dialog has morphed in; here we only have to handle
+    // failures so the placeholder doesn't get stuck on a 4xx/5xx.
+    const response = event.detail && event.detail.fetchResponse
+    if (response && response.succeeded) return
+    removeLoadingOverlay(id)
   })
 
   document.addEventListener("turbo:visit", () => {
@@ -289,6 +442,24 @@ function registerFetchHook() {
     }
     if (trigger.dataset.turboOverlayClose === "false") {
       headers["X-Turbo-Overlay-Close"] = "false"
+    }
+
+    // Inject an AbortController so dismissing the loading placeholder
+    // actually cancels the in-flight fetch instead of just discarding
+    // the response. Turbo respects `fetchOptions.signal` when it
+    // constructs the underlying fetch call. Clear any stale dismissal
+    // for this id first — overlay ids are sticky on the link element,
+    // so a second click on the same link reuses the id, and we must
+    // not let the dismissed-safety-net set from a prior dismissal
+    // discard this fresh request's response.
+    const overlayId = trigger.dataset.turboOverlayId
+    if (overlayId) {
+      dismissedLoadingIds.delete(overlayId)
+      if (typeof AbortController === "function") {
+        const aborter = new AbortController()
+        event.detail.fetchOptions.signal = aborter.signal
+        inflightAborts.set(overlayId, aborter)
+      }
     }
 
     // Now that the request is actually in flight (past Turbo's
