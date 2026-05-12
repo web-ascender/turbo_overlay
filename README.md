@@ -529,6 +529,42 @@ app/views/users/show.html+popover.erb # rendered when opened in a popover
 
 When the request hits via an overlay, Rails picks the matching variant.
 
+> **Footgun: don't put `overlay_title` / `overlay_footer` in a template
+> that also serves full-page renders.** Both helpers write to
+> `content_for` keys (`:overlay_title`, `:overlay_footer`) that only the
+> overlay chrome partials yield. The application layout doesn't yield
+> them, so on a full-page render — e.g. when a user opens the overlay
+> link in a new tab — the title and *every button inside
+> `overlay_footer`* silently disappear. The form still posts, but
+> there's no visible submit control.
+>
+> Two safe patterns:
+>
+> 1. **Use variant templates** (recommended). Put overlay-only chrome
+>    in `show.html+modal.erb` and keep `show.html.erb` as a standalone
+>    page with its own header and buttons. The two never share code
+>    paths.
+> 2. **Branch on `overlay_request?`** inside a single template when
+>    you want one file:
+>
+>    ```erb
+>    <% if overlay_request? %>
+>      <% overlay_title "Edit user" %>
+>      <%= render "form", user: @user %>
+>      <% overlay_footer do %>
+>        <button type="submit" form="user-form" class="btn btn-primary">Save</button>
+>      <% end %>
+>    <% else %>
+>      <h1>Edit user</h1>
+>      <%= render "form", user: @user %>
+>      <button type="submit" form="user-form" class="btn btn-primary">Save</button>
+>    <% end %>
+>    ```
+>
+> Either way, make sure every overlay-targeted action also renders
+> sensibly as a standalone page — "open link in new tab" is a real
+> user habit, and the URL is a real Rails route.
+
 ### Close the overlay on a successful submission
 
 `turbo_stream.overlay(:close)` closes the *top* overlay. From a deep
