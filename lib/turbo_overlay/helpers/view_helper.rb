@@ -427,10 +427,19 @@ module TurboOverlay
         "#{controller.controller_path}/#{controller.action_name}"
       end
 
+      # Returns true only when a `+hint` variant template exists on
+      # disk — NOT when `exists?(variants: [:hint])` falls back to the
+      # plain template. Rails' variant resolution treats no-variant as
+      # an acceptable match for any variant query, which would make us
+      # auto-render the entire page as the hint body whenever the
+      # action has any view at all (e.g. show.html.erb without a
+      # +hint sibling). We inspect the resolved templates' identifiers
+      # and require an actual `+hint.` segment in the filename.
       def _turbo_overlay_action_hint_variant_exists?
         path = _turbo_overlay_action_template_path
         return false unless path
-        lookup_context.exists?(path, [], false, [], variants: [:hint])
+        templates = lookup_context.find_all(path, [], false, [], variants: [:hint])
+        templates.any? { |t| t.respond_to?(:identifier) && t.identifier.to_s.include?("+hint.") }
       end
 
       # Whether the hint template should be rendered for this request.

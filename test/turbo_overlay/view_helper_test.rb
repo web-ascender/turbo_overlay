@@ -28,6 +28,43 @@ class ViewHelperTest < Minitest::Test
       _resolve_exists(spec, variants)
     end
 
+    # Minimal mirror of ActionView::LookupContext#find_all — returns
+    # an array of FakeTemplate objects whose `identifier` includes the
+    # matched variant (`+hint.`, etc.) so callers can distinguish a
+    # real variant match from a no-variant fallback.
+    FakeTemplate = Struct.new(:identifier)
+
+    def find_all(name, _prefixes = [], _partial = false, _keys = [], **details)
+      variants = details[:variants] || []
+      spec = if @exists.is_a?(Hash) && (@exists.key?(name) || @exists.key?(:_default))
+        @exists[name] || @exists[:_default] || false
+      else
+        @exists
+      end
+
+      results = []
+
+      case spec
+      when true
+        results << FakeTemplate.new("#{name}.html.erb")
+      when false
+        # nothing
+      when Hash
+        Array(spec[:variants]).each do |v|
+          next unless variants.empty? || variants.include?(v)
+          results << FakeTemplate.new("#{name}.html+#{v}.erb")
+        end
+        results << FakeTemplate.new("#{name}.html.erb") if spec[:shared]
+      when Array
+        spec.each do |v|
+          next unless variants.empty? || variants.include?(v)
+          results << FakeTemplate.new("#{name}.html+#{v}.erb")
+        end
+      end
+
+      results
+    end
+
     private
 
     def _resolve_exists(spec, variants)
@@ -779,6 +816,20 @@ class ViewHelperTest < Minitest::Test
     output = view.overlay_stack_tag
     refute_includes output, %(<template id="turbo-overlay-hint">)
     refute_includes output, "AUTO_HINT_BODY"
+  end
+
+  def test_overlay_stack_tag_skips_auto_hint_when_only_base_template_exists
+    # Regression: without strict variant detection, the whole page's
+    # show.html.erb would be rendered as the hint body whenever an
+    # action had any view template at all.
+    view = FakeView.new(controller_path: "users", action_name: "show")
+    view._lookup_context = FakeLookupContext.new(exists: {
+      "users/show" => { variants: [], shared: true }  # only show.html.erb, no +hint
+    })
+    view._render_returns = "FULL_PAGE_BODY"
+    output = view.overlay_stack_tag
+    refute_includes output, %(<template id="turbo-overlay-hint">)
+    refute_includes output, "FULL_PAGE_BODY"
   end
 
   def test_explicit_turbo_overlay_hint_wins_over_auto_render
