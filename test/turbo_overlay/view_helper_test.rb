@@ -863,18 +863,10 @@ class ViewHelperTest < Minitest::Test
     refute_includes output, %(<template id="turbo-overlay-hint">)
   end
 
-  def test_overlay_stack_tag_exposes_hint_config_by_default
+  def test_overlay_stack_tag_exposes_hint_delays
     view = FakeView.new
     output = view.overlay_stack_tag
-    assert_includes output, %(data-turbo-overlay-hint-enabled="true")
     assert_includes output, "data-turbo-overlay-hint-show-delay"
-    assert_includes output, "data-turbo-overlay-hint-template-id"
-  end
-
-  def test_overlay_stack_tag_signals_disabled_hint
-    TurboOverlay.configure { |c| c.hint { |h| h.enabled = false } }
-    view = FakeView.new
-    output = view.overlay_stack_tag
-    assert_includes output, %(data-turbo-overlay-hint-enabled="false")
+    assert_includes output, "data-turbo-overlay-hint-hide-delay"
   end
 end

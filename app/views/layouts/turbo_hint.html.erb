@@ -15,4 +15,4 @@
     returns just the hint body and we'll use yield. %>
 <% default_body = capture { yield } %>
 <% hint_body = content_for?(:turbo_overlay_hint) ? content_for(:turbo_overlay_hint) : default_body %>
-<template id="<%= TurboOverlay.configuration.hint.template_id %>"><%= render layout: "turbo_overlay/hint" do %><%= hint_body %><% end %></template>
+<template id="turbo-overlay-hint"><%= render layout: "turbo_overlay/hint" do %><%= hint_body %><% end %></template>

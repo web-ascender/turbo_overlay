@@ -11,18 +11,14 @@ TurboOverlay.configure do |config|
 
     # Layout used to render modal responses.
     # m.layout_name = "turbo_modal"
-
-    # Stimulus identifier the modal layout binds to.
-    # m.stimulus_identifier = "turbo-overlay"
   end
 
   config.drawer do |d|
     # Same as modal, plus a position for the shipped layouts:
     # :left, :right (default), :top, :bottom.
-    # d.variant  = :drawer
+    # d.variant     = :drawer
     # d.layout_name = "turbo_drawer"
-    # d.stimulus_identifier = "turbo-overlay"
-    # d.position = :right
+    # d.position    = :right
   end
 
   config.popover do |p|
@@ -32,13 +28,12 @@ TurboOverlay.configure do |config|
     # `offset` is the gap in pixels between trigger and popover edges.
     # `auto_flip` swaps to the opposite side when the preferred
     # placement would overflow the viewport.
-    # p.variant             = :popover
-    # p.layout_name         = "turbo_popover"
-    # p.stimulus_identifier = "turbo-overlay"
-    # p.position            = :bottom    # :top, :bottom, :left, :right
-    # p.align               = :start     # :start, :center, :end
-    # p.offset              = 4
-    # p.auto_flip           = true
+    # p.variant     = :popover
+    # p.layout_name = "turbo_popover"
+    # p.position    = :bottom    # :top, :bottom, :left, :right
+    # p.align       = :start     # :start, :center, :end
+    # p.offset      = 4
+    # p.auto_flip   = true
   end
 
   config.confirm do |cf|
@@ -54,11 +49,8 @@ TurboOverlay.configure do |config|
   config.hint do |h|
     # Hover-triggered preview overlays. Inert without
     # `data-turbo-overlay-hint` (or `hint: true` on an overlay helper)
-    # on the link, so leaving `enabled` on for apps that don't use
-    # hints is free.
-    # h.enabled       = true
+    # on the link.
     # h.show_delay_ms = 250       # hover must persist this long
     # h.hide_delay_ms = 120       # grace window after mouseleave
-    # h.template_id   = "turbo-overlay-hint"
   end
 end

@@ -24,9 +24,8 @@ class ConfigurationTest < Minitest::Test
 
   def test_default_modal_values
     modal = TurboOverlay.configuration.modal
-    assert_equal :modal,           modal.variant
-    assert_equal "turbo_modal",    modal.layout_name
-    assert_equal "turbo-overlay",  modal.stimulus_identifier
+    assert_equal :modal,        modal.variant
+    assert_equal "turbo_modal", modal.layout_name
   end
 
   def test_configure_modal_with_block
@@ -49,10 +48,9 @@ class ConfigurationTest < Minitest::Test
 
   def test_default_drawer_values
     drawer = TurboOverlay.configuration.drawer
-    assert_equal :drawer,           drawer.variant
-    assert_equal "turbo_drawer",    drawer.layout_name
-    assert_equal "turbo-overlay",   drawer.stimulus_identifier
-    assert_equal :right,            drawer.position
+    assert_equal :drawer,        drawer.variant
+    assert_equal "turbo_drawer", drawer.layout_name
+    assert_equal :right,         drawer.position
   end
 
   def test_configure_drawer_with_block
@@ -76,7 +74,6 @@ class ConfigurationTest < Minitest::Test
     popover = TurboOverlay.configuration.popover
     assert_equal :popover,        popover.variant
     assert_equal "turbo_popover", popover.layout_name
-    assert_equal "turbo-overlay", popover.stimulus_identifier
     assert_equal :bottom,         popover.position
     assert_equal :start,          popover.align
     assert_equal 4,               popover.offset
@@ -126,27 +123,22 @@ class ConfigurationTest < Minitest::Test
 
   def test_default_hint_values
     hint = TurboOverlay.configuration.hint
-    assert_equal :hint,                hint.variant
-    assert_equal "turbo_hint",         hint.layout_name
-    assert_equal "turbo-overlay-hint", hint.stimulus_identifier
-    assert_equal 250,                  hint.show_delay_ms
-    assert_equal 120,                  hint.hide_delay_ms
-    assert_equal "turbo-overlay-hint", hint.template_id
-    assert_equal true,                 hint.enabled
+    assert_equal :hint,        hint.variant
+    assert_equal "turbo_hint", hint.layout_name
+    assert_equal 250,          hint.show_delay_ms
+    assert_equal 120,          hint.hide_delay_ms
   end
 
   def test_configure_hint_with_block
     TurboOverlay.configure do |c|
       c.hint do |h|
-        h.enabled       = false
         h.show_delay_ms = 400
-        h.template_id   = "preview"
+        h.hide_delay_ms = 200
       end
     end
     hint = TurboOverlay.configuration.hint
-    assert_equal false,     hint.enabled
-    assert_equal 400,       hint.show_delay_ms
-    assert_equal "preview", hint.template_id
+    assert_equal 400, hint.show_delay_ms
+    assert_equal 200, hint.hide_delay_ms
   end
 
   def test_hint_returns_hint_config_subclass
@@ -162,14 +154,13 @@ class ConfigurationTest < Minitest::Test
       c.drawer  { |d| d.position = :top }
       c.popover { |p| p.position = :left; p.offset = 12 }
       c.confirm { |cf| cf.style = :popover }
-      c.hint    { |h| h.enabled = false; h.show_delay_ms = 500 }
+      c.hint    { |h| h.show_delay_ms = 500 }
     end
     assert_equal "custom_stack", TurboOverlay.configuration.stack_id
     assert_equal :top,           TurboOverlay.configuration.drawer.position
     assert_equal :left,          TurboOverlay.configuration.popover.position
     assert_equal 12,             TurboOverlay.configuration.popover.offset
     assert_equal :popover,       TurboOverlay.configuration.confirm.style
-    assert_equal false,          TurboOverlay.configuration.hint.enabled
     assert_equal 500,            TurboOverlay.configuration.hint.show_delay_ms
 
     TurboOverlay.reset_configuration!
@@ -178,7 +169,6 @@ class ConfigurationTest < Minitest::Test
     assert_equal :bottom,               TurboOverlay.configuration.popover.position
     assert_equal 4,                     TurboOverlay.configuration.popover.offset
     assert_equal :modal,                TurboOverlay.configuration.confirm.style
-    assert_equal true,                  TurboOverlay.configuration.hint.enabled
     assert_equal 250,                   TurboOverlay.configuration.hint.show_delay_ms
   end
 end

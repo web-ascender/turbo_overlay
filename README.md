@@ -439,20 +439,18 @@ If `users/42` redirects to `profiles/42`, the gem caches the
 extracted fragment under **both** URLs so hovering either link in
 the same page lifetime resolves to the same hint without a refetch.
 
-#### Disabling globally
+#### Tuning the delays
 
 ```ruby
 TurboOverlay.configure do |config|
-  config.hint.enabled = false   # opt out entirely
-  # ...or tune:
-  # config.hint.show_delay_ms = 400
-  # config.hint.hide_delay_ms = 200
+  config.hint.show_delay_ms = 400   # default 250
+  config.hint.hide_delay_ms = 200   # default 120
 end
 ```
 
-The feature is inert on pages without `data-turbo-overlay-hint`
-markers anyway, so the global switch is mostly for apps that have
-strong opinions about hover UI.
+Hints are inert on pages without `data-turbo-overlay-hint` markers,
+so the module is free to leave enabled even for apps that don't use
+hover previews.
 
 ### Stable ids and closing from server code
 
@@ -715,37 +713,32 @@ TurboOverlay.configure do |config|
   config.stack_id = "turbo_overlay_stack"  # host-page stack container DOM id
 
   config.modal do |m|
-    m.variant             = :modal         # Rails request variant
-    m.layout_name         = "turbo_modal"  # layout file name
-    m.stimulus_identifier = "turbo-overlay"
+    m.variant     = :modal         # Rails request variant
+    m.layout_name = "turbo_modal"  # layout file name
   end
 
   config.drawer do |d|
-    d.variant             = :drawer
-    d.layout_name         = "turbo_drawer"
-    d.stimulus_identifier = "turbo-overlay"
-    d.position            = :right         # :left, :right, :top, :bottom
+    d.variant     = :drawer
+    d.layout_name = "turbo_drawer"
+    d.position    = :right         # :left, :right, :top, :bottom
   end
 
   config.popover do |p|
-    p.variant             = :popover
-    p.layout_name         = "turbo_popover"
-    p.stimulus_identifier = "turbo-overlay"
-    p.position            = :bottom        # :top, :bottom, :left, :right
-    p.align               = :start         # :start, :center, :end
-    p.offset              = 4              # pixels between trigger and dialog
-    p.auto_flip           = true           # flip to opposite side on overflow
+    p.variant     = :popover
+    p.layout_name = "turbo_popover"
+    p.position    = :bottom        # :top, :bottom, :left, :right
+    p.align       = :start         # :start, :center, :end
+    p.offset      = 4              # pixels between trigger and dialog
+    p.auto_flip   = true           # flip to opposite side on overflow
   end
 
   config.confirm do |cf|
-    cf.style = :modal                      # :modal (default) or :popover
+    cf.style = :modal              # :modal (default) or :popover
   end
 
   config.hint do |h|
-    h.enabled       = true                 # default on; inert without links
-    h.show_delay_ms = 250
-    h.hide_delay_ms = 120                  # grace window after mouseleave
-    h.template_id   = "turbo-overlay-hint"
+    h.show_delay_ms = 250          # hover must persist this long
+    h.hide_delay_ms = 120          # grace window after mouseleave
   end
 end
 ```

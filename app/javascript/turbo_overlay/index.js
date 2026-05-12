@@ -28,10 +28,7 @@ import OverlayController from "turbo_overlay/overlay_controller"
 //   register(application, { confirm: true })
 //
 // The hint module is loaded unconditionally — it's inert until a link
-// carrying `data-turbo-overlay-hint` is hovered. Disable globally via
-// `TurboOverlay.configuration.hint.enabled = false`, which sets
-// `data-turbo-overlay-hint-enabled="false"` on the stack tag; the
-// module reads that lazily and no-ops.
+// carrying `data-turbo-overlay-hint` is hovered.
 export function register(application, options = {}) {
   application.register("turbo-overlay-stack", StackController)
   application.register("turbo-overlay", OverlayController)

@@ -202,10 +202,8 @@ module TurboOverlay
         data_attrs = {
           controller: "turbo-overlay-stack",
           "turbo-overlay-confirm-style": confirm_style,
-          "turbo-overlay-hint-enabled":     hint_cfg.enabled,
-          "turbo-overlay-hint-show-delay":  hint_cfg.show_delay_ms,
-          "turbo-overlay-hint-hide-delay":  hint_cfg.hide_delay_ms,
-          "turbo-overlay-hint-template-id": hint_cfg.template_id
+          "turbo-overlay-hint-show-delay": hint_cfg.show_delay_ms,
+          "turbo-overlay-hint-hide-delay": hint_cfg.hide_delay_ms
         }
 
         stack = content_tag(:div, "".html_safe,
@@ -254,7 +252,7 @@ module TurboOverlay
             # so the JS still has something to extract.
             body
           end
-          parts << content_tag(:template, hint_body, id: hint_cfg.template_id)
+          parts << content_tag(:template, hint_body, id: "turbo-overlay-hint")
         end
 
         return stack if parts.size == 1
@@ -429,8 +427,7 @@ module TurboOverlay
                      when :popover then popover_request?
                      end
         if in_overlay
-          stimulus_id = TurboOverlay.configuration.public_send(type).stimulus_identifier
-          html_options["data-action"] ||= "click->#{stimulus_id}#close:prevent"
+          html_options["data-action"] ||= "click->turbo-overlay#close:prevent"
           html_options["data-turbo-#{type}-dismiss"] = "true"
         end
 

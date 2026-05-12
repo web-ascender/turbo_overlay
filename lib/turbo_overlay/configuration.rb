@@ -1,20 +1,13 @@
 module TurboOverlay
-  # Per-overlay-type config. Each type has its own variant, layout,
-  # and Stimulus identifier so they can coexist on the same page.
-  #
-  # As of v0.3.0 overlays are appended to a shared stack container
-  # (see `Configuration#stack_id`) rather than being routed to a
-  # type-specific turbo-frame. The legacy `frame_id` attribute is
-  # retained for backward compatibility — it's only consulted by the
-  # deprecated `overlay_frame_tags` helper.
+  # Per-overlay-type config. `variant` is the Rails partial-variant
+  # symbol the type renders as; `layout_name` is the layout the install
+  # generator suggests in its `resolve_layout` example.
   class OverlayTypeConfig
-    attr_accessor :frame_id, :variant, :layout_name, :stimulus_identifier
+    attr_accessor :variant, :layout_name
 
-    def initialize(variant:, layout_name:, stimulus_identifier:, frame_id: nil)
-      @frame_id            = frame_id
-      @variant             = variant
-      @layout_name         = layout_name
-      @stimulus_identifier = stimulus_identifier
+    def initialize(variant:, layout_name:)
+      @variant     = variant
+      @layout_name = layout_name
     end
   end
 
@@ -56,22 +49,13 @@ module TurboOverlay
   #   shows (default 250ms).
   # - `hide_delay_ms`: grace window after mouseleave before dismissing,
   #   so the user can move the cursor into the hint (default 120ms).
-  # - `template_id`: id of the `<template>` element the gem emits
-  #   inline AND that hint-variant responses wrap their body in,
-  #   so the JS extractor has one code path (default
-  #   `"turbo-overlay-hint"`).
-  # - `enabled`: globally turn the hint feature off (default true).
-  #   Inert without `data-turbo-overlay-hint` markers anyway, so the
-  #   knob is mostly for opting an app out entirely.
   class HintConfig < OverlayTypeConfig
-    attr_accessor :show_delay_ms, :hide_delay_ms, :template_id, :enabled
+    attr_accessor :show_delay_ms, :hide_delay_ms
 
-    def initialize(show_delay_ms:, hide_delay_ms:, template_id:, enabled:, **kwargs)
+    def initialize(show_delay_ms:, hide_delay_ms:, **kwargs)
       super(**kwargs)
       @show_delay_ms = show_delay_ms
       @hide_delay_ms = hide_delay_ms
-      @template_id   = template_id
-      @enabled       = enabled
     end
   end
 
@@ -108,42 +92,32 @@ module TurboOverlay
       @stack_id = "turbo_overlay_stack"
 
       @modal = OverlayTypeConfig.new(
-        frame_id:            "turbo_modal",
-        variant:             :modal,
-        layout_name:         "turbo_modal",
-        stimulus_identifier: "turbo-overlay"
+        variant:     :modal,
+        layout_name: "turbo_modal"
       )
 
       @drawer = DrawerConfig.new(
-        frame_id:            "turbo_drawer",
-        variant:             :drawer,
-        layout_name:         "turbo_drawer",
-        stimulus_identifier: "turbo-overlay",
-        position:            :right
+        variant:     :drawer,
+        layout_name: "turbo_drawer",
+        position:    :right
       )
 
       @popover = PopoverConfig.new(
-        frame_id:            "turbo_popover",
-        variant:             :popover,
-        layout_name:         "turbo_popover",
-        stimulus_identifier: "turbo-overlay",
-        position:            :bottom,
-        align:               :start,
-        offset:              4,
-        auto_flip:           true
+        variant:     :popover,
+        layout_name: "turbo_popover",
+        position:    :bottom,
+        align:       :start,
+        offset:      4,
+        auto_flip:   true
       )
 
       @confirm = ConfirmConfig.new(style: :modal)
 
       @hint = HintConfig.new(
-        frame_id:            nil,
-        variant:             :hint,
-        layout_name:         "turbo_hint",
-        stimulus_identifier: "turbo-overlay-hint",
-        show_delay_ms:       250,
-        hide_delay_ms:       120,
-        template_id:         "turbo-overlay-hint",
-        enabled:             true
+        variant:        :hint,
+        layout_name:    "turbo_hint",
+        show_delay_ms:  250,
+        hide_delay_ms:  120
       )
     end
 

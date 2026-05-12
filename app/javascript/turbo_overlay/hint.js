@@ -3,9 +3,9 @@ import { computePopoverPosition } from "turbo_overlay/popover_position"
 // Hover-triggered hint previews for turbo_overlay.
 //
 // Self-bootstraps on import. Uses delegated document listeners so it
-// doesn't need to attach to individual links. Reads configuration
-// (enabled, showDelay, hideDelay, templateId) lazily from the stack
-// element (`overlay_stack_tag`) — no Stimulus values, no controller.
+// doesn't need to attach to individual links. Reads showDelay /
+// hideDelay lazily from the stack element (`overlay_stack_tag`) — no
+// Stimulus values, no controller.
 //
 // Lifecycle:
 //   - Hover a hint-marked link → after `show_delay_ms`, paint a
@@ -88,11 +88,11 @@ const MAX_PENDING_MS = 10000
 // arrived during the show_delay window.
 const NO_HINT = Symbol("turbo-overlay-no-hint")
 
+const TEMPLATE_ID = "turbo-overlay-hint"
+
 const DEFAULTS = {
-  enabled:    true,
-  showDelay:  250,
-  hideDelay:  120,
-  templateId: "turbo-overlay-hint"
+  showDelay: 250,
+  hideDelay: 120
 }
 
 const hintCache = new Map()
@@ -100,8 +100,8 @@ let current = null  // { link, url, element }
 let pending = null  // { link, url, showTimer, fetchController, awaitTimer, hintReadyHandler }
 let previousAriaDescribedBy = null
 
-// Read configuration from the stack tag (`overlay_stack_tag`). Returns
-// merged defaults if the stack element is absent (e.g. before the
+// Read show/hide delays from the stack tag (`overlay_stack_tag`).
+// Returns defaults if the stack element is absent (e.g. before the
 // host page renders it). Re-read on every event so the values track
 // late mounts and back/forward restores.
 function readConfig() {
@@ -111,23 +111,19 @@ function readConfig() {
   if (!stack) return DEFAULTS
 
   const d = stack.dataset
-  const enabledAttr = d.turboOverlayHintEnabled
-  const showAttr    = d.turboOverlayHintShowDelay
-  const hideAttr    = d.turboOverlayHintHideDelay
-  const tplAttr     = d.turboOverlayHintTemplateId
+  const showAttr = d.turboOverlayHintShowDelay
+  const hideAttr = d.turboOverlayHintHideDelay
 
   return {
-    enabled:    enabledAttr == null ? DEFAULTS.enabled : enabledAttr !== "false",
-    showDelay:  showAttr == null ? DEFAULTS.showDelay  : (parseInt(showAttr, 10) || DEFAULTS.showDelay),
-    hideDelay:  hideAttr == null ? DEFAULTS.hideDelay  : (parseInt(hideAttr, 10) || DEFAULTS.hideDelay),
-    templateId: tplAttr  || DEFAULTS.templateId
+    showDelay: showAttr == null ? DEFAULTS.showDelay : (parseInt(showAttr, 10) || DEFAULTS.showDelay),
+    hideDelay: hideAttr == null ? DEFAULTS.hideDelay : (parseInt(hideAttr, 10) || DEFAULTS.hideDelay)
   }
 }
 
 function hintsActive() {
   if (typeof window === "undefined") return false
   if (window.matchMedia && window.matchMedia("(hover: none)").matches) return false
-  return readConfig().enabled
+  return true
 }
 
 // ----- event handlers -----
@@ -201,7 +197,7 @@ async function onTurboFetchResp(event) {
   let fragment = null
   if (response.ok) {
     try {
-      fragment = await extractHintFragment(response, readConfig().templateId)
+      fragment = await extractHintFragment(response)
     } catch (_) {
       fragment = null
     }
@@ -597,10 +593,10 @@ function anyHintLinkMatches(url) {
 
 // Shared extractor — feeds from a single code path regardless of
 // whether the response was a Turbo prefetch or our own hint_url fetch.
-async function extractHintFragment(response, templateId) {
+async function extractHintFragment(response) {
   const html = await response.clone().text()
   const doc  = new DOMParser().parseFromString(html, "text/html")
-  const tpl  = doc.querySelector(`template#${cssEscape(templateId)}`)
+  const tpl  = doc.querySelector(`template#${cssEscape(TEMPLATE_ID)}`)
   return tpl ? tpl.content.cloneNode(true) : null
 }
 
