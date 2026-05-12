@@ -3,6 +3,7 @@
 ## Unreleased
 
 ### Fixed
+- **Back/forward navigation no longer restores broken-state overlays.** When the user navigated from a page with an open modal/drawer/popover (or an in-flight loading placeholder) and then hit back, Turbo's page-cache restore brought the `<dialog open>` back into the DOM — but `showModal()`'s top-layer membership is per-document and is lost across navigations. The restored dialog rendered inline with no backdrop, no focus trap, and an ESC key that no longer fired native `cancel`. The stack controller now listens for `turbo:before-cache` and tears down every `turbo-frame.turbo-overlay-frame` (live and loading), closes any open dialogs, aborts in-flight overlay fetches, and clears the popover-trigger registry — so the cached snapshot has no overlay state to restore. `turbo:visit` also clears the popover-trigger registry as a belt-and-suspenders for visits that skipped before-cache.
 - **Popover-style confirm now works for `link_to … data-turbo-method` triggers.** Turbo's link-method path synthesizes a hidden form and submits it without a submitter argument, so the `Turbo.config.forms.confirm` hook received `submitter = null` and the gem silently demoted popover-style to modal. The confirm registration now captures the originating `[data-turbo-confirm]` element on click (capture phase, freshness-bounded) and uses it as the popover anchor when Turbo loses the submitter. Real form-button submissions are unaffected — Turbo's submitter still wins when present.
 
 ### Added

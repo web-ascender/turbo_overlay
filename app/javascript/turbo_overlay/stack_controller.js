@@ -270,6 +270,35 @@ function clearAllLoadingOverlays() {
   dismissedLoadingIds.clear()
 }
 
+// Rip out every overlay frame (live + loading) before Turbo snapshots
+// the page for its cache. Dialog `showModal()` top-layer membership is
+// per-document and lost across navigations; without this teardown, a
+// back/forward restore would bring back a `<dialog open>` whose top-
+// layer state is gone — rendering as an inline block with no backdrop,
+// no focus trap, and an ESC key that no longer fires native `cancel`.
+//
+// We also clear the popover trigger registry: it points at <a> elements
+// in the live DOM, and after a navigation those references would either
+// be stale (detached nodes from a previous page) or actively wrong (a
+// re-used overlay id resolving to the prior page's anchor). The hover/
+// loading registries follow the same rationale via clearAllLoadingOverlays.
+function tearDownAllOverlays() {
+  const frames = document.querySelectorAll("turbo-frame.turbo-overlay-frame")
+  frames.forEach((frame) => {
+    const dialog = frame.querySelector("dialog")
+    if (dialog && dialog.open) {
+      try { dialog.close() } catch (_) { /* ignore */ }
+    }
+    frame.remove()
+  })
+  inflightAborts.forEach((aborter) => {
+    try { aborter.abort() } catch (_) { /* ignore */ }
+  })
+  inflightAborts.clear()
+  dismissedLoadingIds.clear()
+  popoverTriggers.clear()
+}
+
 // Morph the placeholder dialog so it becomes the live overlay:
 // transfer every attribute from the incoming dialog (except `open`,
 // which the placeholder already has) and replace the children. The
@@ -375,6 +404,21 @@ function registerLoadingHook() {
 
   document.addEventListener("turbo:visit", () => {
     clearAllLoadingOverlays()
+    // Belt-and-suspenders for visits that skipped the before-cache hook
+    // (cache-control: no-cache pages, the very first visit of a session,
+    // or any path where Turbo decided not to snapshot). The before-cache
+    // teardown is the primary cleanup; this just guarantees no stale
+    // anchor reference survives the navigation regardless.
+    popoverTriggers.clear()
+  })
+
+  // Tear overlays out of the DOM before Turbo snapshots the page so the
+  // back/forward cache doesn't restore a dialog whose top-layer state
+  // has been lost across navigations. Modal/drawer/popover state is
+  // transient UI — not page content — so we drop it cleanly here and
+  // let the user's next action re-open if needed.
+  document.addEventListener("turbo:before-cache", () => {
+    tearDownAllOverlays()
   })
 }
 
