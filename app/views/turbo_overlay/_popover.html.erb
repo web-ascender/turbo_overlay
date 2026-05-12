@@ -1,0 +1,45 @@
+<% position    = current_overlay_position || TurboOverlay.configuration.popover.position %>
+<% align       = current_overlay_align    || TurboOverlay.configuration.popover.align %>
+<% offset      = current_overlay_offset   || TurboOverlay.configuration.popover.offset %>
+<% close_button = local_assigns.fetch(:close_button) { defined?(@_overlay_close) && @_overlay_close != false } %>
+<dialog class="turbo-overlay turbo-overlay--popover turbo-popover turbo-overlay--no-backdrop"
+        data-controller="turbo-overlay"
+        data-turbo-overlay-id-value="<%= current_overlay_id %>"
+        data-turbo-overlay-type-value="popover"
+        data-turbo-overlay-backdrop-value="false"
+        data-turbo-overlay-position-value="<%= position %>"
+        data-turbo-overlay-align-value="<%= align %>"
+        data-turbo-overlay-offset-value="<%= offset %>"
+        data-action="cancel->turbo-overlay#cancel"
+        aria-labelledby="turbo-popover-title-<%= current_overlay_id %>">
+  <div class="turbo-popover__content">
+    <% if content_for?(:overlay_title) %>
+      <header class="turbo-popover__header">
+        <h2 id="turbo-popover-title-<%= current_overlay_id %>" class="turbo-popover__title">
+          <%= yield(:overlay_title) %>
+        </h2>
+        <% if close_button %>
+          <button type="button"
+                  class="turbo-popover__close"
+                  data-action="turbo-overlay#close"
+                  aria-label="Close">&times;</button>
+        <% end %>
+      </header>
+    <% elsif close_button %>
+      <button type="button"
+              class="turbo-popover__close turbo-popover__close--floating"
+              data-action="turbo-overlay#close"
+              aria-label="Close">&times;</button>
+    <% end %>
+
+    <div class="turbo-popover__body">
+      <%= yield %>
+    </div>
+
+    <% if content_for?(:overlay_footer) %>
+      <footer class="turbo-popover__footer">
+        <%= yield(:overlay_footer) %>
+      </footer>
+    <% end %>
+  </div>
+</dialog>

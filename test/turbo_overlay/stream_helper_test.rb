@@ -60,6 +60,11 @@ class StreamHelperTest < Minitest::Test
     assert_equal [["overlay", { message: "close", scope: "all", type: "modal" }]], @builder.calls
   end
 
+  def test_close_with_popover_type_filter
+    @builder.overlay(:close, scope: :all, type: :popover)
+    assert_equal [["overlay", { message: "close", scope: "all", type: "popover" }]], @builder.calls
+  end
+
   def test_close_with_id_targets_specific_overlay
     @builder.overlay(:close, id: "edit_user_42")
     assert_equal [["overlay", { message: "close", scope: "top", :"overlay-id" => "edit_user_42" }]], @builder.calls

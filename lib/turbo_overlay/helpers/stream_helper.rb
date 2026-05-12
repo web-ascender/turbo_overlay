@@ -14,7 +14,7 @@ module TurboOverlay
     module StreamHelper
       ALLOWED_MESSAGES = %i[close hide dismiss].freeze
       ALLOWED_SCOPES   = %i[top all].freeze
-      ALLOWED_TYPES    = %i[modal drawer].freeze
+      ALLOWED_TYPES    = %i[modal drawer popover].freeze
 
       def overlay(message = :close, scope: :top, type: nil, id: nil)
         normalized_message = message.to_s.downcase.to_sym
@@ -33,7 +33,7 @@ module TurboOverlay
           normalized_type = type.to_s.downcase.to_sym
           unless ALLOWED_TYPES.include?(normalized_type)
             raise ArgumentError,
-              "Unknown overlay type: #{type.inspect} (expected :modal or :drawer)"
+              "Unknown overlay type: #{type.inspect} (expected :modal, :drawer, or :popover)"
           end
         end
 

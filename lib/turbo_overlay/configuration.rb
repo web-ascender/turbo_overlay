@@ -30,6 +30,29 @@ module TurboOverlay
     end
   end
 
+  # Popover config extends OverlayTypeConfig with anchored-positioning
+  # defaults. Popovers attach to their trigger element rather than
+  # centering (modal) or pinning to an edge (drawer).
+  #
+  # - `position`: side of the trigger to attach to (`:top`, `:bottom`,
+  #   `:left`, `:right`). Default `:bottom`.
+  # - `align`: cross-axis alignment relative to the trigger
+  #   (`:start`, `:center`, `:end`). Default `:start`.
+  # - `offset`: pixels between trigger edge and dialog edge. Default `4`.
+  # - `auto_flip`: flip to the opposite side when the preferred
+  #   placement would overflow the viewport. Default `true`.
+  class PopoverConfig < OverlayTypeConfig
+    attr_accessor :position, :align, :offset, :auto_flip
+
+    def initialize(position:, align:, offset:, auto_flip:, **kwargs)
+      super(**kwargs)
+      @position  = position
+      @align     = align
+      @offset    = offset
+      @auto_flip = auto_flip
+    end
+  end
+
   class Configuration
     # DOM id of the host-page stack container that receives appended
     # overlays. Emit it in your application layout via
@@ -52,6 +75,17 @@ module TurboOverlay
         layout_name:         "turbo_drawer",
         stimulus_identifier: "turbo-overlay",
         position:            :right
+      )
+
+      @popover = PopoverConfig.new(
+        frame_id:            "turbo_popover",
+        variant:             :popover,
+        layout_name:         "turbo_popover",
+        stimulus_identifier: "turbo-overlay",
+        position:            :bottom,
+        align:               :start,
+        offset:              4,
+        auto_flip:           true
       )
     end
 
@@ -79,6 +113,20 @@ module TurboOverlay
     def drawer
       yield @drawer if block_given?
       @drawer
+    end
+
+    # Popover config. Anchored to the trigger element. Same shape as
+    # modal, plus `position`, `align`, `offset`, and `auto_flip`.
+    #
+    #   TurboOverlay.configure do |c|
+    #     c.popover do |p|
+    #       p.position = :top
+    #       p.align    = :center
+    #     end
+    #   end
+    def popover
+      yield @popover if block_given?
+      @popover
     end
   end
 end

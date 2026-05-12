@@ -37,7 +37,7 @@ module TurboOverlay
 
             --js        Copy Stimulus controllers to app/javascript/turbo_overlay/
             --css       Copy the stylesheet to app/assets/stylesheets/turbo_overlay.css
-            --layouts   Copy modal/drawer layouts to app/views/layouts/
+            --layouts   Copy modal/drawer/popover layouts to app/views/layouts/
 
           Ejected files become app-owned — gem upgrades to those files no
           longer apply. (Chrome partials are copied by `turbo_overlay:install`
@@ -55,6 +55,8 @@ module TurboOverlay
           "app/javascript/turbo_overlay/stack_controller.js"
         copy_gem_file "app/javascript/turbo_overlay/overlay_controller.js",
           "app/javascript/turbo_overlay/overlay_controller.js"
+        copy_gem_file "app/javascript/turbo_overlay/popover_position.js",
+          "app/javascript/turbo_overlay/popover_position.js"
 
         say <<~MSG, :yellow
 
@@ -82,6 +84,8 @@ module TurboOverlay
           "app/views/layouts/turbo_modal.html.erb"
         copy_gem_file "app/views/layouts/turbo_drawer.html.erb",
           "app/views/layouts/turbo_drawer.html.erb"
+        copy_gem_file "app/views/layouts/turbo_popover.html.erb",
+          "app/views/layouts/turbo_popover.html.erb"
       end
 
       private

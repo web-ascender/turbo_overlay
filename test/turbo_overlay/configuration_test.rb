@@ -70,18 +70,58 @@ class ConfigurationTest < Minitest::Test
     assert_kind_of TurboOverlay::OverlayTypeConfig, TurboOverlay.configuration.drawer
   end
 
+  # ---- popover ----
+
+  def test_default_popover_values
+    popover = TurboOverlay.configuration.popover
+    assert_equal :popover,        popover.variant
+    assert_equal "turbo_popover", popover.layout_name
+    assert_equal "turbo-overlay", popover.stimulus_identifier
+    assert_equal :bottom,         popover.position
+    assert_equal :start,          popover.align
+    assert_equal 4,               popover.offset
+    assert_equal true,            popover.auto_flip
+  end
+
+  def test_configure_popover_with_block
+    TurboOverlay.configure do |c|
+      c.popover do |p|
+        p.position  = :top
+        p.align     = :center
+        p.offset    = 8
+        p.auto_flip = false
+      end
+    end
+
+    popover = TurboOverlay.configuration.popover
+    assert_equal :top,    popover.position
+    assert_equal :center, popover.align
+    assert_equal 8,       popover.offset
+    assert_equal false,   popover.auto_flip
+  end
+
+  def test_popover_returns_popover_config_subclass
+    assert_kind_of TurboOverlay::PopoverConfig,     TurboOverlay.configuration.popover
+    assert_kind_of TurboOverlay::OverlayTypeConfig, TurboOverlay.configuration.popover
+  end
+
   # ---- reset ----
 
   def test_reset_configuration_restores_defaults
     TurboOverlay.configure do |c|
       c.stack_id = "custom_stack"
-      c.drawer { |d| d.position = :top }
+      c.drawer  { |d| d.position = :top }
+      c.popover { |p| p.position = :left; p.offset = 12 }
     end
     assert_equal "custom_stack", TurboOverlay.configuration.stack_id
     assert_equal :top,           TurboOverlay.configuration.drawer.position
+    assert_equal :left,          TurboOverlay.configuration.popover.position
+    assert_equal 12,             TurboOverlay.configuration.popover.offset
 
     TurboOverlay.reset_configuration!
     assert_equal "turbo_overlay_stack", TurboOverlay.configuration.stack_id
     assert_equal :right,                TurboOverlay.configuration.drawer.position
+    assert_equal :bottom,               TurboOverlay.configuration.popover.position
+    assert_equal 4,                     TurboOverlay.configuration.popover.offset
   end
 end

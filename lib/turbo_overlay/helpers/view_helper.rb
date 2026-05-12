@@ -79,7 +79,42 @@ module TurboOverlay
         _detect_overlay_type == :drawer
       end
 
-      # ----- Generic in-view helpers (shared between modal and drawer) -----
+      # ----- Popover-specific link helpers -----
+
+      # Build a link that opens its target as a popover overlay
+      # anchored to the clicked link. Same stacking and `overlay_id:`
+      # semantics as `modal_link_to`.
+      #
+      #   <%= popover_link_to "Edit", edit_user_path(@user) %>
+      #
+      # `position:` overrides the configured side (`:top`, `:bottom`,
+      # `:left`, `:right`). `align:` overrides the cross-axis
+      # alignment (`:start`, `:center`, `:end`). `offset:` overrides
+      # the pixel gap between trigger and popover.
+      #
+      #   <%= popover_link_to "Info", info_path,
+      #                       position: :top, align: :center, offset: 8 %>
+      #
+      # Popovers are non-modal (no backdrop, page stays interactive)
+      # and dismiss on outside click or ESC. Opening a second popover
+      # automatically closes any other open popover; modals and
+      # drawers still stack on top.
+      def popover_link_to(name = nil, options = nil, html_options = nil, &block)
+        _overlay_link_to(:popover, name, options, html_options, &block)
+      end
+
+      # Inside a popover, render a link styled as a "dismiss" trigger.
+      def popover_dismiss_link_to(name = nil, options = nil, html_options = nil, &block)
+        _overlay_dismiss_link_to(:popover, name, options, html_options, &block)
+      end
+
+      # Whether the current view is being rendered inside a popover.
+      def popover_request?
+        return controller.popover_request? if controller.respond_to?(:popover_request?)
+        _detect_overlay_type == :popover
+      end
+
+      # ----- Generic in-view helpers (shared across overlay types) -----
 
       # Emit the receiving stack container for overlays. Drop this in
       # your application layout (typically just before `</body>`)
@@ -131,9 +166,26 @@ module TurboOverlay
       # The per-link position override for the current overlay
       # request, or `nil` when the link didn't supply one. Drawer
       # partials read this with a fallback to
-      # `TurboOverlay.configuration.drawer.position`.
+      # `TurboOverlay.configuration.drawer.position`; popover
+      # partials fall back to
+      # `TurboOverlay.configuration.popover.position`.
       def current_overlay_position
         return controller.current_overlay_position if controller.respond_to?(:current_overlay_position)
+        nil
+      end
+
+      # The per-link cross-axis alignment for popovers, or `nil`.
+      # Popover partials fall back to
+      # `TurboOverlay.configuration.popover.align`.
+      def current_overlay_align
+        return controller.current_overlay_align if controller.respond_to?(:current_overlay_align)
+        nil
+      end
+
+      # The per-link pixel offset for popovers, or `nil`. Popover
+      # partials fall back to `TurboOverlay.configuration.popover.offset`.
+      def current_overlay_offset
+        return controller.current_overlay_offset if controller.respond_to?(:current_overlay_offset)
         nil
       end
 
@@ -233,7 +285,11 @@ module TurboOverlay
       def _overlay_dismiss_link_to(type, name, options, html_options, &block)
         html_options = (html_options || {}).dup
 
-        in_overlay = (type == :modal) ? modal_request? : drawer_request?
+        in_overlay = case type
+                     when :modal   then modal_request?
+                     when :drawer  then drawer_request?
+                     when :popover then popover_request?
+                     end
         if in_overlay
           stimulus_id = TurboOverlay.configuration.public_send(type).stimulus_identifier
           html_options["data-action"] ||= "click->#{stimulus_id}#close:prevent"
@@ -251,6 +307,8 @@ module TurboOverlay
         html_options = (html_options || {}).dup
         overlay_id   = html_options.delete(:overlay_id) || html_options.delete("overlay_id")
         position     = html_options.delete(:position)   || html_options.delete("position")
+        align        = html_options.delete(:align)      || html_options.delete("align")
+        offset       = html_options.delete(:offset)     || html_options.delete("offset")
         has_backdrop = html_options.key?(:backdrop) || html_options.key?("backdrop")
         backdrop     = html_options.delete(:backdrop)
         backdrop     = html_options.delete("backdrop") if backdrop.nil? && has_backdrop
@@ -263,6 +321,8 @@ module TurboOverlay
         data[:turbo_overlay] = type.to_s unless data.key?(:turbo_overlay) || html_options.key?("data-turbo-overlay")
         data[:turbo_overlay_id] = overlay_id.to_s if overlay_id && !data.key?(:turbo_overlay_id) && !html_options.key?("data-turbo-overlay-id")
         data[:turbo_overlay_position] = position.to_s if position && !data.key?(:turbo_overlay_position) && !html_options.key?("data-turbo-overlay-position")
+        data[:turbo_overlay_align] = align.to_s if align && !data.key?(:turbo_overlay_align) && !html_options.key?("data-turbo-overlay-align")
+        data[:turbo_overlay_offset] = offset.to_s if offset && !data.key?(:turbo_overlay_offset) && !html_options.key?("data-turbo-overlay-offset")
         if has_backdrop && backdrop == false && !data.key?(:turbo_overlay_backdrop) && !html_options.key?("data-turbo-overlay-backdrop")
           data[:turbo_overlay_backdrop] = "false"
         end
@@ -270,8 +330,8 @@ module TurboOverlay
           data[:turbo_overlay_close] = "false"
         end
         # Break out of any enclosing per-overlay turbo-frame so a click
-        # on a modal/drawer link from inside an open overlay opens a
-        # new (stacked) overlay instead of replacing the current one.
+        # on a modal/drawer/popover link from inside an open overlay
+        # opens a new (stacked) overlay instead of replacing the current one.
         data[:turbo_frame] = "_top" unless data.key?(:turbo_frame) || html_options.key?("data-turbo-frame")
         html_options[:data] = data unless data.empty?
 
@@ -282,14 +342,16 @@ module TurboOverlay
         return nil unless respond_to?(:request) && request
 
         header = request.headers["X-Turbo-Overlay"].to_s.downcase
-        return :modal  if header == "modal"
-        return :drawer if header == "drawer"
+        return :modal   if header == "modal"
+        return :drawer  if header == "drawer"
+        return :popover if header == "popover"
 
         frame = request.headers["Turbo-Frame"].to_s
         if frame.start_with?("turbo_overlay_")
           rest = frame["turbo_overlay_".length..]
-          return :modal  if rest.start_with?("modal_")
-          return :drawer if rest.start_with?("drawer_")
+          return :modal   if rest.start_with?("modal_")
+          return :drawer  if rest.start_with?("drawer_")
+          return :popover if rest.start_with?("popover_")
         end
 
         nil

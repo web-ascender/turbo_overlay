@@ -25,6 +25,24 @@ function registerStreamAction() {
   }
 }
 
+// Module-scoped registry mapping a popover's overlay id to the
+// element that triggered it. The dialog's controller looks up its
+// anchor here on connect so the trigger reference never has to
+// round-trip to the server.
+const popoverTriggers = new Map()
+
+export function getPopoverTrigger(id) {
+  return popoverTriggers.get(id) || null
+}
+
+export function clearPopoverTrigger(id) {
+  popoverTriggers.delete(id)
+}
+
+function generateOverlayId() {
+  return "ov-" + Math.random().toString(36).slice(2, 10)
+}
+
 function registerFetchHook() {
   if (typeof document === "undefined") return
   if (window._turboOverlayFetchHookRegistered) return
@@ -53,7 +71,20 @@ function registerFetchHook() {
     const link = event.target && event.target.closest
       ? event.target.closest("a[data-turbo-overlay], [data-turbo-overlay]")
       : null
-    if (link) pendingTrigger = link
+    if (!link) return
+
+    // Popovers need an anchor reference. Generate an id client-side
+    // when the link didn't supply one so we can key the trigger
+    // registry, then back-fill the data attribute so the same id
+    // ships in X-Turbo-Overlay-Id and lands on the rendered dialog.
+    if (link.dataset.turboOverlay === "popover") {
+      if (!link.dataset.turboOverlayId) {
+        link.dataset.turboOverlayId = generateOverlayId()
+      }
+      popoverTriggers.set(link.dataset.turboOverlayId, link)
+    }
+
+    pendingTrigger = link
   }, true)
 
   document.addEventListener("submit", (event) => {
@@ -79,6 +110,12 @@ function registerFetchHook() {
     }
     if (trigger.dataset.turboOverlayPosition) {
       headers["X-Turbo-Overlay-Position"] = trigger.dataset.turboOverlayPosition
+    }
+    if (trigger.dataset.turboOverlayAlign) {
+      headers["X-Turbo-Overlay-Align"] = trigger.dataset.turboOverlayAlign
+    }
+    if (trigger.dataset.turboOverlayOffset) {
+      headers["X-Turbo-Overlay-Offset"] = trigger.dataset.turboOverlayOffset
     }
     if (trigger.dataset.turboOverlayBackdrop === "false") {
       headers["X-Turbo-Overlay-Backdrop"] = "false"
@@ -189,12 +226,29 @@ export default class extends Controller {
 
   register(entry) {
     if (this.entries.some((e) => e.id === entry.id)) return false
+
+    // Single-popover behavior: opening a new popover closes any other
+    // open popovers. Modals and drawers keep their existing stacking.
+    if (entry.type === "popover") {
+      const existing = this.entries.filter((e) => e.type === "popover")
+      for (const prior of existing) {
+        if (prior.controller && typeof prior.controller.close === "function") {
+          prior.controller.close()
+        }
+      }
+    }
+
     this.entries.push(entry)
     return true
   }
 
   unregister(id) {
     this.entries = this.entries.filter((e) => e.id !== id)
+    clearPopoverTrigger(id)
+  }
+
+  getPopoverTrigger(id) {
+    return getPopoverTrigger(id)
   }
 
   has(id) {

@@ -15,12 +15,13 @@ class ViewHelperTest < Minitest::Test
   class FakeView
     include TurboOverlay::Helpers::ViewHelper
 
-    attr_reader :link_to_args, :content_for_calls, :modal_request_value, :drawer_request_value
+    attr_reader :link_to_args, :content_for_calls, :modal_request_value, :drawer_request_value, :popover_request_value
     attr_accessor :_current_overlay_id, :_lookup_context, :_render_returns
 
-    def initialize(modal_request: false, drawer_request: false)
-      @modal_request_value  = modal_request
-      @drawer_request_value = drawer_request
+    def initialize(modal_request: false, drawer_request: false, popover_request: false)
+      @modal_request_value   = modal_request
+      @drawer_request_value  = drawer_request
+      @popover_request_value = popover_request
       @link_to_args = nil
       @content_for_calls = []
       @_current_overlay_id = nil
@@ -75,12 +76,16 @@ class ViewHelperTest < Minitest::Test
       @drawer_request_value
     end
 
+    def popover_request?
+      @popover_request_value
+    end
+
     def controller
       self
     end
 
     def respond_to?(method_name, include_private = false)
-      return true if method_name == :modal_request? || method_name == :drawer_request?
+      return true if method_name == :modal_request? || method_name == :drawer_request? || method_name == :popover_request?
       return true if method_name == :current_overlay_id
       return true if method_name == :turbo_overlay_frame_re_render?
       return true if method_name == :lookup_context
@@ -390,5 +395,88 @@ class ViewHelperTest < Minitest::Test
     def view.current_overlay_close?; false; end
     def view.respond_to?(name, *); name == :current_overlay_close? || super; end
     refute view.overlay_close?
+  end
+
+  # ---- popover_link_to ----
+
+  def test_popover_link_to_adds_turbo_stream_and_overlay_data
+    view = FakeView.new
+    view.popover_link_to("Edit", "/things/1")
+
+    _, _, html_options = view.link_to_args
+    assert_equal true,      html_options[:data][:turbo_stream]
+    assert_equal "popover", html_options[:data][:turbo_overlay]
+  end
+
+  def test_popover_link_to_targets_top_to_escape_parent_frame
+    view = FakeView.new
+    view.popover_link_to("Edit", "/things/1")
+
+    _, _, html_options = view.link_to_args
+    assert_equal "_top", html_options[:data][:turbo_frame]
+  end
+
+  def test_popover_link_to_with_position_sets_data_attribute
+    view = FakeView.new
+    view.popover_link_to("Edit", "/things/1", position: :top)
+
+    _, _, html_options = view.link_to_args
+    assert_equal "top", html_options[:data][:turbo_overlay_position]
+  end
+
+  def test_popover_link_to_with_align_sets_data_attribute
+    view = FakeView.new
+    view.popover_link_to("Edit", "/things/1", align: :center)
+
+    _, _, html_options = view.link_to_args
+    assert_equal "center", html_options[:data][:turbo_overlay_align]
+  end
+
+  def test_popover_link_to_with_offset_sets_data_attribute
+    view = FakeView.new
+    view.popover_link_to("Edit", "/things/1", offset: 12)
+
+    _, _, html_options = view.link_to_args
+    assert_equal "12", html_options[:data][:turbo_overlay_offset]
+  end
+
+  def test_popover_link_to_omits_align_and_offset_when_not_provided
+    view = FakeView.new
+    view.popover_link_to("Edit", "/things/1")
+
+    _, _, html_options = view.link_to_args
+    refute html_options[:data].key?(:turbo_overlay_align)
+    refute html_options[:data].key?(:turbo_overlay_offset)
+  end
+
+  def test_modal_link_to_accepts_align_and_offset_for_hint_composition
+    # The hint phase will use these on overlay links; ensure they're
+    # carried through cleanly even on modal/drawer links.
+    view = FakeView.new
+    view.modal_link_to("Open", "/things/1", align: :end, offset: 6)
+
+    _, _, html_options = view.link_to_args
+    assert_equal "end", html_options[:data][:turbo_overlay_align]
+    assert_equal "6",   html_options[:data][:turbo_overlay_offset]
+  end
+
+  # ---- popover_dismiss_link_to ----
+
+  def test_popover_dismiss_link_to_inside_popover_adds_dismiss_action
+    view = FakeView.new(popover_request: true)
+    view.popover_dismiss_link_to("Close", "/back")
+
+    _, _, html_options = view.link_to_args
+    assert_includes html_options["data-action"], "click->turbo-overlay#close"
+    assert_equal "true", html_options["data-turbo-popover-dismiss"]
+  end
+
+  def test_popover_dismiss_link_to_outside_popover_is_plain_link
+    view = FakeView.new(popover_request: false)
+    view.popover_dismiss_link_to("Close", "/back")
+
+    _, _, html_options = view.link_to_args
+    refute html_options.key?("data-action")
+    refute html_options.key?("data-turbo-popover-dismiss")
   end
 end

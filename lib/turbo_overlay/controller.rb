@@ -31,6 +31,8 @@ module TurboOverlay
     OVERLAY_TYPE_HEADER     = "X-Turbo-Overlay".freeze
     OVERLAY_ID_HEADER       = "X-Turbo-Overlay-Id".freeze
     OVERLAY_POSITION_HEADER = "X-Turbo-Overlay-Position".freeze
+    OVERLAY_ALIGN_HEADER    = "X-Turbo-Overlay-Align".freeze
+    OVERLAY_OFFSET_HEADER   = "X-Turbo-Overlay-Offset".freeze
     OVERLAY_BACKDROP_HEADER = "X-Turbo-Overlay-Backdrop".freeze
     OVERLAY_CLOSE_HEADER    = "X-Turbo-Overlay-Close".freeze
 
@@ -41,8 +43,10 @@ module TurboOverlay
 
       helper_method :modal_request?, :modal_layout_name,
         :drawer_request?, :drawer_layout_name,
+        :popover_request?, :popover_layout_name,
         :overlay_request?, :current_overlay_id, :current_overlay_type,
-        :current_overlay_position, :current_overlay_backdrop?,
+        :current_overlay_position, :current_overlay_align,
+        :current_overlay_offset, :current_overlay_backdrop?,
         :current_overlay_close?
     end
 
@@ -66,6 +70,16 @@ module TurboOverlay
       TurboOverlay.configuration.drawer.layout_name
     end
 
+    # ----- popover -----
+
+    def popover_request?
+      current_overlay_type == :popover
+    end
+
+    def popover_layout_name
+      TurboOverlay.configuration.popover.layout_name
+    end
+
     # ----- generic -----
 
     # True if the current request targets *any* configured overlay
@@ -75,8 +89,8 @@ module TurboOverlay
       !current_overlay_type.nil?
     end
 
-    # Returns `:modal`, `:drawer`, or `nil`. Detected from the
-    # `X-Turbo-Overlay` request header (initial open) or the
+    # Returns `:modal`, `:drawer`, `:popover`, or `nil`. Detected from
+    # the `X-Turbo-Overlay` request header (initial open) or the
     # `Turbo-Frame: turbo_overlay_<type>_<id>` header (form re-render
     # inside an open overlay).
     def current_overlay_type
@@ -104,10 +118,30 @@ module TurboOverlay
     # parsed from the `X-Turbo-Overlay-Position` header. Returns a
     # Symbol (`:left`, `:right`, `:top`, `:bottom`) or `nil` when the
     # link didn't supply one. Drawer partials use this with a
-    # fallback to `TurboOverlay.configuration.drawer.position`.
+    # fallback to `TurboOverlay.configuration.drawer.position`;
+    # popover partials use it with a fallback to
+    # `TurboOverlay.configuration.popover.position`.
     def current_overlay_position
       return @_turbo_overlay_position if defined?(@_turbo_overlay_position)
       @_turbo_overlay_position = _resolve_overlay_position
+    end
+
+    # The per-link cross-axis alignment for popovers, parsed from the
+    # `X-Turbo-Overlay-Align` header. Returns a Symbol (`:start`,
+    # `:center`, `:end`) or `nil`. Popover partials fall back to
+    # `TurboOverlay.configuration.popover.align`.
+    def current_overlay_align
+      return @_turbo_overlay_align if defined?(@_turbo_overlay_align)
+      @_turbo_overlay_align = _resolve_overlay_align
+    end
+
+    # The per-link pixel offset between trigger and popover, parsed
+    # from the `X-Turbo-Overlay-Offset` header. Returns an Integer or
+    # `nil`. Popover partials fall back to
+    # `TurboOverlay.configuration.popover.offset`.
+    def current_overlay_offset
+      return @_turbo_overlay_offset if defined?(@_turbo_overlay_offset)
+      @_turbo_overlay_offset = _resolve_overlay_offset
     end
 
     # Whether the current overlay request should render with a
@@ -153,14 +187,16 @@ module TurboOverlay
       return nil unless respond_to?(:request) && request
 
       header = request.headers[OVERLAY_TYPE_HEADER].to_s.downcase
-      return :modal  if header == "modal"
-      return :drawer if header == "drawer"
+      return :modal   if header == "modal"
+      return :drawer  if header == "drawer"
+      return :popover if header == "popover"
 
       frame = request.headers["Turbo-Frame"].to_s
       if frame.start_with?(OVERLAY_FRAME_PREFIX)
         rest = frame[OVERLAY_FRAME_PREFIX.length..]
-        return :modal  if rest.start_with?("modal_")
-        return :drawer if rest.start_with?("drawer_")
+        return :modal   if rest.start_with?("modal_")
+        return :drawer  if rest.start_with?("drawer_")
+        return :popover if rest.start_with?("popover_")
       end
 
       nil
@@ -188,6 +224,22 @@ module TurboOverlay
       value = request.headers[OVERLAY_POSITION_HEADER].to_s
       return nil if value.empty?
       value.to_sym
+    end
+
+    def _resolve_overlay_align
+      return nil unless respond_to?(:request) && request
+
+      value = request.headers[OVERLAY_ALIGN_HEADER].to_s
+      return nil if value.empty?
+      value.to_sym
+    end
+
+    def _resolve_overlay_offset
+      return nil unless respond_to?(:request) && request
+
+      value = request.headers[OVERLAY_OFFSET_HEADER].to_s
+      return nil if value.empty?
+      Integer(value, exception: false)
     end
 
     def _resolve_overlay_backdrop

@@ -1,8 +1,8 @@
 # Turbo Overlay
 
-Render any Rails view inside a stackable modal or drawer using Turbo
-Streams — without duplicating templates, hand-rolling Stimulus
-controllers, or coupling your domain to a CSS framework.
+Render any Rails view inside a stackable modal, drawer, or popover
+using Turbo Streams — without duplicating templates, hand-rolling
+Stimulus controllers, or coupling your domain to a CSS framework.
 
 A single stack container on the host page receives appended overlays.
 The gem detects overlay-bound requests, swaps in the matching layout,
@@ -10,9 +10,11 @@ exposes a Rails request variant for view-level customization, and
 ships a turbo-stream action for dismissing whichever overlay is open
 — or all of them.
 
-**Overlays stack.** Open a modal/drawer from inside an open one and
-the new overlay slides on top instead of replacing it. Dismissing
-affects only the topmost layer.
+**Overlays stack.** Open a modal/drawer/popover from inside an open
+one and the new overlay slides on top instead of replacing it.
+Dismissing affects only the topmost layer. Popovers are the one
+exception: opening a second popover dismisses the previous one, since
+"two free-floating popovers at once" is rarely what you want.
 
 Themes for **Tailwind**, **Bootstrap 5**, **Bootstrap 3**, and
 **plain CSS** ship in the gem and switch via a single config option.
@@ -42,11 +44,11 @@ Themes: `plain` (default), `tailwind`, `bootstrap5`, `bootstrap3`.
 The generator wires the host app and scaffolds the modal/drawer
 chrome you'll customize:
 
-- Copies `_modal.html.erb`, `_drawer.html.erb`, and `_confirm.html.erb`
-  (in the chosen theme) to `app/views/turbo_overlay/`. These are *your*
-  files — edit freely. Tailwind / similar content scanners pick them
-  up here automatically (which they can't if the file lives inside the
-  gem).
+- Copies `_modal.html.erb`, `_drawer.html.erb`, `_popover.html.erb`,
+  and `_confirm.html.erb` (in the chosen theme) to
+  `app/views/turbo_overlay/`. These are *your* files — edit freely.
+  Tailwind / similar content scanners pick them up here automatically
+  (which they can't if the file lives inside the gem).
 - Writes `config/initializers/turbo_overlay.rb`.
 - Injects `<%= overlay_stack_tag %>` before `</body>` in
   `app/views/layouts/application.html.erb`.
@@ -119,29 +121,33 @@ class ApplicationController < ActionController::Base
   private
 
   def resolve_layout
-    return modal_layout_name  if modal_request?
-    return drawer_layout_name if drawer_request?
+    return modal_layout_name   if modal_request?
+    return drawer_layout_name  if drawer_request?
+    return popover_layout_name if popover_request?
     "application"
   end
 end
 ```
 
 The overlay layout **replaces** your application layout for overlay
-requests — only the view content is wrapped in the dialog/drawer
+requests — only the view content is wrapped in the dialog/drawer/popover
 markup, not your nav, header, or footer. The host page already has
 those; the appended overlay sits on top.
 
 ## Usage
 
-### Open a view in a modal or drawer
+### Open a view in a modal, drawer, or popover
 
 ```erb
-<%= modal_link_to  "New User",   new_user_path %>
-<%= drawer_link_to "Filters",    filters_path %>
+<%= modal_link_to   "New User",   new_user_path %>
+<%= drawer_link_to  "Filters",    filters_path %>
+<%= popover_link_to "Edit",       edit_user_path(@user) %>
 ```
 
-Both can be open at the same time. Both can be opened from inside
-another overlay — they stack. Dismissing closes only the top.
+Modals and drawers stack — open one from inside another and the new
+overlay sits on top. Popovers anchor to the clicked link and replace
+each other on subsequent clicks; modals and drawers still stack on
+top of an open popover.
 
 ### Per-link drawer overrides
 
@@ -168,6 +174,60 @@ disabled. Useful when the user needs to read or copy from the host
 page while the drawer is open. (See the table below for how this
 differs from `backdrop-dismiss-value="false"`, which keeps the modal
 backdrop visible but disables click-to-dismiss.)
+
+### Anchored popovers
+
+`popover_link_to` opens its target as a non-modal `<dialog>` anchored
+to the link that was clicked — the same plumbing as modal/drawer, just
+positioned relative to its trigger instead of centered or pinned to
+an edge.
+
+```erb
+<%= popover_link_to "Edit", edit_user_path(@user) %>
+```
+
+Three per-link kwargs override the configured defaults:
+
+```erb
+<%= popover_link_to "Edit", edit_user_path(@user),
+                    position: :top,    # :top, :bottom (default), :left, :right
+                    align:    :center, # :start (default), :center, :end
+                    offset:   8 %>     # pixels between trigger and dialog (default 4)
+```
+
+Popovers auto-flip across the cross axis when the preferred side would
+overflow the viewport (e.g. `:bottom` becomes `:top` near the bottom
+edge). Disable globally with `config.popover.auto_flip = false`.
+
+Dismissal: ESC, clicking outside the popover, or any explicit
+`turbo_stream.overlay(:close, type: :popover)`. Because popovers are
+non-modal, the page beneath stays scrollable and interactive — the
+popover repositions itself as the anchor scrolls.
+
+**Single-popover behavior.** Opening a second popover automatically
+dismisses any other open popover. Modals and drawers still stack as
+normal — a modal opened from inside a popover sits on top, and
+dismissing it leaves the popover anchored. (If you ever genuinely
+need stacked popovers, open an issue; the behavior is intentionally
+not configurable yet.)
+
+**Links inside popovers target the top-level page by default.** A
+plain `link_to` rendered inside a popover would otherwise navigate
+inside the popover's turbo-frame and replace its contents. The
+controller back-fills `data-turbo-frame="_top"` on any `<a>` that
+doesn't already carry an explicit `data-turbo-frame` or
+`data-turbo-overlay` — so a regular link navigates the page (closing
+the popover), while `modal_link_to` / `drawer_link_to` /
+`popover_link_to` keep their stacking behavior. Forms inside the
+popover are untouched and still re-render in place on validation
+failure.
+
+**No default close button.** Unlike modals and drawers, popovers
+don't render a "×" by default — they already dismiss on click-outside
+/ ESC / opening another popover, and a button is mostly visual noise
+in a small floating panel. Opt back in per-view with
+`<% overlay_close true %>`, or globally by editing
+`app/views/turbo_overlay/_popover.html.erb`.
 
 ### Stable ids and closing from server code
 
@@ -231,14 +291,15 @@ link helper:
 <%= modal_link_to "Promo", promo_path, close_button: false %>
 ```
 
-### Different markup for modal / drawer / full-page renders
+### Different markup for modal / drawer / popover / full-page renders
 
 Drop variant templates alongside the standard one:
 
 ```
-app/views/users/show.html.erb        # full-page version
-app/views/users/show.html+modal.erb  # rendered when opened in a modal
-app/views/users/show.html+drawer.erb # rendered when opened in a drawer
+app/views/users/show.html.erb         # full-page version
+app/views/users/show.html+modal.erb   # rendered when opened in a modal
+app/views/users/show.html+drawer.erb  # rendered when opened in a drawer
+app/views/users/show.html+popover.erb # rendered when opened in a popover
 ```
 
 When the request hits via an overlay, Rails picks the matching variant.
@@ -278,6 +339,7 @@ end
 turbo_stream.overlay(:close)                              # close the top overlay
 turbo_stream.overlay(:close, scope: :all)                 # close every open overlay
 turbo_stream.overlay(:close, scope: :all, type: :modal)   # close all modals only
+turbo_stream.overlay(:close, scope: :all, type: :popover) # close all popovers only
 turbo_stream.overlay(:close, id: "edit_user_42")          # close one specific
 ```
 
@@ -368,15 +430,26 @@ TurboOverlay.configure do |config|
     d.stimulus_identifier = "turbo-overlay"
     d.position            = :right         # :left, :right, :top, :bottom
   end
+
+  config.popover do |p|
+    p.variant             = :popover
+    p.layout_name         = "turbo_popover"
+    p.stimulus_identifier = "turbo-overlay"
+    p.position            = :bottom        # :top, :bottom, :left, :right
+    p.align               = :start         # :start, :center, :end
+    p.offset              = 4              # pixels between trigger and dialog
+    p.auto_flip           = true           # flip to opposite side on overflow
+  end
 end
 ```
 
 ### Customizing the chrome
 
-The install generator copies three partials into your app:
+The install generator copies four partials into your app:
 
 - `app/views/turbo_overlay/_modal.html.erb`
 - `app/views/turbo_overlay/_drawer.html.erb`
+- `app/views/turbo_overlay/_popover.html.erb`
 - `app/views/turbo_overlay/_confirm.html.erb`
 
 These are *your* files. Edit them freely — change classes, add a
@@ -403,17 +476,21 @@ Available on controllers (when the concern is included) and views:
 
 | Helper                                  | Returns                                                                |
 |-----------------------------------------|------------------------------------------------------------------------|
-| `modal_request?` / `drawer_request?`    | `true` if the current request targets that overlay type                |
+| `modal_request?` / `drawer_request?` / `popover_request?` | `true` if the current request targets that overlay type   |
 | `overlay_request?`                      | `true` if the current request targets *any* overlay                    |
-| `current_overlay_type`                  | `:modal`, `:drawer`, or `nil`                                          |
+| `current_overlay_type`                  | `:modal`, `:drawer`, `:popover`, or `nil`                              |
 | `current_overlay_id`                    | The overlay id for the current request (user-supplied or generated)    |
-| `current_overlay_position`              | Per-link drawer position override for the current request, or `nil`    |
+| `current_overlay_position`              | Per-link position override (drawer or popover), or `nil`               |
+| `current_overlay_align`                 | Per-link popover cross-axis alignment, or `nil`                        |
+| `current_overlay_offset`                | Per-link popover pixel offset, or `nil`                                |
 | `current_overlay_backdrop?`             | `false` only when the link opened with `backdrop: false`; else `true`  |
 | `current_overlay_close?`                | `false` only when the link opened with `close_button: false`; else `true` |
 | `modal_link_to(name, path, overlay_id:, close_button:)` | `link_to` that opens the target as a stacked modal; `close_button: false` suppresses the default × |
 | `drawer_link_to(name, path, overlay_id:, position:, backdrop:, close_button:)` | `link_to` that opens the target as a stacked drawer; `position:` overrides the configured side, `backdrop: false` opens non-modally, `close_button: false` suppresses the default × |
+| `popover_link_to(name, path, overlay_id:, position:, align:, offset:, close_button:)` | `link_to` that opens the target as a popover anchored to the link |
 | `modal_dismiss_link_to(...)`            | dismiss link inside a modal                                            |
 | `drawer_dismiss_link_to(...)`           | dismiss link inside a drawer                                           |
+| `popover_dismiss_link_to(...)`          | dismiss link inside a popover                                          |
 | `overlay_stack_tag`                     | emits the host-page stack container (drop in `application.html.erb`)   |
 | `overlay_title(value, &block)`          | sets `content_for :overlay_title`                                      |
 | `overlay_footer(value, &block)`         | sets `content_for :overlay_footer`                                     |
@@ -422,12 +499,12 @@ Available on controllers (when the concern is included) and views:
 
 ## Themes
 
-| Theme        | Modal | Drawer | Notes                                                       |
-|--------------|:-----:|:------:|-------------------------------------------------------------|
-| `plain`      | ✓     | ✓      | Native `<dialog>`, minimal vanilla CSS                      |
-| `tailwind`   | ✓     | ✓      | Native `<dialog>`, Tailwind classes                         |
-| `bootstrap5` | ✓     | ✓      | Native `<dialog>` wrapping BS5 modal/offcanvas markup       |
-| `bootstrap3` | ✓     | ✓      | Native `<dialog>` wrapping BS3 modal markup; vanilla drawer |
+| Theme        | Modal | Drawer | Popover | Notes                                                       |
+|--------------|:-----:|:------:|:-------:|-------------------------------------------------------------|
+| `plain`      | ✓     | ✓      | ✓       | Native `<dialog>`, minimal vanilla CSS                      |
+| `tailwind`   | ✓     | ✓      | ✓       | Native `<dialog>`, Tailwind classes                         |
+| `bootstrap5` | ✓     | ✓      | ✓       | Native `<dialog>` wrapping BS5 modal/offcanvas/popover markup |
+| `bootstrap3` | ✓     | ✓      | ✓       | Native `<dialog>` wrapping BS3 modal/popover markup; vanilla drawer |
 
 Every theme uses the same JavaScript and CSS — the only thing that
 varies is the chrome partial Rails renders inside the dialog. Pick a
@@ -487,7 +564,8 @@ When a form inside an overlay submits:
 
 ```bash
 bundle install
-bundle exec rake test
+bundle exec rake test            # Ruby suite
+node --test test/js/*.test.js    # JS pure-function tests
 ```
 
 ## License

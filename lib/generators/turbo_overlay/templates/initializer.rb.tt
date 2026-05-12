@@ -24,4 +24,20 @@ TurboOverlay.configure do |config|
     # d.stimulus_identifier = "turbo-overlay"
     # d.position = :right
   end
+
+  config.popover do |p|
+    # Popovers anchor to their trigger element (the clicked link).
+    # `position` is the side of the trigger to attach to.
+    # `align` is the cross-axis alignment relative to the trigger.
+    # `offset` is the gap in pixels between trigger and popover edges.
+    # `auto_flip` swaps to the opposite side when the preferred
+    # placement would overflow the viewport.
+    # p.variant             = :popover
+    # p.layout_name         = "turbo_popover"
+    # p.stimulus_identifier = "turbo-overlay"
+    # p.position            = :bottom    # :top, :bottom, :left, :right
+    # p.align               = :start     # :start, :center, :end
+    # p.offset              = 4
+    # p.auto_flip           = true
+  end
 end

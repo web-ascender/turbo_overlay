@@ -62,9 +62,11 @@ module TurboOverlay
 
         modal_src   = chrome_source_path("_modal.html.erb")
         drawer_src  = chrome_source_path("_drawer.html.erb")
+        popover_src = chrome_source_path("_popover.html.erb")
         confirm_src = chrome_source_path("_confirm.html.erb")
         copy_file modal_src,   "app/views/turbo_overlay/_modal.html.erb"
         copy_file drawer_src,  "app/views/turbo_overlay/_drawer.html.erb"
+        copy_file popover_src, "app/views/turbo_overlay/_popover.html.erb"
         copy_file confirm_src, "app/views/turbo_overlay/_confirm.html.erb"
       end
 
@@ -133,16 +135,18 @@ module TurboOverlay
               private
 
               def resolve_layout
-                return modal_layout_name  if modal_request?
-                return drawer_layout_name if drawer_request?
+                return modal_layout_name   if modal_request?
+                return drawer_layout_name  if drawer_request?
+                return popover_layout_name if popover_request?
                 "application"
               end
             end
 
           Then open views as overlays:
 
-            <%= modal_link_to  "New",     new_thing_path %>
-            <%= drawer_link_to "Filters", filters_path %>
+            <%= modal_link_to   "New",     new_thing_path %>
+            <%= drawer_link_to  "Filters", filters_path %>
+            <%= popover_link_to "Edit",    edit_thing_path(@thing) %>
 
         MSG
 

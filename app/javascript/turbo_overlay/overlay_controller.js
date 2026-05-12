@@ -1,4 +1,5 @@
 import { Controller } from "@hotwired/stimulus"
+import { computePopoverPosition } from "turbo_overlay/popover_position"
 
 // Per-overlay controller for turbo_overlay. Drives a native
 // <dialog> regardless of theme — themes contribute markup and CSS
@@ -22,7 +23,10 @@ export default class extends Controller {
     id: String,
     type: String,
     backdrop: { type: Boolean, default: true },
-    backdropDismiss: { type: Boolean, default: true }
+    backdropDismiss: { type: Boolean, default: true },
+    position: { type: String, default: "" },
+    align: { type: String, default: "" },
+    offset: { type: Number, default: 4 }
   }
 
   connect() {
@@ -34,6 +38,15 @@ export default class extends Controller {
     if (this.stack && this.stack.has(this.idValue)) {
       // Frame re-render: dialog is already open; just update reference.
       this.stack.updateController(this.idValue, this)
+      if (this.typeValue === "popover") {
+        this._targetLinksTop()
+        this._positionPopover()
+      }
+      return
+    }
+
+    if (this.typeValue === "popover") {
+      this._connectPopover()
       return
     }
 
@@ -49,13 +62,7 @@ export default class extends Controller {
         // trap, scrollable). Native `cancel` doesn't fire on ESC for
         // non-modal dialogs, so synthesize it via keydown.
         try { this.dialog.show() } catch (_) { this.dialog.setAttribute("open", "") }
-        this._escHandler = (event) => {
-          if (event.key !== "Escape" || event.defaultPrevented) return
-          if (this.stack && this.stack.topEntry() && this.stack.topEntry().id !== this.idValue) return
-          event.preventDefault()
-          this.cancel(event)
-        }
-        document.addEventListener("keydown", this._escHandler)
+        this._installEscHandler()
       }
     }
   }
@@ -65,11 +72,128 @@ export default class extends Controller {
       document.removeEventListener("keydown", this._escHandler)
       this._escHandler = null
     }
+    if (this._outsideClickHandler) {
+      document.removeEventListener("mousedown", this._outsideClickHandler, true)
+      this._outsideClickHandler = null
+    }
+    if (this._reflowHandler) {
+      window.removeEventListener("scroll", this._reflowHandler, true)
+      window.removeEventListener("resize", this._reflowHandler)
+      this._reflowHandler = null
+    }
+    if (this._reflowFrame) {
+      cancelAnimationFrame(this._reflowFrame)
+      this._reflowFrame = null
+    }
     queueMicrotask(() => {
       if (!document.body.contains(this.element) && this.stack) {
         this.stack.unregister(this.idValue)
       }
     })
+  }
+
+  _installEscHandler() {
+    this._escHandler = (event) => {
+      if (event.key !== "Escape" || event.defaultPrevented) return
+      if (this.stack && this.stack.topEntry() && this.stack.topEntry().id !== this.idValue) return
+      event.preventDefault()
+      this.cancel(event)
+    }
+    document.addEventListener("keydown", this._escHandler)
+  }
+
+  _connectPopover() {
+    this.anchor = this.stack ? this.stack.getPopoverTrigger(this.idValue) : null
+
+    const registered = this.stack
+      ? this.stack.register({ id: this.idValue, type: this.typeValue, controller: this, anchor: this.anchor })
+      : true
+    if (!registered) return
+
+    if (this.dialog && !this.dialog.open) {
+      try { this.dialog.show() } catch (_) { this.dialog.setAttribute("open", "") }
+    }
+
+    this._targetLinksTop()
+    this._positionPopover()
+
+    this._installEscHandler()
+
+    // Click-outside dismissal. Use mousedown capture so we fire
+    // before any link inside the popover triggers its own navigation.
+    this._outsideClickHandler = (event) => {
+      if (!this.dialog) return
+      const target = event.target
+      if (this.dialog.contains(target)) return
+      if (this.anchor && this.anchor.contains && this.anchor.contains(target)) return
+      this.cancel(event)
+    }
+    document.addEventListener("mousedown", this._outsideClickHandler, true)
+
+    // Reposition on scroll/resize so the popover tracks its anchor.
+    this._reflowHandler = () => {
+      if (this._reflowFrame) return
+      this._reflowFrame = requestAnimationFrame(() => {
+        this._reflowFrame = null
+        this._positionPopover()
+      })
+    }
+    window.addEventListener("scroll", this._reflowHandler, true)
+    window.addEventListener("resize", this._reflowHandler)
+  }
+
+  // Inside a popover, a plain `link_to` would otherwise navigate
+  // inside the popover's turbo-frame and replace the popover's
+  // contents. Default such links to `_top`. Overlay-opening links
+  // (modal/drawer/popover_link_to) already carry data-turbo-frame=_top
+  // and data-turbo-overlay; skip them so they keep their stacking
+  // behavior. Forms inside the popover are untouched so they can
+  // still re-render in place on validation failure.
+  _targetLinksTop() {
+    if (!this.dialog) return
+    const links = this.dialog.querySelectorAll(
+      "a[href]:not([data-turbo-frame]):not([data-turbo-overlay])"
+    )
+    links.forEach((a) => { a.dataset.turboFrame = "_top" })
+  }
+
+  _positionPopover() {
+    if (!this.dialog) return
+
+    // No anchor (e.g. tests, page rehydration without trigger): fall
+    // back to centered fixed positioning so the dialog is still visible.
+    if (!this.anchor || typeof this.anchor.getBoundingClientRect !== "function") {
+      this.dialog.style.position = "fixed"
+      this.dialog.style.top = "50%"
+      this.dialog.style.left = "50%"
+      this.dialog.style.margin = "0"
+      this.dialog.style.transform = "translate(-50%, -50%)"
+      return
+    }
+
+    const anchorRect = this.anchor.getBoundingClientRect()
+    const dialogRect = this.dialog.getBoundingClientRect()
+    const viewport = {
+      width:  document.documentElement.clientWidth,
+      height: document.documentElement.clientHeight
+    }
+
+    const { top, left, resolvedPosition } = computePopoverPosition({
+      anchor:   anchorRect,
+      dialog:   dialogRect,
+      viewport,
+      position: this.positionValue || "bottom",
+      align:    this.alignValue    || "start",
+      offset:   this.offsetValue,
+      autoFlip: true
+    })
+
+    this.dialog.style.position = "fixed"
+    this.dialog.style.top  = `${top}px`
+    this.dialog.style.left = `${left}px`
+    this.dialog.style.margin = "0"
+    this.dialog.style.transform = ""
+    this.dialog.dataset.resolvedPosition = resolvedPosition
   }
 
   // data-action="click->turbo-overlay#close"
