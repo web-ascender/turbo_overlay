@@ -1,6 +1,16 @@
 module TurboOverlay
   module Helpers
     module ViewHelper
+      # The per-request predicates and accessors (`modal_request?`,
+      # `drawer_request?`, `popover_request?`, `hint_request?`,
+      # `turbo_overlay_id`, `turbo_overlay_type`,
+      # `turbo_overlay_position`, `turbo_overlay_align`,
+      # `turbo_overlay_offset`, `turbo_overlay_backdrop?`,
+      # `turbo_overlay_close?`) live on `TurboOverlay::Controller` and
+      # are exposed to views via `helper_method`. This module only
+      # defines helpers that build markup or wrap content_for. The
+      # install generator wires the concern into ApplicationController.
+
       # ----- Modal-specific link helpers -----
 
       # Build a link that opens its target as a modal overlay. The
@@ -31,12 +41,6 @@ module TurboOverlay
       #   <%= modal_dismiss_link_to "Cancel", cancel_path %>
       def modal_dismiss_link_to(name = nil, options = nil, html_options = nil, &block)
         _overlay_dismiss_link_to(:modal, name, options, html_options, &block)
-      end
-
-      # Whether the current view is being rendered inside a modal.
-      def modal_request?
-        return controller.modal_request? if controller.respond_to?(:modal_request?)
-        _detect_overlay_type == :modal
       end
 
       # ----- Drawer-specific link helpers -----
@@ -73,12 +77,6 @@ module TurboOverlay
         _overlay_dismiss_link_to(:drawer, name, options, html_options, &block)
       end
 
-      # Whether the current view is being rendered inside a drawer.
-      def drawer_request?
-        return controller.drawer_request? if controller.respond_to?(:drawer_request?)
-        _detect_overlay_type == :drawer
-      end
-
       # ----- Popover-specific link helpers -----
 
       # Build a link that opens its target as a popover overlay
@@ -106,12 +104,6 @@ module TurboOverlay
       # Inside a popover, render a link styled as a "dismiss" trigger.
       def popover_dismiss_link_to(name = nil, options = nil, html_options = nil, &block)
         _overlay_dismiss_link_to(:popover, name, options, html_options, &block)
-      end
-
-      # Whether the current view is being rendered inside a popover.
-      def popover_request?
-        return controller.popover_request? if controller.respond_to?(:popover_request?)
-        _detect_overlay_type == :popover
       end
 
       # ----- Hint-specific helpers -----
@@ -165,14 +157,6 @@ module TurboOverlay
       def turbo_overlay_hint(value = nil, &block)
         return unless _turbo_overlay_hintable_request?
         content_for(:turbo_overlay_hint, value, &block)
-      end
-
-      # Whether the current request was served as a `:hint` variant.
-      # True only for explicit `hint_url:` fetches the gem made for a
-      # hover hint — useful inside `show.html+hint.erb` etc.
-      def hint_request?
-        return controller.hint_request? if controller.respond_to?(:hint_request?)
-        _detect_overlay_type == :hint
       end
 
       # ----- Generic in-view helpers (shared across overlay types) -----
@@ -287,55 +271,11 @@ module TurboOverlay
         overlay_stack_tag
       end
 
-      # The id of the overlay currently being rendered. Available
-      # inside overlay layouts/partials and in any code path serving
-      # an overlay request. Useful for `aria-labelledby` ids and for
-      # `turbo_stream.overlay(:close, id: turbo_overlay_id)`.
-      def turbo_overlay_id
-        return controller.turbo_overlay_id if controller.respond_to?(:turbo_overlay_id)
-        nil
-      end
-
-      # The per-link position override for the current overlay
-      # request, or `nil` when the link didn't supply one. Drawer
-      # partials read this with a fallback to
-      # `TurboOverlay.configuration.drawer.position`; popover
-      # partials fall back to
-      # `TurboOverlay.configuration.popover.position`.
-      def turbo_overlay_position
-        return controller.turbo_overlay_position if controller.respond_to?(:turbo_overlay_position)
-        nil
-      end
-
-      # The per-link cross-axis alignment for popovers, or `nil`.
-      # Popover partials fall back to
-      # `TurboOverlay.configuration.popover.align`.
-      def turbo_overlay_align
-        return controller.turbo_overlay_align if controller.respond_to?(:turbo_overlay_align)
-        nil
-      end
-
-      # The per-link pixel offset for popovers, or `nil`. Popover
-      # partials fall back to `TurboOverlay.configuration.popover.offset`.
-      def turbo_overlay_offset
-        return controller.turbo_overlay_offset if controller.respond_to?(:turbo_overlay_offset)
-        nil
-      end
-
-      # Whether the current overlay request should render with a
-      # backdrop (the default) or non-modally (`backdrop: false` on
-      # the link helper). Drawer partials switch the `<dialog>` open
-      # mode and CSS based on this.
-      def turbo_overlay_backdrop?
-        return controller.turbo_overlay_backdrop? if controller.respond_to?(:turbo_overlay_backdrop?)
-        true
-      end
-
       # The DOM id of the per-overlay turbo-frame for the current
       # request: `turbo_overlay_<type>_<id>`. Used by overlay layouts
       # to tag the wrapping frame.
       def turbo_overlay_frame_id(type = nil)
-        type ||= controller.respond_to?(:turbo_overlay_type) ? controller.turbo_overlay_type : nil
+        type ||= controller.turbo_overlay_type
         return nil unless type && turbo_overlay_id
         "turbo_overlay_#{type}_#{turbo_overlay_id}"
       end
@@ -357,10 +297,7 @@ module TurboOverlay
         frame_id = "turbo_overlay_#{type}_#{turbo_overlay_id}"
         frame_html = turbo_frame_tag(frame_id, class: "turbo-overlay-frame", &block)
 
-        is_re_render = controller.respond_to?(:turbo_overlay_frame_re_render?) &&
-          controller.turbo_overlay_frame_re_render?
-
-        if is_re_render
+        if controller.turbo_overlay_frame_re_render?
           frame_html
         else
           stack_id = TurboOverlay.configuration.stack_id
@@ -396,8 +333,7 @@ module TurboOverlay
       # Resolves the precedence described on `overlay_close`.
       def overlay_close?
         return @_overlay_close != false if defined?(@_overlay_close)
-        return controller.turbo_overlay_close? if controller.respond_to?(:turbo_overlay_close?)
-        true
+        controller.turbo_overlay_close?
       end
 
       private
@@ -420,7 +356,6 @@ module TurboOverlay
       end
 
       def _turbo_overlay_action_template_path
-        return nil unless controller.respond_to?(:controller_path) && controller.respond_to?(:action_name)
         "#{controller.controller_path}/#{controller.action_name}"
       end
 
@@ -440,17 +375,11 @@ module TurboOverlay
       end
 
       # Whether the hint template should be rendered for this request.
-      # True for prefetches and explicit `:hint` variant fetches.
-      # Mirrors the controller-side `turbo_overlay_hintable_request?`
-      # so the view helper works whether or not the host included
-      # `TurboOverlay::Controller` (e.g. in test contexts).
+      # True for prefetches and explicit `:hint` variant fetches. The
+      # detection lives on the controller concern; the view helper just
+      # delegates so chrome-rendering code paths can read it.
       def _turbo_overlay_hintable_request?
-        if controller.respond_to?(:turbo_overlay_hintable_request?)
-          return controller.turbo_overlay_hintable_request?
-        end
-        return false unless respond_to?(:request) && request
-        return true if hint_request?
-        request.headers["X-Sec-Purpose"].to_s.include?("prefetch")
+        controller.turbo_overlay_hintable_request?
       end
 
       # Render `turbo_overlay/<name>` for the given variant, preferring
@@ -575,25 +504,6 @@ module TurboOverlay
         [options, html_options]
       end
 
-      def _detect_overlay_type
-        return nil unless respond_to?(:request) && request
-
-        header = request.headers["X-Turbo-Overlay"].to_s.downcase
-        return :modal   if header == "modal"
-        return :drawer  if header == "drawer"
-        return :popover if header == "popover"
-        return :hint    if header == "hint"
-
-        frame = request.headers["Turbo-Frame"].to_s
-        if frame.start_with?("turbo_overlay_")
-          rest = frame["turbo_overlay_".length..]
-          return :modal   if rest.start_with?("modal_")
-          return :drawer  if rest.start_with?("drawer_")
-          return :popover if rest.start_with?("popover_")
-        end
-
-        nil
-      end
     end
   end
 end

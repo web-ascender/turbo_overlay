@@ -166,18 +166,25 @@ class ViewHelperTest < Minitest::Test
       @popover_request_value
     end
 
-    def controller
-      self
+    def hint_request?
+      false
     end
 
-    def respond_to?(method_name, include_private = false)
-      return true if method_name == :modal_request? || method_name == :drawer_request? || method_name == :popover_request?
-      return true if method_name == :turbo_overlay_id
-      return true if method_name == :turbo_overlay_frame_re_render?
-      return true if method_name == :lookup_context
-      return true if method_name == :turbo_overlay_hintable_request?
-      return true if method_name == :controller_path || method_name == :action_name
-      super
+    def turbo_overlay_type
+      return :modal   if @modal_request_value
+      return :drawer  if @drawer_request_value
+      return :popover if @popover_request_value
+      nil
+    end
+
+    def turbo_overlay_position; nil; end
+    def turbo_overlay_align;    nil; end
+    def turbo_overlay_offset;   nil; end
+    def turbo_overlay_backdrop?; true; end
+    def turbo_overlay_close?;    true; end
+
+    def controller
+      self
     end
 
     def turbo_overlay_hintable_request?
@@ -202,10 +209,6 @@ class ViewHelperTest < Minitest::Test
 
     def turbo_stream
       @turbo_stream ||= FakeTurboStream.new
-    end
-
-    def request
-      nil
     end
   end
 
