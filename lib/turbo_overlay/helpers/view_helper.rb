@@ -225,14 +225,16 @@ module TurboOverlay
         end
 
         if content_for?(:turbo_overlay_hint)
+          body = content_for(:turbo_overlay_hint)
           hint_body = if lookup_context.exists?("turbo_overlay/hint", [], true)
-            render(partial: "turbo_overlay/hint") { content_for(:turbo_overlay_hint) }
+            # Render the partial as a layout so the user's body lands
+            # at `<%= yield %>`. Same pattern used by the modal/drawer
+            # /popover layouts.
+            render(layout: "turbo_overlay/hint") { body }
           else
             # No chrome partial in the app yet; emit the body unwrapped
-            # so the JS still has something to extract. The gem-fallback
-            # partial in app/views/turbo_overlay/_hint.html.erb supplies
-            # the default chrome when nothing app-side overrides it.
-            content_for(:turbo_overlay_hint)
+            # so the JS still has something to extract.
+            body
           end
           parts << content_tag(:template, hint_body, id: hint_cfg.template_id)
         end
