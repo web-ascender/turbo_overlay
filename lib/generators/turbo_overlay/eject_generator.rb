@@ -51,6 +51,8 @@ module TurboOverlay
 
         copy_gem_file "app/javascript/turbo_overlay/index.js",
           "app/javascript/turbo_overlay/index.js"
+        copy_gem_file "app/javascript/turbo_overlay/setup.js",
+          "app/javascript/turbo_overlay/setup.js"
         copy_gem_file "app/javascript/turbo_overlay/stack_controller.js",
           "app/javascript/turbo_overlay/stack_controller.js"
         copy_gem_file "app/javascript/turbo_overlay/overlay_controller.js",

@@ -1,4 +1,6 @@
-import StackController, { registerConfirm } from "turbo_overlay/stack_controller"
+import "turbo_overlay/setup"
+import { registerConfirm } from "turbo_overlay/setup"
+import StackController from "turbo_overlay/stack_controller"
 import OverlayController from "turbo_overlay/overlay_controller"
 import HintController from "turbo_overlay/hint_controller"
 
@@ -9,6 +11,13 @@ import HintController from "turbo_overlay/hint_controller"
 //
 // Registers three controllers under their canonical identifiers:
 // `turbo-overlay-stack`, `turbo-overlay`, and `turbo-overlay-hint`.
+//
+// Importing this module also runs `turbo_overlay/setup`, which
+// installs the page-level wiring (request-header injection, loading
+// placeholders, back/forward cache teardown, the
+// `turbo_stream.overlay` custom stream action). That setup is
+// idempotent — guarded by `window._turboOverlay*Registered` flags —
+// so it's safe to import this entry point more than once.
 //
 // Pass `{ confirm: true }` to also route `data-turbo-confirm` on
 // links/forms through the gem's themed overlay instead of the
