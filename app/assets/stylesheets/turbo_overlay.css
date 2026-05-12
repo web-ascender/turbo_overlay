@@ -100,21 +100,31 @@ dialog.turbo-overlay-scaffold .turbo-drawer-body { flex: 1; overflow-y: auto; }
 }
 
 /* === Hint (hover-triggered preview, non-modal, non-dialog) === */
-/* Baseline visuals in `:where()` so themed partials (Tailwind etc.)
-   win without a specificity battle. JS sets top/left via the same
-   anchor math as the popover. */
-:where(.turbo-overlay-hint) {
+/* Structural rules apply to every hint regardless of theme — JS sets
+   top/left via the same anchor math as the popover, and the
+   animation/closing classes drive the fade in/out. */
+.turbo-overlay-hint {
   position: fixed; z-index: 1000;
+  pointer-events: auto;
+}
+.turbo-overlay-hint[data-state="entering"] { animation: turbo-overlay-fade-in 0.12s ease-out; }
+.turbo-overlay-hint[data-state="leaving"]  { animation: turbo-overlay-fade-out 0.12s ease-out forwards; }
+
+/* Plain-theme visuals — opt in by adding `turbo-hint` to the chrome
+   partial. The tailwind/bootstrap themes drop this class so their
+   own utility classes drive background/border/shadow without
+   collisions with the gem's plain defaults. (Tailwind v4 wraps its
+   utilities in `@layer utilities`; the gem's CSS is unlayered, which
+   wins over any layered rule regardless of specificity — including
+   `:where()`. Separating classes is the only reliable fix.) */
+.turbo-hint {
   max-width: 20rem; padding: 0.75rem 1rem;
   background: white;
   border: 1px solid #e5e7eb;
   border-radius: 6px;
   box-shadow: 0 8px 24px rgba(0,0,0,0.12);
   font-size: 0.875rem;
-  pointer-events: auto;
 }
-.turbo-overlay-hint[data-state="entering"] { animation: turbo-overlay-fade-in 0.12s ease-out; }
-.turbo-overlay-hint[data-state="leaving"]  { animation: turbo-overlay-fade-out 0.12s ease-out forwards; }
 
 /* === Animations (apply to every theme via shared classes) === */
 dialog.turbo-overlay--modal[open]                            { animation: turbo-overlay-fade-in 0.15s ease-out; }
