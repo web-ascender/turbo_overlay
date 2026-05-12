@@ -58,6 +58,31 @@ function generateOverlayId() {
   return "ov-" + Math.random().toString(36).slice(2, 10)
 }
 
+// Tear down a same-id overlay frame still in the DOM so a re-click
+// on its trigger can spawn a fresh placeholder without colliding on
+// the `turbo_overlay_<type>_<id>` frame id. Drives the registered
+// controller's close path (synchronous unregister + listener cleanup),
+// aborts any in-flight load for that id, and force-removes the frame
+// so we don't have to wait on a 400ms close animation.
+function teardownExistingOverlayFrame(frame, id) {
+  window.dispatchEvent(new CustomEvent("turbo-overlay:close", { detail: { id } }))
+
+  const aborter = inflightAborts.get(id)
+  if (aborter) {
+    try { aborter.abort() } catch (_) { /* ignore */ }
+    inflightAborts.delete(id)
+  }
+  dismissedLoadingIds.delete(id)
+
+  if (frame.parentNode) {
+    const dialog = frame.querySelector("dialog")
+    if (dialog && dialog.open) {
+      try { dialog.close() } catch (_) { /* ignore */ }
+    }
+    frame.remove()
+  }
+}
+
 // Clone the matching `turbo_overlay_loading_<type>_template` into the
 // stack and open it immediately. Inherits the trigger's link options
 // (backdrop, drawer position, close button suppression, popover
@@ -444,15 +469,39 @@ function registerFetchHook() {
       headers["X-Turbo-Overlay-Close"] = "false"
     }
 
+    // Sticky `data-turbo-overlay-id` on the trigger means a re-click
+    // (or a re-submit) reuses the previous overlay id. If the previous
+    // overlay is still in the DOM (popover still open, or a prior load
+    // still in flight), spawning a new placeholder for this fetch
+    // would produce two `<turbo-frame>` nodes with the same id; the
+    // new controller's connect() would then take the "frame re-render"
+    // branch and orphan the prior controller (no ESC, no
+    // outside-click). Tear the existing frame down here — before the
+    // new fetch's AbortController is registered — so any old in-flight
+    // load is aborted via `inflightAborts.get(id)` while it still
+    // holds the prior aborter.
+    const overlayId   = trigger.dataset.turboOverlayId
+    const overlayType = trigger.dataset.turboOverlay
+    if (overlayId && overlayType) {
+      const existing = document.getElementById(`turbo_overlay_${overlayType}_${overlayId}`)
+      if (existing) {
+        teardownExistingOverlayFrame(existing, overlayId)
+        // unregister() (driven by the close dispatch in teardown)
+        // clears the popover trigger registry entry; restore it from
+        // the current click so the new popover's _connectPopover can
+        // find its anchor instead of falling back to centered.
+        if (overlayType === "popover") popoverTriggers.set(overlayId, trigger)
+      }
+    }
+
     // Inject an AbortController so dismissing the loading placeholder
     // actually cancels the in-flight fetch instead of just discarding
     // the response. Turbo respects `fetchOptions.signal` when it
     // constructs the underlying fetch call. Clear any stale dismissal
-    // for this id first — overlay ids are sticky on the link element,
-    // so a second click on the same link reuses the id, and we must
-    // not let the dismissed-safety-net set from a prior dismissal
-    // discard this fresh request's response.
-    const overlayId = trigger.dataset.turboOverlayId
+    // for this id first — overlay ids are sticky on the trigger, so a
+    // re-click reuses the id, and we must not let the dismissed-safety
+    // -net set from a prior dismissal discard this fresh request's
+    // response.
     if (overlayId) {
       dismissedLoadingIds.delete(overlayId)
       if (typeof AbortController === "function") {
@@ -491,6 +540,15 @@ function registerFetchHook() {
 //
 // If neither template is in the DOM (host app hasn't run install yet),
 // we fall back to the browser-native `window.confirm`.
+// Captured click trigger for the most recent `[data-turbo-confirm]`
+// element the user clicked. Turbo's link-method path
+// (`<a data-turbo-method="delete" data-turbo-confirm="…">`) synthesizes
+// a hidden form and submits it without a submitter argument, so the
+// confirm hook receives `submitter = null` and popover-style anchoring
+// has nothing to attach to. Tracking the actual clicked element here
+// lets `promptConfirm` recover the anchor when Turbo loses it.
+let lastConfirmTrigger = null
+
 export function registerConfirm() {
   if (typeof window === "undefined") return
   const Turbo = window.Turbo
@@ -498,13 +556,40 @@ export function registerConfirm() {
   if (window._turboOverlayConfirmRegistered) return
   window._turboOverlayConfirmRegistered = true
 
+  // Capture-phase so we record the trigger before Turbo's own click
+  // handler synthesizes the form and dispatches confirm.
+  document.addEventListener("click", (event) => {
+    if (event.defaultPrevented) return
+    if (event.button !== 0) return
+    if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return
+    const trigger = event.target && event.target.closest
+      ? event.target.closest("[data-turbo-confirm]")
+      : null
+    lastConfirmTrigger = trigger ? { element: trigger, at: Date.now() } : null
+  }, true)
+
   Turbo.config.forms.confirm = (message, formElement, submitter) =>
     promptConfirm(message, formElement, submitter)
 }
 
-function resolveConfirmStyle(formElement, submitter) {
+// Recover the clicked trigger when Turbo's submitter is null. Turbo's
+// link-method path synthesizes a hidden form that bears no DOM
+// relationship to the clicked link (it's appended directly to <body>),
+// so we can't validate by containment. The freshness window is the
+// safety net: confirm submissions are sequential — Turbo `await`s the
+// hook — so an unrelated click can't slip in between the capture and
+// the confirm callback in practice.
+function recoverConfirmTrigger() {
+  if (!lastConfirmTrigger) return null
+  if (Date.now() - lastConfirmTrigger.at > 2000) return null
+  const el = lastConfirmTrigger.element
+  if (!el || !el.isConnected) return null
+  return el
+}
+
+function resolveConfirmStyle(formElement, submitter, recoveredTrigger) {
   const explicit = (el) => el && el.dataset && el.dataset.turboConfirmStyle
-  const fromTrigger = explicit(submitter) || explicit(formElement)
+  const fromTrigger = explicit(submitter) || explicit(recoveredTrigger) || explicit(formElement)
   if (fromTrigger === "modal" || fromTrigger === "popover") return fromTrigger
 
   const stack = document.querySelector("[data-controller~='turbo-overlay-stack']")
@@ -522,9 +607,16 @@ function findConfirmTemplate(preferredStyle) {
 }
 
 function promptConfirm(message, formElement, submitter) {
-  const requestedStyle = resolveConfirmStyle(formElement, submitter)
+  // Turbo's link-method path (`<a data-turbo-method data-turbo-confirm>`)
+  // synthesizes a hidden form and calls confirm with `submitter = null`,
+  // which would silently demote popover-style to modal. Fall back to the
+  // element the user just clicked so the anchor reference survives.
+  const recovered = submitter ? null : recoverConfirmTrigger()
+  const anchor = submitter || recovered
+
+  const requestedStyle = resolveConfirmStyle(formElement, submitter, recovered)
   // Popover style requires an anchor element. Without one, demote to modal.
-  const targetStyle = (requestedStyle === "popover" && submitter) ? "popover" : "modal"
+  const targetStyle = (requestedStyle === "popover" && anchor) ? "popover" : "modal"
 
   const found = findConfirmTemplate(targetStyle)
   const stack = document.querySelector("[data-controller~='turbo-overlay-stack']")
@@ -543,10 +635,11 @@ function promptConfirm(message, formElement, submitter) {
   const title = clone.querySelector(`[id^='${titlePrefix}']`)
   if (title) title.id = titlePrefix + id
 
-  // Popover variants need an anchor reference. The submitter element
-  // is the natural anchor (the clicked button/link with data-turbo-confirm).
-  if (style === "popover" && submitter) {
-    popoverTriggers.set(id, submitter)
+  // Popover variants need an anchor reference. Prefer Turbo's submitter
+  // (real form-button click); fall back to the click target we captured
+  // for `<a data-turbo-method>` links where Turbo passes a null submitter.
+  if (style === "popover" && anchor) {
+    popoverTriggers.set(id, anchor)
   }
 
   const messageEl = clone.querySelector("[data-turbo-overlay-confirm-message]")
@@ -624,8 +717,17 @@ export default class extends Controller {
   }
 
   unregister(id) {
+    const before = this.entries.length
     this.entries = this.entries.filter((e) => e.id !== id)
-    clearPopoverTrigger(id)
+    // Only clear the popover-trigger registry when we actually
+    // removed the entry. The disconnect path schedules a deferred
+    // unregister via queueMicrotask as a safety net for elements
+    // ripped out of the DOM without a close() — if close() already
+    // ran (and cleared the entry), that deferred call must not
+    // clobber a popoverTriggers entry that meanwhile has been
+    // re-pointed at a new overlay reusing the same id (e.g. a
+    // re-click on the same popover_link_to).
+    if (this.entries.length < before) clearPopoverTrigger(id)
   }
 
   getPopoverTrigger(id) {
