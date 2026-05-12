@@ -143,6 +143,32 @@ those; the appended overlay sits on top.
 Both can be open at the same time. Both can be opened from inside
 another overlay — they stack. Dismissing closes only the top.
 
+### Per-link drawer overrides
+
+`drawer_link_to` accepts two per-link kwargs that override the configured
+defaults for that one link:
+
+```erb
+<%# Override the configured drawer side just for this link %>
+<%= drawer_link_to "Filters", filters_path, position: :left %>
+
+<%# Open without a backdrop — page stays scrollable and selectable,
+    text on the host page can be copied into the drawer's form, etc.
+    ESC still closes; click-outside is ignored (no backdrop to click). %>
+<%= drawer_link_to "Inspector", inspect_path, backdrop: false %>
+```
+
+`position:` accepts `:left`, `:right`, `:top`, `:bottom` and overrides
+`TurboOverlay.configuration.drawer.position` for the one link.
+
+`backdrop: false` opens the drawer non-modally (`dialog.show()` instead
+of `showModal()`). The browser doesn't render a `::backdrop`, the page
+beneath stays fully interactive, and the page-wide scroll lock is
+disabled. Useful when the user needs to read or copy from the host
+page while the drawer is open. (See the table below for how this
+differs from `backdrop-dismiss-value="false"`, which keeps the modal
+backdrop visible but disables click-to-dismiss.)
+
 ### Stable ids and closing from server code
 
 If you want to close a specific overlay later from server code, give
@@ -261,6 +287,14 @@ set the value to `false` on the `<dialog>`:
         data-turbo-overlay-backdrop-dismiss-value="false">
 ```
 
+Two related knobs, easy to confuse:
+
+| Setting                                          | Backdrop visible? | Click outside dismisses? | Page interactive? |
+|--------------------------------------------------|:-----------------:|:------------------------:|:-----------------:|
+| (default)                                        | ✓                 | ✓                        | —                 |
+| `data-turbo-overlay-backdrop-dismiss-value="false"` | ✓              | —                        | —                 |
+| `drawer_link_to ..., backdrop: false`            | —                 | — (no backdrop to click) | ✓                 |
+
 On validation failure, just `render :new, status: :unprocessable_entity`.
 The form lives inside a per-overlay turbo-frame, so Rails re-renders
 the form and Turbo replaces the frame's contents in place — the
@@ -359,8 +393,10 @@ Available on controllers (when the concern is included) and views:
 | `overlay_request?`                      | `true` if the current request targets *any* overlay                    |
 | `current_overlay_type`                  | `:modal`, `:drawer`, or `nil`                                          |
 | `current_overlay_id`                    | The overlay id for the current request (user-supplied or generated)    |
+| `current_overlay_position`              | Per-link drawer position override for the current request, or `nil`    |
+| `current_overlay_backdrop?`             | `false` only when the link opened with `backdrop: false`; else `true`  |
 | `modal_link_to(name, path, overlay_id:)` | `link_to` that opens the target as a stacked modal                    |
-| `drawer_link_to(name, path, overlay_id:)` | `link_to` that opens the target as a stacked drawer                  |
+| `drawer_link_to(name, path, overlay_id:, position:, backdrop:)` | `link_to` that opens the target as a stacked drawer; `position:` overrides the configured side, `backdrop: false` opens non-modally |
 | `modal_dismiss_link_to(...)`            | dismiss link inside a modal                                            |
 | `drawer_dismiss_link_to(...)`           | dismiss link inside a drawer                                           |
 | `overlay_stack_tag`                     | emits the host-page stack container (drop in `application.html.erb`)   |

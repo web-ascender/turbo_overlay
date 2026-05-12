@@ -2,21 +2,34 @@
 
 ## Unreleased
 
-### Changed
-- **All themes now use a single native `<dialog>` JS controller.** Bootstrap themes keep their visual classes (`.modal-dialog`, `.modal-content`, `.offcanvas-*`, etc.) but no longer require `window.bootstrap` or jQuery — the `<dialog>` element drives open/close, stacking, and focus management. Drops the per-theme overlay controller files; one shared `overlay_controller.js` ships for everyone.
-- **Animations on by default.** Modals fade/scale-in on open, fade/scale-out on close. Drawers slide in/out from their configured edge. Backdrops fade in/out. All animations honor `prefers-reduced-motion: reduce`.
-- The Stimulus close path now adds a `turbo-overlay-closing` class, awaits `animationend` (with a 400ms safety timeout), then removes the dialog's turbo-frame.
-- **Stylesheet moved out of the response payload.** Overlay layouts no longer ship a `<style>` block on every render. Styles are emitted once into the host page's `<head>` via a new `turbo_overlay_styles` view helper (auto-injected by the install generator). Smaller per-overlay payloads, and the rules can be overridden cleanly from the host app's CSS.
-
 ### Added
-- **Bootstrap 3 drawer support.** Previously skipped because BS3 has no native offcanvas primitive — now provided as a vanilla dialog styled with BS3 panel classes.
-- `turbo_overlay_styles` view helper.
-- `.turbo-overlay-scaffold` CSS hook on Bootstrap layouts so the shared stylesheet positions the dialog and clears the BS offcanvas's own positioning rules.
+- **`backdrop: false` on `drawer_link_to`.** Opens the drawer non-modally (`dialog.show()` instead of `showModal()`). No backdrop, page stays scrollable and selectable, click outside is ignored. ESC still closes (synthesized via a keydown listener, since native `<dialog>` doesn't fire `cancel` in non-modal mode). Useful for inspector-style drawers where the user needs to read or copy from the host page.
+- **`position:` on `drawer_link_to`.** Per-link override (`:left`, `:right`, `:top`, `:bottom`) for the configured `drawer.position` default.
+- **Themed confirm dialogs.** Pass `{ confirm: true }` to `register(application, …)` and `data-turbo-confirm` on links/forms goes through the gem's themed modal instead of the browser-native `confirm()`. Body is cloned from a `<template>` rendered once into the page by `overlay_stack_tag`; falls back to `window.confirm` if the template is absent.
+- **App-owned chrome partials.** Install drops `_modal.html.erb`, `_drawer.html.erb`, and `_confirm.html.erb` into `app/views/turbo_overlay/`. They're yours to edit — change classes, restyle, swap markup. Theme content scanners (Tailwind etc.) pick them up here automatically.
+- **Bootstrap 3 drawer support.** Previously skipped (no native offcanvas primitive); now provided as a vanilla dialog styled with BS3 panel classes.
+- **Dark-mode classes on the Tailwind theme.**
+- `current_overlay_position` and `current_overlay_backdrop?` controller / view helpers, exposing the per-link overrides to overlay layouts.
+
+### Changed
+- **Single native `<dialog>` JS controller for every theme.** Bootstrap themes keep their visual classes (`.modal-dialog`, `.modal-content`, `.offcanvas-*`) but no longer require `window.bootstrap` or jQuery — the `<dialog>` element drives open/close, stacking, and focus management. One shared `overlay_controller.js` ships for everyone.
+- **Animations on by default.** Modals fade/scale; drawers slide from their configured edge; backdrops fade. All honor `prefers-reduced-motion: reduce`. Close path adds a `turbo-overlay-closing` class, awaits `animationend` (with a 400ms safety timeout), then removes the dialog's turbo-frame.
+- **CSS now ships as a real stylesheet asset.** Earlier in this cycle the styles moved out of the per-response payload into a `turbo_overlay_styles` view helper; that helper is gone — install now wires a `stylesheet_link_tag "turbo_overlay"` (propshaft), `*= require turbo_overlay` (sprockets), or prints the equivalent snippet for jsbundling/cssbundling apps.
+- **Stimulus controllers shipped from the gem with importmap auto-pin.** Importmap apps get the `turbo_overlay` module pinned automatically; install appends `import { register } from "turbo_overlay"; register(application, { confirm: true })` to the host app's Stimulus entry. Bundler apps reference the gem's `app/javascript` directly or `eject` to copy locally.
+- **Backdrop click dismisses by default.** Press ESC *or* click the dimmed area outside the dialog and the top overlay closes. Opt a specific overlay out with `data-turbo-overlay-backdrop-dismiss-value="false"`.
+- **Stacked overlay links target `_top`.** A `modal_link_to` / `drawer_link_to` clicked from inside an open overlay now opens a new (stacked) overlay instead of replacing the current frame's contents.
+- **Click-capture skips cmd/ctrl/shift/middle clicks** so cmd+click on an overlay link opens a new tab instead of leaking the `X-Turbo-Overlay` header onto an unrelated fetch.
+- Plain modal caps its height and scrolls its body on overflow so long content doesn't push the dialog off-screen.
 
 ### Removed
-- `window.bootstrap` and jQuery requirements for the bootstrap5 / bootstrap3 themes.
+- `window.bootstrap` and jQuery requirements for the Bootstrap themes.
 - Per-theme overlay controllers (`{theme}_overlay_controller.js`).
 - Inline `<style>` blocks from every shipped overlay layout.
+- The interim `turbo_overlay_styles` view helper (superseded by the stylesheet asset).
+
+### Fixed
+- Modal/drawer link clicks no longer trigger full-page navigation when the gem's JS hook is loaded late.
+- Stacked overlay close animation is now reliable across themes.
 
 ## 0.3.0
 
