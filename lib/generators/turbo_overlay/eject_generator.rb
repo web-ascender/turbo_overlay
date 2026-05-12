@@ -57,8 +57,8 @@ module TurboOverlay
           "app/javascript/turbo_overlay/stack_controller.js"
         copy_gem_file "app/javascript/turbo_overlay/overlay_controller.js",
           "app/javascript/turbo_overlay/overlay_controller.js"
-        copy_gem_file "app/javascript/turbo_overlay/hint_controller.js",
-          "app/javascript/turbo_overlay/hint_controller.js"
+        copy_gem_file "app/javascript/turbo_overlay/hint.js",
+          "app/javascript/turbo_overlay/hint.js"
         copy_gem_file "app/javascript/turbo_overlay/popover_position.js",
           "app/javascript/turbo_overlay/popover_position.js"
 

@@ -215,16 +215,13 @@ module TurboOverlay
         confirm_style = TurboOverlay.configuration.confirm.style.to_s
         hint_cfg      = TurboOverlay.configuration.hint
 
-        controllers = "turbo-overlay-stack"
-        controllers += " turbo-overlay-hint" if hint_cfg.enabled
-
         data_attrs = {
-          controller: controllers,
+          controller: "turbo-overlay-stack",
           "turbo-overlay-confirm-style": confirm_style,
-          "turbo-overlay-hint-enabled-value":     hint_cfg.enabled,
-          "turbo-overlay-hint-show-delay-value":  hint_cfg.show_delay_ms,
-          "turbo-overlay-hint-hide-delay-value":  hint_cfg.hide_delay_ms,
-          "turbo-overlay-hint-template-id-value": hint_cfg.template_id
+          "turbo-overlay-hint-enabled":     hint_cfg.enabled,
+          "turbo-overlay-hint-show-delay":  hint_cfg.show_delay_ms,
+          "turbo-overlay-hint-hide-delay":  hint_cfg.hide_delay_ms,
+          "turbo-overlay-hint-template-id": hint_cfg.template_id
         }
 
         stack = content_tag(:div, "".html_safe,
