@@ -60,14 +60,16 @@ module TurboOverlay
       def copy_chrome_partials
         return if options[:skip_chrome]
 
-        modal_src   = chrome_source_path("_modal.html.erb")
-        drawer_src  = chrome_source_path("_drawer.html.erb")
-        popover_src = chrome_source_path("_popover.html.erb")
-        confirm_src = chrome_source_path("_confirm.html.erb")
-        copy_file modal_src,   "app/views/turbo_overlay/_modal.html.erb"
-        copy_file drawer_src,  "app/views/turbo_overlay/_drawer.html.erb"
-        copy_file popover_src, "app/views/turbo_overlay/_popover.html.erb"
-        copy_file confirm_src, "app/views/turbo_overlay/_confirm.html.erb"
+        modal_src           = chrome_source_path("_modal.html.erb")
+        drawer_src          = chrome_source_path("_drawer.html.erb")
+        popover_src         = chrome_source_path("_popover.html.erb")
+        confirm_modal_src   = chrome_source_path("_confirm.html+modal.erb")
+        confirm_popover_src = chrome_source_path("_confirm.html+popover.erb")
+        copy_file modal_src,           "app/views/turbo_overlay/_modal.html.erb"
+        copy_file drawer_src,          "app/views/turbo_overlay/_drawer.html.erb"
+        copy_file popover_src,         "app/views/turbo_overlay/_popover.html.erb"
+        copy_file confirm_modal_src,   "app/views/turbo_overlay/_confirm.html+modal.erb"
+        copy_file confirm_popover_src, "app/views/turbo_overlay/_confirm.html+popover.erb"
       end
 
       def inject_stack_tag

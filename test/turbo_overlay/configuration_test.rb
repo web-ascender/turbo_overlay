@@ -105,6 +105,23 @@ class ConfigurationTest < Minitest::Test
     assert_kind_of TurboOverlay::OverlayTypeConfig, TurboOverlay.configuration.popover
   end
 
+  # ---- confirm ----
+
+  def test_default_confirm_style_is_modal
+    assert_equal :modal, TurboOverlay.configuration.confirm.style
+  end
+
+  def test_configure_confirm_with_block
+    TurboOverlay.configure do |c|
+      c.confirm { |cf| cf.style = :popover }
+    end
+    assert_equal :popover, TurboOverlay.configuration.confirm.style
+  end
+
+  def test_confirm_returns_confirm_config
+    assert_kind_of TurboOverlay::ConfirmConfig, TurboOverlay.configuration.confirm
+  end
+
   # ---- reset ----
 
   def test_reset_configuration_restores_defaults
@@ -112,16 +129,19 @@ class ConfigurationTest < Minitest::Test
       c.stack_id = "custom_stack"
       c.drawer  { |d| d.position = :top }
       c.popover { |p| p.position = :left; p.offset = 12 }
+      c.confirm { |cf| cf.style = :popover }
     end
     assert_equal "custom_stack", TurboOverlay.configuration.stack_id
     assert_equal :top,           TurboOverlay.configuration.drawer.position
     assert_equal :left,          TurboOverlay.configuration.popover.position
     assert_equal 12,             TurboOverlay.configuration.popover.offset
+    assert_equal :popover,       TurboOverlay.configuration.confirm.style
 
     TurboOverlay.reset_configuration!
     assert_equal "turbo_overlay_stack", TurboOverlay.configuration.stack_id
     assert_equal :right,                TurboOverlay.configuration.drawer.position
     assert_equal :bottom,               TurboOverlay.configuration.popover.position
     assert_equal 4,                     TurboOverlay.configuration.popover.offset
+    assert_equal :modal,                TurboOverlay.configuration.confirm.style
   end
 end

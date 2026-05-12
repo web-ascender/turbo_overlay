@@ -40,4 +40,14 @@ TurboOverlay.configure do |config|
     # p.offset              = 4
     # p.auto_flip           = true
   end
+
+  config.confirm do |cf|
+    # Controls how `data-turbo-confirm` renders when the themed confirm
+    # hook is registered via `register(application, { confirm: true })`.
+    # `:modal` (default) is centered; `:popover` anchors to the
+    # clicked submitter and is often friendlier next to a row's
+    # delete button. Per-link override via
+    # `data-turbo-confirm-style="popover"` (or "modal") on the link/form.
+    # cf.style = :modal
+  end
 end

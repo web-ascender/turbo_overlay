@@ -30,6 +30,24 @@ module TurboOverlay
     end
   end
 
+  # Confirm prompt config. Controls how `data-turbo-confirm` is
+  # rendered when the gem's themed confirm hook is registered via
+  # `register(application, { confirm: true })`.
+  #
+  # - `style`: `:modal` (default) renders the prompt centered in the
+  #   modal chrome. `:popover` renders it anchored to the submitter
+  #   element (the clicked link or button), which is often friendlier
+  #   for destructive actions next to a row or button. Per-link
+  #   override via `data-turbo-confirm-style="popover"` (or `"modal"`)
+  #   on the link/form.
+  class ConfirmConfig
+    attr_accessor :style
+
+    def initialize(style:)
+      @style = style
+    end
+  end
+
   # Popover config extends OverlayTypeConfig with anchored-positioning
   # defaults. Popovers attach to their trigger element rather than
   # centering (modal) or pinning to an edge (drawer).
@@ -87,6 +105,8 @@ module TurboOverlay
         offset:              4,
         auto_flip:           true
       )
+
+      @confirm = ConfirmConfig.new(style: :modal)
     end
 
     # Modal config. With a block, yields the type config for setters;
@@ -127,6 +147,18 @@ module TurboOverlay
     def popover
       yield @popover if block_given?
       @popover
+    end
+
+    # Confirm-prompt config. Controls how `data-turbo-confirm` renders.
+    #
+    #   TurboOverlay.configure do |c|
+    #     c.confirm do |cf|
+    #       cf.style = :popover    # default :modal
+    #     end
+    #   end
+    def confirm
+      yield @confirm if block_given?
+      @confirm
     end
   end
 end

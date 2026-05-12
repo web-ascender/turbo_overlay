@@ -127,19 +127,28 @@ function registerFetchHook() {
 }
 
 // Replaces window.confirm for `data-turbo-confirm` links/forms with
-// the gem's themed modal. Opt-in via `register(application, { confirm: true })`.
+// the gem's themed overlay. Opt-in via `register(application, { confirm: true })`.
 //
-// On each invocation we clone `<template id="turbo_overlay_confirm_template">`
-// (server-rendered by `overlay_stack_tag` from the host app's
-// `app/views/turbo_overlay/_confirm.html.erb` partial), wire its
-// accept/cancel buttons + ESC + backdrop to a Promise, generate a
-// unique overlay id, and append it inside a `<turbo-frame>` to the
-// stack container. The existing `turbo-overlay` controller handles
-// `showModal()` + animations + stack registration on Stimulus connect.
+// Two styles are supported via the per-variant templates
+// `<template id="turbo_overlay_confirm_modal_template">` and
+// `<template id="turbo_overlay_confirm_popover_template">` rendered
+// by `overlay_stack_tag` from the host app's `_confirm.html+modal.erb`
+// and `_confirm.html+popover.erb` partials.
 //
-// If the template element is missing (e.g. host app hasn't generated
-// the partial yet, or has deleted it), we fall back to the
-// browser-native `window.confirm` so the trigger still works.
+// Style resolution (per call):
+//   1. submitter element's `data-turbo-confirm-style`
+//   2. form element's `data-turbo-confirm-style`
+//   3. stack container's `data-turbo-overlay-confirm-style` (configured
+//      default — `TurboOverlay.configuration.confirm.style`)
+//   4. fallback "modal"
+//
+// Popover style needs a submitter element to anchor to. If the call
+// doesn't carry one (programmatic form submission), we fall back to
+// modal silently. We also fall back to modal if only the modal
+// template was generated, and vice versa.
+//
+// If neither template is in the DOM (host app hasn't run install yet),
+// we fall back to the browser-native `window.confirm`.
 export function registerConfirm() {
   if (typeof window === "undefined") return
   const Turbo = window.Turbo
@@ -147,29 +156,62 @@ export function registerConfirm() {
   if (window._turboOverlayConfirmRegistered) return
   window._turboOverlayConfirmRegistered = true
 
-  Turbo.config.forms.confirm = (message) => promptConfirm(message)
+  Turbo.config.forms.confirm = (message, formElement, submitter) =>
+    promptConfirm(message, formElement, submitter)
 }
 
-function promptConfirm(message) {
-  const template = document.getElementById("turbo_overlay_confirm_template")
+function resolveConfirmStyle(formElement, submitter) {
+  const explicit = (el) => el && el.dataset && el.dataset.turboConfirmStyle
+  const fromTrigger = explicit(submitter) || explicit(formElement)
+  if (fromTrigger === "modal" || fromTrigger === "popover") return fromTrigger
+
   const stack = document.querySelector("[data-controller~='turbo-overlay-stack']")
-  const dialog = template && template.content && template.content.querySelector("dialog")
-  if (!template || !stack || !dialog) {
+  const fromStack = stack && stack.dataset.turboOverlayConfirmStyle
+  return fromStack === "popover" ? "popover" : "modal"
+}
+
+function findConfirmTemplate(preferredStyle) {
+  const preferred = document.getElementById(`turbo_overlay_confirm_${preferredStyle}_template`)
+  if (preferred) return { template: preferred, style: preferredStyle }
+  const fallbackStyle = preferredStyle === "popover" ? "modal" : "popover"
+  const fallback = document.getElementById(`turbo_overlay_confirm_${fallbackStyle}_template`)
+  if (fallback) return { template: fallback, style: fallbackStyle }
+  return null
+}
+
+function promptConfirm(message, formElement, submitter) {
+  const requestedStyle = resolveConfirmStyle(formElement, submitter)
+  // Popover style requires an anchor element. Without one, demote to modal.
+  const targetStyle = (requestedStyle === "popover" && submitter) ? "popover" : "modal"
+
+  const found = findConfirmTemplate(targetStyle)
+  const stack = document.querySelector("[data-controller~='turbo-overlay-stack']")
+  const dialog = found && found.template.content && found.template.content.querySelector("dialog")
+  if (!found || !stack || !dialog) {
     return Promise.resolve(window.confirm(message))
   }
 
+  const style = found.style
   const clone = dialog.cloneNode(true)
   const id = "confirm-" + Math.random().toString(36).slice(2, 10)
   clone.setAttribute("data-turbo-overlay-id-value", id)
-  clone.setAttribute("aria-labelledby", "turbo-modal-title-" + id)
-  const title = clone.querySelector("[id^='turbo-modal-title-']")
-  if (title) title.id = "turbo-modal-title-" + id
+
+  const titlePrefix = style === "popover" ? "turbo-popover-title-" : "turbo-modal-title-"
+  clone.setAttribute("aria-labelledby", titlePrefix + id)
+  const title = clone.querySelector(`[id^='${titlePrefix}']`)
+  if (title) title.id = titlePrefix + id
+
+  // Popover variants need an anchor reference. The submitter element
+  // is the natural anchor (the clicked button/link with data-turbo-confirm).
+  if (style === "popover" && submitter) {
+    popoverTriggers.set(id, submitter)
+  }
 
   const messageEl = clone.querySelector("[data-turbo-overlay-confirm-message]")
   if (messageEl) messageEl.textContent = message
 
   const frame = document.createElement("turbo-frame")
-  frame.id = "turbo_overlay_modal_" + id
+  frame.id = `turbo_overlay_${style}_${id}`
   frame.className = "turbo-overlay-frame"
   frame.appendChild(clone)
 
@@ -180,9 +222,6 @@ function promptConfirm(message) {
       settled = true
       resolve(value)
     }
-    // Button clicks need to also close the dialog (ESC and backdrop
-    // click go through the existing turbo-overlay controller, which
-    // closes the dialog itself).
     const dismiss = (value) => {
       const dispatchClose = !settled
       settleOnly(value)
@@ -196,9 +235,7 @@ function promptConfirm(message) {
     if (accept) accept.addEventListener("click", (e) => { e.preventDefault(); dismiss(true) })
     if (cancel) cancel.addEventListener("click", (e) => { e.preventDefault(); dismiss(false) })
     // ESC fires native `cancel` synchronously; resolve immediately so
-    // Turbo doesn't wait on the close animation. Backdrop click closes
-    // through the existing controller; its eventual `close` event is
-    // our catch-all.
+    // Turbo doesn't wait on the close animation.
     clone.addEventListener("cancel", () => settleOnly(false))
     clone.addEventListener("close",  () => settleOnly(false))
 

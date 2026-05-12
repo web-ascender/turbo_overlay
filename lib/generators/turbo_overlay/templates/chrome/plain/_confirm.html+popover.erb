@@ -1,0 +1,13 @@
+<%# Popover-style confirm body, rendered inside the popover partial.
+    Edit freely — JS only depends on these data attributes:
+      [data-turbo-overlay-confirm-message] — text insertion point
+      [data-turbo-overlay-confirm-cancel]  — cancels (resolves false)
+      [data-turbo-overlay-confirm-accept]  — accepts (resolves true)
+%>
+<%= render "turbo_overlay/popover", close_button: false do %>
+  <p data-turbo-overlay-confirm-message></p>
+  <div class="turbo-popover__footer">
+    <button type="button" data-turbo-overlay-confirm-cancel>Cancel</button>
+    <button type="button" data-turbo-overlay-confirm-accept>OK</button>
+  </div>
+<% end %>

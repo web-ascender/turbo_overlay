@@ -380,7 +380,7 @@ overlay stays open and shows errors. No special handling required.
 
 `data-turbo-confirm` on links and forms normally pops the
 browser-native `confirm()`. Pass `{ confirm: true }` to `register` and
-they go through the gem's themed modal instead — same dialog, same
+they go through the gem's themed overlay instead — same dialog, same
 animations, same stacking. No server round-trip; the dialog body is
 cloned from a `<template>` rendered into the page once by
 `overlay_stack_tag`.
@@ -396,9 +396,12 @@ register(application, { confirm: true })
               data: { turbo_confirm: "Really delete this user?" } %>
 ```
 
-The install generator drops a themed `app/views/turbo_overlay/_confirm.html.erb`
-into your app. Edit it to change button labels or markup — JS only
-depends on three data attributes:
+The install generator drops two themed confirm partials into your app:
+
+- `app/views/turbo_overlay/_confirm.html+modal.erb` — centered modal
+- `app/views/turbo_overlay/_confirm.html+popover.erb` — anchored to the clicked submitter
+
+Edit them freely. JS only depends on three data attributes:
 
 | Attribute                                  | Role                                |
 |--------------------------------------------|-------------------------------------|
@@ -406,10 +409,37 @@ depends on three data attributes:
 | `[data-turbo-overlay-confirm-cancel]`      | clicking resolves the promise as cancel |
 | `[data-turbo-overlay-confirm-accept]`      | clicking resolves the promise as accept |
 
-The confirm partial renders *inside* `_modal.html.erb`, so it inherits
-your modal chrome (dialog wrapper, close animations, theme). If you
-delete `_confirm.html.erb` the hook falls back to the browser-native
-`confirm()`.
+Each variant renders *inside* its corresponding chrome partial
+(`_modal.html.erb` or `_popover.html.erb`), so retheming the chrome
+carries through to confirm automatically. Delete either variant to
+disable that style; delete both and the hook falls back to the
+browser-native `confirm()`.
+
+#### Modal or popover?
+
+The default is `:modal`. Switch globally via the initializer:
+
+```ruby
+TurboOverlay.configure do |config|
+  config.confirm.style = :popover   # default :modal
+end
+```
+
+Or per-link, via a `data-turbo-confirm-style` data attribute (this
+overrides the global default for the one link):
+
+```erb
+<%= button_to "Delete", user_path(@user),
+              method: :delete,
+              data: { turbo_confirm: "Really delete?",
+                      turbo_confirm_style: "popover" } %>
+```
+
+Popover-style confirm needs an anchor — the element the user clicked
+to trigger the form submission (`<button>` for `button_to`, `<a>` for
+`link_to` with `method:`). If a programmatic submission triggers a
+confirm with no submitter, the gem falls back to the modal style
+silently rather than rendering a popover at the top-left corner.
 
 ## Configuration
 
@@ -440,17 +470,22 @@ TurboOverlay.configure do |config|
     p.offset              = 4              # pixels between trigger and dialog
     p.auto_flip           = true           # flip to opposite side on overflow
   end
+
+  config.confirm do |cf|
+    cf.style = :modal                      # :modal (default) or :popover
+  end
 end
 ```
 
 ### Customizing the chrome
 
-The install generator copies four partials into your app:
+The install generator copies five partials into your app:
 
 - `app/views/turbo_overlay/_modal.html.erb`
 - `app/views/turbo_overlay/_drawer.html.erb`
 - `app/views/turbo_overlay/_popover.html.erb`
-- `app/views/turbo_overlay/_confirm.html.erb`
+- `app/views/turbo_overlay/_confirm.html+modal.erb`
+- `app/views/turbo_overlay/_confirm.html+popover.erb`
 
 These are *your* files. Edit them freely — change classes, add a
 brand container, restyle the close button. They're rendered as

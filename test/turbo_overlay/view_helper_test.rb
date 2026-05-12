@@ -3,12 +3,17 @@ require "turbo_overlay/helpers/view_helper"
 
 class ViewHelperTest < Minitest::Test
   class FakeLookupContext
+    # `exists:` may be:
+    #   - true / false → all queries return that value
+    #   - Array of variant symbols → only those variants exist
     def initialize(exists:)
       @exists = exists
     end
 
-    def exists?(*_args)
-      @exists
+    def exists?(_name, _prefixes = [], _partial = false, _keys = [], **details)
+      return @exists unless @exists.is_a?(Array)
+      variants = details[:variants] || []
+      variants.any? { |v| @exists.include?(v) }
     end
   end
 
@@ -33,7 +38,7 @@ class ViewHelperTest < Minitest::Test
       @_lookup_context
     end
 
-    def render(*_args)
+    def render(*_args, **_kwargs)
       @_render_returns.to_s.html_safe
     end
 
@@ -317,20 +322,53 @@ class ViewHelperTest < Minitest::Test
     assert_includes output, %(id="my_stack")
   end
 
-  def test_overlay_stack_tag_omits_confirm_template_when_partial_missing
+  def test_overlay_stack_tag_omits_confirm_templates_when_partials_missing
     view = FakeView.new
     view._lookup_context = FakeLookupContext.new(exists: false)
     output = view.overlay_stack_tag
-    refute_includes output, %(turbo_overlay_confirm_template)
+    refute_includes output, %(turbo_overlay_confirm_modal_template)
+    refute_includes output, %(turbo_overlay_confirm_popover_template)
   end
 
-  def test_overlay_stack_tag_emits_confirm_template_when_partial_present
+  def test_overlay_stack_tag_emits_modal_confirm_template_when_partial_present
     view = FakeView.new
-    view._lookup_context = FakeLookupContext.new(exists: true)
+    view._lookup_context = FakeLookupContext.new(exists: [:modal])
     view._render_returns = %(<dialog data-controller="turbo-overlay">CONFIRM_BODY</dialog>)
     output = view.overlay_stack_tag
-    assert_includes output, %(<template id="turbo_overlay_confirm_template">)
+    assert_includes output, %(<template id="turbo_overlay_confirm_modal_template">)
+    refute_includes output, %(turbo_overlay_confirm_popover_template)
     assert_includes output, %(CONFIRM_BODY)
+  end
+
+  def test_overlay_stack_tag_emits_popover_confirm_template_when_partial_present
+    view = FakeView.new
+    view._lookup_context = FakeLookupContext.new(exists: [:popover])
+    view._render_returns = %(<dialog data-controller="turbo-overlay">CONFIRM_BODY</dialog>)
+    output = view.overlay_stack_tag
+    assert_includes output, %(<template id="turbo_overlay_confirm_popover_template">)
+    refute_includes output, %(turbo_overlay_confirm_modal_template)
+  end
+
+  def test_overlay_stack_tag_emits_both_variant_templates_when_present
+    view = FakeView.new
+    view._lookup_context = FakeLookupContext.new(exists: [:modal, :popover])
+    view._render_returns = %(<dialog data-controller="turbo-overlay">CONFIRM_BODY</dialog>)
+    output = view.overlay_stack_tag
+    assert_includes output, %(<template id="turbo_overlay_confirm_modal_template">)
+    assert_includes output, %(<template id="turbo_overlay_confirm_popover_template">)
+  end
+
+  def test_overlay_stack_tag_emits_default_confirm_style_data_attribute
+    view = FakeView.new
+    output = view.overlay_stack_tag
+    assert_includes output, %(data-turbo-overlay-confirm-style="modal")
+  end
+
+  def test_overlay_stack_tag_reflects_configured_confirm_style
+    TurboOverlay.configure { |c| c.confirm { |cf| cf.style = :popover } }
+    view = FakeView.new
+    output = view.overlay_stack_tag
+    assert_includes output, %(data-turbo-overlay-confirm-style="popover")
   end
 
   # ---- generic in-view content helpers ----

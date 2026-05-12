@@ -122,26 +122,49 @@ module TurboOverlay
       #
       #   <%= overlay_stack_tag %>
       #
-      # When the host app has an `app/views/turbo_overlay/_confirm.html.erb`
-      # partial (copied by `turbo_overlay:install`), also emits a
-      # sibling `<template id="turbo_overlay_confirm_template">`
-      # containing the rendered partial. The JS confirm hook clones
-      # this template on each `data-turbo-confirm` click; if it is
-      # absent, the hook falls back to the browser-native `confirm()`.
+      # When the host app has confirm chrome partials in
+      # `app/views/turbo_overlay/` (`_confirm.html+modal.erb` and/or
+      # `_confirm.html+popover.erb`, copied by `turbo_overlay:install`),
+      # also emits sibling `<template>` elements per variant:
+      #
+      #   <template id="turbo_overlay_confirm_modal_template">…</template>
+      #   <template id="turbo_overlay_confirm_popover_template">…</template>
+      #
+      # The JS confirm hook clones the right template based on the
+      # resolved style (`config.confirm.style`, overridable per-link
+      # via `data-turbo-confirm-style`). When no variant partial is
+      # present, the hook falls back to the browser-native `confirm()`.
+      #
+      # The configured default style is exposed as a data attribute on
+      # the stack container so the JS can read it without a separate
+      # config plumbing pass.
       def overlay_stack_tag
-        stack_id = TurboOverlay.configuration.stack_id
+        stack_id      = TurboOverlay.configuration.stack_id
+        confirm_style = TurboOverlay.configuration.confirm.style.to_s
+
         stack = content_tag(:div, "".html_safe,
           id: stack_id,
           class: "turbo-overlay-stack",
-          data: { controller: "turbo-overlay-stack" })
+          data: {
+            controller: "turbo-overlay-stack",
+            "turbo-overlay-confirm-style": confirm_style
+          })
 
         return stack unless respond_to?(:lookup_context) && lookup_context
-        return stack unless lookup_context.exists?("turbo_overlay/confirm", [], true)
 
-        template = content_tag(:template,
-          render(partial: "turbo_overlay/confirm"),
-          id: "turbo_overlay_confirm_template")
-        safe_join([stack, template])
+        parts = [stack]
+
+        [:modal, :popover].each do |variant|
+          next unless lookup_context.exists?(
+            "turbo_overlay/confirm", [], true, [], variants: [variant]
+          )
+          parts << content_tag(:template,
+            render(partial: "turbo_overlay/confirm", variants: [variant]),
+            id: "turbo_overlay_confirm_#{variant}_template")
+        end
+
+        return stack if parts.size == 1
+        safe_join(parts)
       end
 
       # Deprecated. Aliased to `overlay_stack_tag` for one minor cycle.
