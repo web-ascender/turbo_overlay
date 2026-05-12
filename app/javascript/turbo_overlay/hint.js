@@ -492,6 +492,10 @@ function showHint(link, url, fragment) {
   current = { link, url, element: node, hideTimer: null }
 
   setTimeout(() => { if (node.dataset.state === "entering") delete node.dataset.state }, 200)
+
+  document.dispatchEvent(new CustomEvent("turbo-overlay:hint-shown", {
+    detail: { url }
+  }))
 }
 
 function scheduleHide() {

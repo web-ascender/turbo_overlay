@@ -705,6 +705,37 @@ to trigger the form submission (`<button>` for `button_to`, `<a>` for
 confirm with no submitter, the gem falls back to the modal style
 silently rather than rendering a popover at the top-left corner.
 
+### JavaScript events
+
+The gem dispatches custom events at key moments so apps can wire
+autofocus, analytics, cleanup, etc. without monkey-patching the
+controllers.
+
+| Event | Target | Detail | When |
+| --- | --- | --- | --- |
+| `turbo-overlay:shown` | dialog (bubbles) | `{ id, type }` | Overlay's controller is wired and the dialog is open + interactive. Fires once per overlay open, after a placeholder morph or on direct open. |
+| `turbo-overlay:before-close` | dialog (bubbles) | `{ id, type }` | Close just started; the dialog is still visible. Not cancellable. |
+| `turbo-overlay:closed` | dialog (bubbles) | `{ id, type }` | Close animation done, `<dialog>` has closed, the wrapping frame is about to be removed. The dialog node is still in the DOM at dispatch time so a bubbled listener can read its attributes. |
+| `turbo-overlay:hint-shown` | document | `{ url }` | A hover hint just appeared (real content, not the pending placeholder). |
+| `turbo-overlay:hint-ready` | document | `{ url, fragment }` | The gem extracted hint content for a URL — either from a Turbo prefetch, the gem's own `hint_url:` fetch, or a prefetch-disabled fallback fetch. Fires whether or not the hint will actually be shown. |
+| `turbo-overlay:close` | window | `{ scope, type, id }` | Server-issued `turbo_stream.overlay(:close, …)` close command, or a teardown when a same-id overlay is being replaced. This is a command the stack controller routes — listen to `:before-close` / `:closed` for per-overlay lifecycle. |
+
+The three lifecycle events bubble from the dialog, so you can listen
+at any level:
+
+```js
+// Autofocus the first input in any newly-opened overlay:
+document.addEventListener("turbo-overlay:shown", (event) => {
+  const input = event.target.querySelector("input:not([type=hidden]), textarea, select")
+  if (input) input.focus()
+})
+
+// Track overlay opens by id:
+document.addEventListener("turbo-overlay:shown", (event) => {
+  analytics.track("overlay_opened", event.detail)
+})
+```
+
 ## Configuration
 
 ```ruby

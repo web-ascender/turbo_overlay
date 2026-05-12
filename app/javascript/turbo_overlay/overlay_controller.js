@@ -54,7 +54,9 @@ export default class extends Controller {
       ? this.stack.register({ id: this.idValue, type: this.typeValue, controller: this })
       : true
 
-    if (registered && this.dialog && !this.dialog.open) {
+    if (!registered) return
+
+    if (this.dialog && !this.dialog.open) {
       if (this.backdropValue) {
         try { this.dialog.showModal() } catch (_) { this.dialog.setAttribute("open", "") }
       } else {
@@ -64,12 +66,14 @@ export default class extends Controller {
         try { this.dialog.show() } catch (_) { this.dialog.setAttribute("open", "") }
         this._installEscHandler()
       }
-    } else if (registered && this.dialog && this.dialog.open && !this.backdropValue) {
+    } else if (this.dialog && this.dialog.open && !this.backdropValue) {
       // Non-modal path after a morph from loading: dialog is already
       // open in non-modal mode, but the ESC handler hasn't been
       // installed yet (the placeholder didn't have a controller).
       this._installEscHandler()
     }
+
+    this._dispatch("shown")
   }
 
   disconnect() {
@@ -145,6 +149,8 @@ export default class extends Controller {
     }
     window.addEventListener("scroll", this._reflowHandler, true)
     window.addEventListener("resize", this._reflowHandler)
+
+    this._dispatch("shown")
   }
 
   // Inside a popover, a plain `link_to` would otherwise navigate
@@ -242,6 +248,8 @@ export default class extends Controller {
   }
 
   _animatedClose() {
+    this._dispatch("before-close")
+
     if (!this.dialog) {
       this._removeFrame()
       return
@@ -280,6 +288,9 @@ export default class extends Controller {
     if (this.dialog && this.dialog.open) {
       try { this.dialog.close() } catch (_) { this.dialog.removeAttribute("open") }
     }
+    // Dispatch :closed before _removeFrame so the dialog is still in
+    // the DOM and the bubbled event reaches document-level listeners.
+    this._dispatch("closed")
     this._removeFrame()
   }
 
@@ -294,5 +305,25 @@ export default class extends Controller {
     const stackEl = document.querySelector("[data-controller~='turbo-overlay-stack']")
     if (!stackEl || !this.application) return null
     return this.application.getControllerForElementAndIdentifier(stackEl, "turbo-overlay-stack")
+  }
+
+  // Dispatch a lifecycle event on the dialog so listeners can attach
+  // per-overlay; the event bubbles so document-level listeners
+  // (analytics, autofocus controllers) catch it too. Detail always
+  // carries `{ id, type }`. Events:
+  //
+  //   turbo-overlay:shown        — controller is wired and the dialog
+  //                                is open + interactive.
+  //   turbo-overlay:before-close — close just started, dialog still
+  //                                visible (not cancellable).
+  //   turbo-overlay:closed       — close animation done, dialog has
+  //                                closed; frame is about to be removed.
+  _dispatch(name) {
+    const target = this.dialog || this.element
+    if (!target) return
+    target.dispatchEvent(new CustomEvent(`turbo-overlay:${name}`, {
+      bubbles: true,
+      detail: { id: this.idValue, type: this.typeValue }
+    }))
   }
 }
