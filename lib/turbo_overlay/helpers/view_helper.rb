@@ -144,32 +144,17 @@ module TurboOverlay
         end
       end
 
-      # Emit a hint template for the current page. Outputs a
-      # `<template id="turbo-overlay-hint">…body…</template>` element
-      # at the call site so Turbo's hover prefetch picks it up
-      # alongside the regular page render, and so the same view
-      # serves the explicit `hint_url:` path with the same body.
+      # Capture a hint body for the current page. Emitted by
+      # `overlay_stack_tag` as
+      # `<template id="turbo-overlay-hint">...</template>` so Turbo's
+      # hover prefetch picks it up alongside the regular page render.
       #
-      #   <%= turbo_overlay_hint do %>
+      #   <% turbo_overlay_hint do %>
       #     <h3><%= @user.name %></h3>
       #     <p>Last seen <%= time_ago_in_words(@user.last_seen_at) %> ago</p>
       #   <% end %>
-      #
-      # Note the `<%=` — this helper outputs the template element.
-      # Call it once per page (a second call would emit a duplicate
-      # `<template id>` and the JS would only pick the first).
       def turbo_overlay_hint(value = nil, &block)
-        body = block_given? ? capture(&block) : value
-        return "".html_safe unless body
-        template_id = TurboOverlay.configuration.hint.template_id
-
-        inner = if respond_to?(:lookup_context) && lookup_context &&
-                   lookup_context.exists?("turbo_overlay/hint", [], true)
-          render(layout: "turbo_overlay/hint") { body }
-        else
-          body
-        end
-        content_tag(:template, inner, id: template_id)
+        content_for(:turbo_overlay_hint, value, &block)
       end
 
       # Whether the current request was served as a `:hint` variant.
@@ -201,10 +186,9 @@ module TurboOverlay
       # via `data-turbo-confirm-style`). When no variant partial is
       # present, the hook falls back to the browser-native `confirm()`.
       #
-      # The configured default confirm style is exposed as a data
-      # attribute on the stack container so the JS can read it without
-      # a separate config plumbing pass. Hint config values are also
-      # emitted as data values for the hint Stimulus controller.
+      # The configured default style is exposed as a data attribute on
+      # the stack container so the JS can read it without a separate
+      # config plumbing pass.
       def overlay_stack_tag
         stack_id      = TurboOverlay.configuration.stack_id
         confirm_style = TurboOverlay.configuration.confirm.style.to_s
@@ -238,6 +222,21 @@ module TurboOverlay
           parts << content_tag(:template,
             render(partial: "turbo_overlay/confirm", variants: [variant]),
             id: "turbo_overlay_confirm_#{variant}_template")
+        end
+
+        if content_for?(:turbo_overlay_hint)
+          body = content_for(:turbo_overlay_hint)
+          hint_body = if lookup_context.exists?("turbo_overlay/hint", [], true)
+            # Render the partial as a layout so the user's body lands
+            # at `<%= yield %>`. Same pattern used by the modal/drawer
+            # /popover layouts.
+            render(layout: "turbo_overlay/hint") { body }
+          else
+            # No chrome partial in the app yet; emit the body unwrapped
+            # so the JS still has something to extract.
+            body
+          end
+          parts << content_tag(:template, hint_body, id: hint_cfg.template_id)
         end
 
         return stack if parts.size == 1

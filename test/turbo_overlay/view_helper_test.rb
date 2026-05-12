@@ -63,10 +63,6 @@ class ViewHelperTest < Minitest::Test
       @_captured && @_captured.key?(name)
     end
 
-    def capture(&block)
-      block.call.to_s.html_safe
-    end
-
     def turbo_frame_tag(id, **attrs, &block)
       attr_str = attrs.map { |k, v| %( #{k}="#{v}") }.join
       content = block_given? ? yield : ""
@@ -607,46 +603,30 @@ class ViewHelperTest < Minitest::Test
     refute html_options[:data].key?(:turbo_overlay_hint_url)
   end
 
-  # ---- turbo_overlay_hint ----
+  # ---- turbo_overlay_hint capture ----
 
-  def test_turbo_overlay_hint_outputs_template_with_string_body
+  def test_turbo_overlay_hint_sets_content_for
+    view = FakeView.new
+    view.turbo_overlay_hint("preview body")
+    name, value, _block = view.content_for_calls.first
+    assert_equal :turbo_overlay_hint, name
+    assert_equal "preview body", value
+  end
+
+  def test_overlay_stack_tag_emits_hint_template_when_content_present
     view = FakeView.new
     view._lookup_context = FakeLookupContext.new(exists: false)
-    output = view.turbo_overlay_hint("PREVIEW")
+    view.turbo_overlay_hint("PREVIEW")
+    output = view.overlay_stack_tag
     assert_includes output, %(<template id="turbo-overlay-hint">)
     assert_includes output, "PREVIEW"
   end
 
-  def test_turbo_overlay_hint_with_block_captures_body
+  def test_overlay_stack_tag_omits_hint_template_without_content
     view = FakeView.new
-    view._lookup_context = FakeLookupContext.new(exists: false)
-    output = view.turbo_overlay_hint { "BLOCK BODY" }
-    assert_includes output, %(<template id="turbo-overlay-hint">)
-    assert_includes output, "BLOCK BODY"
+    output = view.overlay_stack_tag
+    refute_includes output, %(<template id="turbo-overlay-hint">)
   end
-
-  def test_turbo_overlay_hint_uses_configured_template_id
-    TurboOverlay.configure { |c| c.hint { |h| h.template_id = "preview" } }
-    view = FakeView.new
-    view._lookup_context = FakeLookupContext.new(exists: false)
-    output = view.turbo_overlay_hint("X")
-    assert_includes output, %(<template id="preview">)
-  end
-
-  def test_turbo_overlay_hint_returns_empty_string_without_body
-    view = FakeView.new
-    assert_equal "".html_safe, view.turbo_overlay_hint
-  end
-
-  def test_turbo_overlay_hint_wraps_in_chrome_when_partial_exists
-    view = FakeView.new
-    view._lookup_context = FakeLookupContext.new(exists: true)
-    view._render_returns = %(<div class="turbo-overlay-hint">CHROME WRAPPED</div>)
-    output = view.turbo_overlay_hint("PREVIEW")
-    assert_includes output, "CHROME WRAPPED"
-  end
-
-  # ---- overlay_stack_tag (hint controller registration only) ----
 
   def test_overlay_stack_tag_includes_hint_controller_by_default
     view = FakeView.new
@@ -662,14 +642,5 @@ class ViewHelperTest < Minitest::Test
     view = FakeView.new
     output = view.overlay_stack_tag
     refute_match(/data-controller="[^"]*turbo-overlay-hint/, output)
-  end
-
-  def test_overlay_stack_tag_does_not_emit_hint_template
-    # Hint templates are emitted by `turbo_overlay_hint` at the call
-    # site, not by `overlay_stack_tag`.
-    view = FakeView.new
-    view._lookup_context = FakeLookupContext.new(exists: false)
-    output = view.overlay_stack_tag
-    refute_includes output, %(<template id="turbo-overlay-hint">)
   end
 end
