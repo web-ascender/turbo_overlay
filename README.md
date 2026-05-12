@@ -273,33 +273,36 @@ window so the user can move into the hint to read or click). Combines
 with Turbo's hover prefetch so the same fetch that warms the
 navigation also seeds the hint — single fetch, two purposes.
 
-```erb
-<%# users/show.html.erb — emit a hint template for THIS page %>
-<% turbo_overlay_hint do %>
-  <h3><%= @user.name %></h3>
-  <p>Last seen <%= time_ago_in_words(@user.last_seen_at) %> ago</p>
-<% end %>
+The canonical way to provide hint content is a `+hint` variant
+template next to the action's regular template:
 
+```erb
+<%# app/views/users/show.html+hint.erb %>
+<h3><%= @user.name %></h3>
+<p>Last seen <%= time_ago_in_words(@user.last_seen_at) %> ago</p>
+```
+
+```erb
 <%# anywhere — make a link show that hint on hover %>
 <%= hint_link_to "User", user_path(@user) %>
 ```
 
-`turbo_overlay_hint do … end` captures a hint body for the page.
-`overlay_stack_tag` emits it as a `<template id="turbo-overlay-hint">`
-near the bottom of the body. When another page links to this one
-with `hint_link_to`, Turbo's hover prefetch fetches this page; the
-gem hooks `turbo:before-fetch-response`, finds the template in the
-prefetched HTML, caches the fragment by URL, and shows it on hover
-delay.
+When another page links to `users/show` with `hint_link_to`, Turbo's
+hover prefetch fetches the page; the gem hooks
+`turbo:before-fetch-response`, finds a `<template id="turbo-overlay-hint">`
+in the prefetched HTML, caches the fragment by URL, and shows it on
+hover delay.
 
-**The block only runs for hintable requests.** On regular page
-navigations, form submissions, and anything that isn't a Turbo
-prefetch or `:hint` variant fetch, `turbo_overlay_hint` is a no-op —
-the block isn't evaluated, the template tag isn't emitted, and any
-DB queries / partial renders inside the block don't run. Detection
-uses `X-Sec-Purpose: prefetch` (Turbo's prefetch header — the W3C
-`Sec-*` prefix is forbidden for JavaScript-set fetch headers, so
-Turbo prepends `X-`) and `X-Turbo-Overlay: hint` for the explicit
+`overlay_stack_tag` emits that template automatically: on a hintable
+request (Turbo prefetch or explicit `:hint` variant fetch) it looks
+for the action's `+hint` variant and, if one exists, wraps it in the
+hint chrome and inlines it as `<template id="turbo-overlay-hint">`.
+On a regular page render the variant isn't loaded — no DB cost, no
+partial render.
+
+Detection uses `X-Sec-Purpose: prefetch` (Turbo's prefetch header —
+the W3C `Sec-*` prefix is forbidden for JavaScript-set fetch headers,
+so Turbo prepends `X-`) and `X-Turbo-Overlay: hint` for the explicit
 fetch path.
 
 #### Compose with overlay link helpers
@@ -326,31 +329,20 @@ Or via plain `link_to` if you don't want the helper sugar:
 #### Plain links vs overlay links
 
 **Plain links** (no `data-turbo-stream`) ride Turbo's hover prefetch.
-Embed the hint template on the destination page with
-`turbo_overlay_hint do … end` and you're done.
+Drop a `show.html+hint.erb` on the destination page and you're done.
 
 **Overlay links** (`modal_link_to` / `drawer_link_to` /
 `popover_link_to`) carry `data-turbo-stream="true"`, which **Turbo's
-hover prefetch ignores**. So embedding `turbo_overlay_hint` on the
-modal-served page won't help — Turbo never prefetches it. For these,
-provide an explicit `hint_url:` that the gem fetches with the
-`:hint` request variant on hover. The `:hint` variant request hits
-the same action as the destination URL (e.g.
-`client_root_path` → `clients/dashboard#show`). The gem's
-`turbo_hint` layout looks for a `turbo_overlay_hint do … end` block
-in the view and uses *just that body* as the hint, ignoring the rest
-of the page render. So if the destination already has a
-`turbo_overlay_hint do … end` for the inline prefetch path, that
-same block drives the explicit `hint_url:` path automatically:
+hover prefetch ignores**. For these, provide an explicit `hint_url:`
+that the gem fetches with the `:hint` request variant on hover. Rails
+resolves the same `+hint` variant template; the gem's `turbo_hint`
+layout wraps it in `<template id="turbo-overlay-hint">` for the JS
+extractor.
 
 ```erb
-<%# app/views/clients/dashboard/show.html.erb %>
-<% turbo_overlay_hint do %>
-  <h3><%= @client.name %></h3>
-  <p>Last updated <%= time_ago_in_words(@client.updated_at) %> ago</p>
-<% end %>
-
-<%# …regular page content below… %>
+<%# app/views/clients/dashboard/show.html+hint.erb %>
+<h3><%= @client.name %></h3>
+<p>Last updated <%= time_ago_in_words(@client.updated_at) %> ago</p>
 ```
 
 ```erb
@@ -359,32 +351,6 @@ same block drives the explicit `hint_url:` path automatically:
 <%= modal_link_to "Agency view", agency_client_path(@client),
                   hint: true, hint_url: client_root_path(@client) %>
 ```
-
-For a leaner hint render (skip rendering the rest of the view server-side),
-drop a `show.html+hint.erb` variant that returns just the body — when
-no `content_for(:turbo_overlay_hint)` is set, the layout uses `yield`:
-
-```erb
-<%# app/views/clients/dashboard/show.html+hint.erb %>
-<h3><%= @client.name %></h3>
-<p>Last updated <%= time_ago_in_words(@client.updated_at) %> ago</p>
-```
-
-Either way the `turbo_hint` layout wraps the chosen body in the same
-`<template id="turbo-overlay-hint">` shape the inline path emits, so
-the JS extractor has one code path.
-
-#### One template, both paths
-
-When you have `show.html+hint.erb` you don't *also* have to put
-`<% turbo_overlay_hint do %>` in `show.html.erb` for the prefetch
-path. `overlay_stack_tag` notices the action has a `+hint` variant
-template and auto-renders it as the hint body for prefetch responses.
-The explicit `turbo_overlay_hint do … end` capture still wins when
-present — useful if the prefetch hint should differ from the
-explicit-fetch hint. The auto-render is gated on
-`turbo_overlay_hintable_request?`, so a regular page render never
-incurs the cost of rendering the `+hint` template.
 
 #### Pending placeholder while the hint loads
 
@@ -404,11 +370,10 @@ the next hover hit the cache.
 
 If the site sets `<meta name="turbo-prefetch" content="false">`, or
 the link / an ancestor has `data-turbo-prefetch="false"`, Turbo won't
-prefetch for the gem to piggy-back on. The hint controller detects
-these opt-outs and falls back to a plain `fetch()` of the URL — same
-shape Turbo's prefetch would have used, so a host app's existing
-`turbo_overlay_hint do … end` capture continues to work without any
-extra config.
+prefetch for the gem to piggy-back on. The hint module detects these
+opt-outs and falls back to a plain `fetch()` of the URL — same shape
+Turbo's prefetch would have used, so an existing `+hint` variant
+template keeps working without any extra config.
 
 #### Negative caching
 
@@ -852,7 +817,6 @@ Available on controllers (when the concern is included) and views:
 | `overlay_title(value, &block)`          | sets `content_for :overlay_title`                                      |
 | `overlay_footer(value, &block)`         | sets `content_for :overlay_footer`                                     |
 | `overlay_close(show = true)`            | toggle the chrome's default close button for this render (`overlay_close false` to hide) |
-| `turbo_overlay_hint(value, &block)`     | capture a hint body for this page (emitted as `<template id="…">` by `overlay_stack_tag`) |
 | `turbo_stream.overlay(:close, scope:, type:, id:)` | turbo-stream action; closes top, all, or one overlay        |
 
 ## Themes

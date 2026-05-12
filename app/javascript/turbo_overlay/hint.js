@@ -406,9 +406,9 @@ async function fetchAndShow(link, url, { hintVariant = true } = {}) {
   //   - hint_url: links (hintVariant=true) — send X-Turbo-Overlay: hint
   //     so the server can render `show.html+hint.erb` or similar.
   //   - prefetch-disabled fallback (hintVariant=false) — fetch the
-  //     plain page and extract the `<template id>` the host's
-  //     `turbo_overlay_hint do` capture emitted, matching what Turbo
-  //     prefetch would have delivered.
+  //     plain page and extract the `<template id="turbo-overlay-hint">`
+  //     that `overlay_stack_tag` emitted for the action's `+hint`
+  //     variant, matching what Turbo prefetch would have delivered.
   const headers = { "Accept": "text/html" }
   if (hintVariant) headers["X-Turbo-Overlay"] = "hint"
 

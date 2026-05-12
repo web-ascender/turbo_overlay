@@ -754,42 +754,9 @@ class ViewHelperTest < Minitest::Test
     refute html_options[:data].key?(:turbo_overlay_hint_url)
   end
 
-  # ---- turbo_overlay_hint capture ----
-
-  def test_turbo_overlay_hint_sets_content_for
-    view = FakeView.new
-    view.turbo_overlay_hint("preview body")
-    name, value, _block = view.content_for_calls.first
-    assert_equal :turbo_overlay_hint, name
-    assert_equal "preview body", value
-  end
-
-  def test_turbo_overlay_hint_is_noop_on_non_hintable_request
-    view = FakeView.new(hintable_request: false)
-    view.turbo_overlay_hint("preview body")
-    # Block / value not captured: no content_for call should have fired.
-    assert_empty view.content_for_calls
-  end
-
-  def test_turbo_overlay_hint_does_not_evaluate_block_on_non_hintable_request
-    view = FakeView.new(hintable_request: false)
-    evaluated = false
-    view.turbo_overlay_hint { evaluated = true; "preview body" }
-    refute evaluated, "block should not run on non-hintable requests"
-  end
-
-  def test_overlay_stack_tag_omits_hint_template_on_non_hintable_request
-    view = FakeView.new(hintable_request: false)
-    view._lookup_context = FakeLookupContext.new(exists: false)
-    view.turbo_overlay_hint("PREVIEW")
-    output = view.overlay_stack_tag
-    refute_includes output, %(<template id="turbo-overlay-hint">)
-    refute_includes output, "PREVIEW"
-  end
-
   # ---- auto-render +hint variant template ----
 
-  def test_overlay_stack_tag_auto_renders_action_hint_variant_when_no_explicit_capture
+  def test_overlay_stack_tag_auto_renders_action_hint_variant
     view = FakeView.new(controller_path: "users", action_name: "show")
     view._lookup_context = FakeLookupContext.new(exists: {
       "users/show" => { variants: [:hint] }
@@ -835,29 +802,7 @@ class ViewHelperTest < Minitest::Test
     refute_includes output, "FULL_PAGE_BODY"
   end
 
-  def test_explicit_turbo_overlay_hint_wins_over_auto_render
-    view = FakeView.new(controller_path: "users", action_name: "show")
-    view._lookup_context = FakeLookupContext.new(exists: {
-      "users/show" => { variants: [:hint] }
-    })
-    # If auto-render fired we'd see this string in the output.
-    view._render_returns = "AUTO_HINT_BODY"
-    view.turbo_overlay_hint("EXPLICIT_BODY")
-    output = view.overlay_stack_tag
-    assert_includes output, "EXPLICIT_BODY"
-    refute_includes output, "AUTO_HINT_BODY"
-  end
-
-  def test_overlay_stack_tag_emits_hint_template_when_content_present
-    view = FakeView.new
-    view._lookup_context = FakeLookupContext.new(exists: false)
-    view.turbo_overlay_hint("PREVIEW")
-    output = view.overlay_stack_tag
-    assert_includes output, %(<template id="turbo-overlay-hint">)
-    assert_includes output, "PREVIEW"
-  end
-
-  def test_overlay_stack_tag_omits_hint_template_without_content
+  def test_overlay_stack_tag_omits_hint_template_without_variant
     view = FakeView.new
     output = view.overlay_stack_tag
     refute_includes output, %(<template id="turbo-overlay-hint">)

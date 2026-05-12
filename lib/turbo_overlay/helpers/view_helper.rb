@@ -136,29 +136,6 @@ module TurboOverlay
         end
       end
 
-      # Capture a hint body for the current page. Emitted by
-      # `overlay_stack_tag` as
-      # `<template id="turbo-overlay-hint">...</template>` so Turbo's
-      # hover prefetch picks it up alongside the regular page render.
-      #
-      #   <% turbo_overlay_hint do %>
-      #     <h3><%= @user.name %></h3>
-      #     <p>Last seen <%= time_ago_in_words(@user.last_seen_at) %> ago</p>
-      #   <% end %>
-      #
-      # No-op on requests that won't use the hint template — regular
-      # page navigations, form submissions, anything that isn't a Turbo
-      # prefetch or `:hint` variant fetch. The block isn't evaluated,
-      # so any DB queries or partial renders inside it don't run when
-      # the user is actually viewing the page. Detection uses the
-      # `X-Sec-Purpose: prefetch` request header (what Turbo sends —
-      # the `Sec-*` prefix is forbidden for JS-set headers) and
-      # `X-Turbo-Overlay: hint` for the explicit variant fetch path.
-      def turbo_overlay_hint(value = nil, &block)
-        return unless _turbo_overlay_hintable_request?
-        content_for(:turbo_overlay_hint, value, &block)
-      end
-
       # ----- Generic in-view helpers (shared across overlay types) -----
 
       # Emit the receiving stack container for overlays. Drop this in
@@ -235,11 +212,10 @@ module TurboOverlay
             id: "turbo_overlay_loading_#{variant}_template")
         end
 
-        # Hint body resolution: explicit `turbo_overlay_hint do … end`
-        # capture wins; otherwise auto-render the action's
-        # `+hint.erb` variant template if one exists. The auto-render
-        # path is gated on `_turbo_overlay_hintable_request?` so a
-        # regular page render doesn't pay the cost.
+        # On a hintable request, render the action's `+hint.erb`
+        # variant template if one exists. Gated on
+        # `_turbo_overlay_hintable_request?` so a regular page render
+        # doesn't pay the cost.
         body = _turbo_overlay_resolved_hint_body
         if body
           hint_body = if lookup_context.exists?("turbo_overlay/hint", [], true)
@@ -336,14 +312,12 @@ module TurboOverlay
 
       private
 
-      # Resolve the hint body for `overlay_stack_tag`. Explicit
-      # `turbo_overlay_hint` capture wins; on a hintable request, if
-      # the action has a `+hint` variant template, render it as the
-      # body so users don't have to duplicate hint content between
-      # `show.html+hint.erb` and a `turbo_overlay_hint do … end` in
-      # `show.html.erb`.
+      # Resolve the hint body for `overlay_stack_tag`. On a hintable
+      # request (Turbo prefetch or explicit `:hint` variant fetch),
+      # render the action's `+hint` variant template if one exists.
+      # Apps that want hint previews drop a `show.html+hint.erb` next
+      # to `show.html.erb` and the gem auto-emits its content.
       def _turbo_overlay_resolved_hint_body
-        return content_for(:turbo_overlay_hint) if content_for?(:turbo_overlay_hint)
         return nil unless _turbo_overlay_hintable_request?
         return nil unless _turbo_overlay_action_hint_variant_exists?
         render(
