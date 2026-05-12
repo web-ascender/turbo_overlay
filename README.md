@@ -217,6 +217,20 @@ either a modal or a drawer.
 <% end %>
 ```
 
+The chrome partials render a default close ("×") button. When the
+view sets `overlay_title`, it sits inside the header; without a title
+it floats in the top-right corner. Suppress it per overlay with
+`overlay_close false` in the view, or `close_button: false` on the
+link helper:
+
+```erb
+<%# inside the rendered view %>
+<% overlay_close false %>
+
+<%# at the call site %>
+<%= modal_link_to "Promo", promo_path, close_button: false %>
+```
+
 ### Different markup for modal / drawer / full-page renders
 
 Drop variant templates alongside the standard one:
@@ -395,13 +409,15 @@ Available on controllers (when the concern is included) and views:
 | `current_overlay_id`                    | The overlay id for the current request (user-supplied or generated)    |
 | `current_overlay_position`              | Per-link drawer position override for the current request, or `nil`    |
 | `current_overlay_backdrop?`             | `false` only when the link opened with `backdrop: false`; else `true`  |
-| `modal_link_to(name, path, overlay_id:)` | `link_to` that opens the target as a stacked modal                    |
-| `drawer_link_to(name, path, overlay_id:, position:, backdrop:)` | `link_to` that opens the target as a stacked drawer; `position:` overrides the configured side, `backdrop: false` opens non-modally |
+| `current_overlay_close?`                | `false` only when the link opened with `close_button: false`; else `true` |
+| `modal_link_to(name, path, overlay_id:, close_button:)` | `link_to` that opens the target as a stacked modal; `close_button: false` suppresses the default × |
+| `drawer_link_to(name, path, overlay_id:, position:, backdrop:, close_button:)` | `link_to` that opens the target as a stacked drawer; `position:` overrides the configured side, `backdrop: false` opens non-modally, `close_button: false` suppresses the default × |
 | `modal_dismiss_link_to(...)`            | dismiss link inside a modal                                            |
 | `drawer_dismiss_link_to(...)`           | dismiss link inside a drawer                                           |
 | `overlay_stack_tag`                     | emits the host-page stack container (drop in `application.html.erb`)   |
 | `overlay_title(value, &block)`          | sets `content_for :overlay_title`                                      |
 | `overlay_footer(value, &block)`         | sets `content_for :overlay_footer`                                     |
+| `overlay_close(show = true)`            | toggle the chrome's default close button for this render (`overlay_close false` to hide) |
 | `turbo_stream.overlay(:close, scope:, type:, id:)` | turbo-stream action; closes top, all, or one overlay        |
 
 ## Themes

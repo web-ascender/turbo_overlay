@@ -4,7 +4,7 @@
       [data-turbo-overlay-confirm-cancel]  — cancels (resolves false)
       [data-turbo-overlay-confirm-accept]  — accepts (resolves true)
 %>
-<%= render "turbo_overlay/modal" do %>
+<%= render "turbo_overlay/modal", close_button: false do %>
   <p class="text-gray-900 dark:text-gray-100" data-turbo-overlay-confirm-message></p>
   <div class="mt-5 flex items-center justify-end gap-2">
     <button type="button"

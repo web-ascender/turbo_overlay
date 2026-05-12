@@ -3,6 +3,7 @@
 ## Unreleased
 
 ### Added
+- **Default close button in modal/drawer chrome.** The chrome partials now render a close ("×") button regardless of whether `overlay_title` is set — floating in the top-right when there's no header, otherwise inside it. Suppress per overlay with `<% overlay_close false %>` in the view, `close_button: false` on the link helper, or a `close_button: false` local when rendering the partial directly (used internally by `_confirm.html.erb`). Adds `current_overlay_close?` helper and the `X-Turbo-Overlay-Close` header pipeline (mirrors `backdrop:`).
 - **`backdrop: false` on `drawer_link_to`.** Opens the drawer non-modally (`dialog.show()` instead of `showModal()`). No backdrop, page stays scrollable and selectable, click outside is ignored. ESC still closes (synthesized via a keydown listener, since native `<dialog>` doesn't fire `cancel` in non-modal mode). Useful for inspector-style drawers where the user needs to read or copy from the host page.
 - **`position:` on `drawer_link_to`.** Per-link override (`:left`, `:right`, `:top`, `:bottom`) for the configured `drawer.position` default.
 - **Themed confirm dialogs.** Pass `{ confirm: true }` to `register(application, …)` and `data-turbo-confirm` on links/forms goes through the gem's themed modal instead of the browser-native `confirm()`. Body is cloned from a `<template>` rendered once into the page by `overlay_stack_tag`; falls back to `window.confirm` if the template is absent.

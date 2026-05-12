@@ -4,7 +4,7 @@
       [data-turbo-overlay-confirm-cancel]  — cancels (resolves false)
       [data-turbo-overlay-confirm-accept]  — accepts (resolves true)
 %>
-<%= render "turbo_overlay/modal" do %>
+<%= render "turbo_overlay/modal", close_button: false do %>
   <p data-turbo-overlay-confirm-message></p>
   <div class="modal-footer" style="border:0;padding:0;padding-top:15px;text-align:right;">
     <button type="button" class="btn btn-default" data-turbo-overlay-confirm-cancel>Cancel</button>

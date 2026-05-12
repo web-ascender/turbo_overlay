@@ -244,6 +244,38 @@ class ViewHelperTest < Minitest::Test
     refute html_options[:data].key?(:turbo_overlay_backdrop)
   end
 
+  def test_modal_link_to_with_close_button_false_sets_data_attribute
+    view = FakeView.new
+    view.modal_link_to("Open", "/things/1", close_button: false)
+
+    _, _, html_options = view.link_to_args
+    assert_equal "false", html_options[:data][:turbo_overlay_close]
+  end
+
+  def test_drawer_link_to_with_close_button_false_sets_data_attribute
+    view = FakeView.new
+    view.drawer_link_to("Filter", "/filters", close_button: false)
+
+    _, _, html_options = view.link_to_args
+    assert_equal "false", html_options[:data][:turbo_overlay_close]
+  end
+
+  def test_drawer_link_to_with_close_button_true_omits_data_attribute
+    view = FakeView.new
+    view.drawer_link_to("Filter", "/filters", close_button: true)
+
+    _, _, html_options = view.link_to_args
+    refute html_options[:data].key?(:turbo_overlay_close)
+  end
+
+  def test_modal_link_to_omits_close_attribute_when_not_provided
+    view = FakeView.new
+    view.modal_link_to("Open", "/things/1")
+
+    _, _, html_options = view.link_to_args
+    refute html_options[:data].key?(:turbo_overlay_close)
+  end
+
   # ---- drawer_dismiss_link_to ----
 
   def test_drawer_dismiss_link_to_inside_drawer_adds_dismiss_action
@@ -324,5 +356,39 @@ class ViewHelperTest < Minitest::Test
     name, _value, block = view.content_for_calls.first
     assert_equal :overlay_footer, name
     assert_kind_of Proc, block
+  end
+
+  # ---- overlay_close / overlay_close? ----
+
+  def test_overlay_close_defaults_to_true
+    view = FakeView.new
+    assert view.overlay_close?
+  end
+
+  def test_overlay_close_false_disables
+    view = FakeView.new
+    view.overlay_close false
+    refute view.overlay_close?
+  end
+
+  def test_overlay_close_true_explicit_enables
+    view = FakeView.new
+    view.overlay_close true
+    assert view.overlay_close?
+  end
+
+  def test_overlay_close_predicate_ivar_wins_over_controller
+    view = FakeView.new
+    def view.current_overlay_close?; false; end
+    def view.respond_to?(name, *); name == :current_overlay_close? || super; end
+    view.overlay_close true
+    assert view.overlay_close?
+  end
+
+  def test_overlay_close_predicate_falls_back_to_controller
+    view = FakeView.new
+    def view.current_overlay_close?; false; end
+    def view.respond_to?(name, *); name == :current_overlay_close? || super; end
+    refute view.overlay_close?
   end
 end

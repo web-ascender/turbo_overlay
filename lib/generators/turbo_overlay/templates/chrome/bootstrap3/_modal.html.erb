@@ -1,3 +1,4 @@
+<% close_button = local_assigns.fetch(:close_button) { overlay_close? } %>
 <dialog class="turbo-overlay turbo-overlay--modal turbo-overlay-scaffold"
         data-controller="turbo-overlay"
         data-turbo-overlay-id-value="<%= current_overlay_id %>"
@@ -5,17 +6,25 @@
         data-action="cancel->turbo-overlay#cancel click->turbo-overlay#backdropClick"
         aria-labelledby="turbo-modal-title-<%= current_overlay_id %>">
   <div class="modal-dialog modal-lg" role="document">
-    <div class="modal-content">
+    <div class="modal-content" style="position:relative;">
       <% if content_for?(:overlay_title) %>
         <div class="modal-header">
-          <button type="button"
-                  class="close"
-                  data-action="turbo-overlay#close"
-                  aria-label="Close"><span aria-hidden="true">&times;</span></button>
+          <% if close_button %>
+            <button type="button"
+                    class="close"
+                    data-action="turbo-overlay#close"
+                    aria-label="Close"><span aria-hidden="true">&times;</span></button>
+          <% end %>
           <h4 id="turbo-modal-title-<%= current_overlay_id %>" class="modal-title">
             <%= yield(:overlay_title) %>
           </h4>
         </div>
+      <% elsif close_button %>
+        <button type="button"
+                class="close"
+                style="position:absolute; top:8px; right:12px; z-index:1;"
+                data-action="turbo-overlay#close"
+                aria-label="Close"><span aria-hidden="true">&times;</span></button>
       <% end %>
 
       <div class="modal-body">

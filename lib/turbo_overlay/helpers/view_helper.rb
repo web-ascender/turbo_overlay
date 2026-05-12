@@ -16,6 +16,11 @@ module TurboOverlay
       # random id; supply your own when you want to close the overlay
       # later from server code via
       # `turbo_stream.overlay(:close, id: "...")`.
+      #
+      # `close_button: false` opens the modal without the default close
+      # ("×") button rendered by the chrome partial. Useful when the
+      # body provides its own dismiss controls (the confirm partial
+      # uses this internally). ESC and backdrop click still close.
       def modal_link_to(name = nil, options = nil, html_options = nil, &block)
         _overlay_link_to(:modal, name, options, html_options, &block)
       end
@@ -55,6 +60,10 @@ module TurboOverlay
       # (no backdrop to click). ESC still closes.
       #
       #   <%= drawer_link_to "Inspector", inspect_path, backdrop: false %>
+      #
+      # `close_button: false` opens the drawer without the default
+      # close ("×") button. ESC still closes; the backdrop is
+      # unaffected.
       def drawer_link_to(name = nil, options = nil, html_options = nil, &block)
         _overlay_link_to(:drawer, name, options, html_options, &block)
       end
@@ -184,6 +193,28 @@ module TurboOverlay
         content_for(:overlay_footer, value, &block)
       end
 
+      # Toggle the chrome's default close ("×") button for the current
+      # overlay render. Defaults to on; call with `false` from inside an
+      # overlay view to suppress it:
+      #
+      #   <% overlay_close false %>
+      #
+      # Precedence (highest first): partial local `close_button:` on
+      # `render "turbo_overlay/modal"`, this helper, the link option
+      # `close_button: false` (carried as a request header and exposed
+      # via `current_overlay_close?`), then the default `true`.
+      def overlay_close(show = true)
+        @_overlay_close = show
+      end
+
+      # Whether the chrome should render its default close button.
+      # Resolves the precedence described on `overlay_close`.
+      def overlay_close?
+        return @_overlay_close != false if defined?(@_overlay_close)
+        return controller.current_overlay_close? if controller.respond_to?(:current_overlay_close?)
+        true
+      end
+
       private
 
       def _overlay_link_to(type, name, options, html_options, &block)
@@ -223,6 +254,9 @@ module TurboOverlay
         has_backdrop = html_options.key?(:backdrop) || html_options.key?("backdrop")
         backdrop     = html_options.delete(:backdrop)
         backdrop     = html_options.delete("backdrop") if backdrop.nil? && has_backdrop
+        has_close    = html_options.key?(:close_button) || html_options.key?("close_button")
+        close_button = html_options.delete(:close_button)
+        close_button = html_options.delete("close_button") if close_button.nil? && has_close
 
         data = (html_options[:data] || {}).dup
         data[:turbo_stream] = true unless data.key?(:turbo_stream) || html_options.key?("data-turbo-stream")
@@ -231,6 +265,9 @@ module TurboOverlay
         data[:turbo_overlay_position] = position.to_s if position && !data.key?(:turbo_overlay_position) && !html_options.key?("data-turbo-overlay-position")
         if has_backdrop && backdrop == false && !data.key?(:turbo_overlay_backdrop) && !html_options.key?("data-turbo-overlay-backdrop")
           data[:turbo_overlay_backdrop] = "false"
+        end
+        if has_close && close_button == false && !data.key?(:turbo_overlay_close) && !html_options.key?("data-turbo-overlay-close")
+          data[:turbo_overlay_close] = "false"
         end
         # Break out of any enclosing per-overlay turbo-frame so a click
         # on a modal/drawer link from inside an open overlay opens a

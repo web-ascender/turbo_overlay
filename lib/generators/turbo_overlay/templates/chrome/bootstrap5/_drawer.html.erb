@@ -6,6 +6,7 @@
   bottom: "offcanvas-bottom"
 }.fetch(position) %>
 <% backdrop = current_overlay_backdrop? %>
+<% close_button = local_assigns.fetch(:close_button) { overlay_close? } %>
 <dialog class="turbo-overlay turbo-overlay--drawer turbo-overlay--drawer-<%= position %> turbo-overlay-scaffold<%= " turbo-overlay--no-backdrop" unless backdrop %>"
         data-controller="turbo-overlay"
         data-turbo-overlay-id-value="<%= current_overlay_id %>"
@@ -13,17 +14,24 @@
         data-turbo-overlay-backdrop-value="<%= backdrop %>"
         data-action="cancel->turbo-overlay#cancel click->turbo-overlay#backdropClick"
         aria-labelledby="turbo-drawer-title-<%= current_overlay_id %>">
-  <div class="offcanvas <%= offcanvas_class %> show" tabindex="-1">
+  <div class="offcanvas <%= offcanvas_class %> show position-relative" tabindex="-1">
     <% if content_for?(:overlay_title) %>
       <div class="offcanvas-header">
         <h5 id="turbo-drawer-title-<%= current_overlay_id %>" class="offcanvas-title">
           <%= yield(:overlay_title) %>
         </h5>
-        <button type="button"
-                class="btn-close"
-                data-action="turbo-overlay#close"
-                aria-label="Close"></button>
+        <% if close_button %>
+          <button type="button"
+                  class="btn-close"
+                  data-action="turbo-overlay#close"
+                  aria-label="Close"></button>
+        <% end %>
       </div>
+    <% elsif close_button %>
+      <button type="button"
+              class="btn-close position-absolute top-0 end-0 m-3"
+              data-action="turbo-overlay#close"
+              aria-label="Close"></button>
     <% end %>
 
     <div class="offcanvas-body">

@@ -83,6 +83,9 @@ function registerFetchHook() {
     if (trigger.dataset.turboOverlayBackdrop === "false") {
       headers["X-Turbo-Overlay-Backdrop"] = "false"
     }
+    if (trigger.dataset.turboOverlayClose === "false") {
+      headers["X-Turbo-Overlay-Close"] = "false"
+    }
   })
 }
 

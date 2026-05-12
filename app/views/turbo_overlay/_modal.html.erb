@@ -1,3 +1,4 @@
+<% close_button = local_assigns.fetch(:close_button) { overlay_close? } %>
 <dialog class="turbo-overlay turbo-overlay--modal turbo-modal"
         data-controller="turbo-overlay"
         data-turbo-overlay-id-value="<%= current_overlay_id %>"
@@ -10,11 +11,18 @@
         <h2 id="turbo-modal-title-<%= current_overlay_id %>" class="turbo-modal__title">
           <%= yield(:overlay_title) %>
         </h2>
-        <button type="button"
-                class="turbo-modal__close"
-                data-action="turbo-overlay#close"
-                aria-label="Close">&times;</button>
+        <% if close_button %>
+          <button type="button"
+                  class="turbo-modal__close"
+                  data-action="turbo-overlay#close"
+                  aria-label="Close">&times;</button>
+        <% end %>
       </header>
+    <% elsif close_button %>
+      <button type="button"
+              class="turbo-modal__close turbo-modal__close--floating"
+              data-action="turbo-overlay#close"
+              aria-label="Close">&times;</button>
     <% end %>
 
     <div class="turbo-modal__body">
