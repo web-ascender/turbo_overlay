@@ -1,13 +1,12 @@
-<%# Confirm dialog body, rendered inside the modal partial. Edit
-    freely — JS only depends on these data attributes:
+<%# Confirm dialog body, wrapped in the modal chrome at template-emission
+    time by `overlay_stack_tag`. Edit freely — JS only depends on the
+    data attributes below:
       [data-turbo-overlay-confirm-message] — text insertion point
       [data-turbo-overlay-confirm-cancel]  — cancels (resolves false)
       [data-turbo-overlay-confirm-accept]  — accepts (resolves true)
 %>
-<%= render "turbo_overlay/modal", close_button: false do %>
-  <p data-turbo-overlay-confirm-message></p>
-  <div class="turbo-modal__footer">
-    <button type="button" data-turbo-overlay-confirm-cancel>Cancel</button>
-    <button type="button" data-turbo-overlay-confirm-accept>OK</button>
-  </div>
-<% end %>
+<p data-turbo-overlay-confirm-message></p>
+<div class="turbo-modal__footer">
+  <button type="button" data-turbo-overlay-confirm-cancel>Cancel</button>
+  <button type="button" data-turbo-overlay-confirm-accept>OK</button>
+</div>

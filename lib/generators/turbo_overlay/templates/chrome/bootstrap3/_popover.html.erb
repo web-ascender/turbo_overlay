@@ -1,9 +1,15 @@
+<% loading      = local_assigns.fetch(:loading, false) %>
 <% position    = current_overlay_position || TurboOverlay.configuration.popover.position %>
 <% align       = current_overlay_align    || TurboOverlay.configuration.popover.align %>
 <% offset      = current_overlay_offset   || TurboOverlay.configuration.popover.offset %>
 <% close_button = local_assigns.fetch(:close_button) { defined?(@_overlay_close) && @_overlay_close != false } %>
-<dialog class="turbo-overlay turbo-overlay--popover turbo-overlay--no-backdrop popover"
+<dialog class="<%= token_list("turbo-overlay", "turbo-overlay--popover", "turbo-overlay--no-backdrop", "popover", "turbo-overlay--loading": loading) %>"
         style="display:block; position:fixed; max-width:22rem; margin:0; padding:0;"
+        <% if loading %>
+        role="status"
+        aria-live="polite"
+        aria-label="Loading"
+        <% else %>
         data-controller="turbo-overlay"
         data-turbo-overlay-id-value="<%= current_overlay_id %>"
         data-turbo-overlay-type-value="popover"
@@ -12,9 +18,10 @@
         data-turbo-overlay-align-value="<%= align %>"
         data-turbo-overlay-offset-value="<%= offset %>"
         data-action="cancel->turbo-overlay#cancel"
-        aria-labelledby="turbo-popover-title-<%= current_overlay_id %>">
+        aria-labelledby="turbo-popover-title-<%= current_overlay_id %>"
+        <% end %>>
   <div style="position:relative;">
-    <% if content_for?(:overlay_title) %>
+    <% if !loading && content_for?(:overlay_title) %>
       <h3 class="popover-title" id="turbo-popover-title-<%= current_overlay_id %>" style="display:flex; align-items:center; justify-content:space-between;">
         <span><%= yield(:overlay_title) %></span>
         <% if close_button %>
@@ -24,7 +31,7 @@
                   aria-label="Close"><span aria-hidden="true">&times;</span></button>
         <% end %>
       </h3>
-    <% elsif close_button %>
+    <% elsif !loading && close_button %>
       <button type="button"
               class="close"
               style="position:absolute; top:6px; right:10px; z-index:1;"
@@ -36,7 +43,7 @@
       <%= yield %>
     </div>
 
-    <% if content_for?(:overlay_footer) %>
+    <% if !loading && content_for?(:overlay_footer) %>
       <div class="popover-footer" style="border-top:1px solid #e5e7eb; padding:0.5rem 0.75rem; display:flex; justify-content:flex-end; gap:0.5rem;">
         <%= yield(:overlay_footer) %>
       </div>

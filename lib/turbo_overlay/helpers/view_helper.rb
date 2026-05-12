@@ -174,21 +174,32 @@ module TurboOverlay
       #   <%= overlay_stack_tag %>
       #
       # When the host app has confirm chrome partials in
-      # `app/views/turbo_overlay/` (`_confirm.html+modal.erb` and/or
-      # `_confirm.html+popover.erb`, copied by `turbo_overlay:install`),
-      # also emits sibling `<template>` elements per variant:
+      # `app/views/turbo_overlay/`, emits sibling `<template>` elements
+      # per variant the JS confirm hook clones from:
       #
       #   <template id="turbo_overlay_confirm_modal_template">…</template>
       #   <template id="turbo_overlay_confirm_popover_template">…</template>
       #
-      # The JS confirm hook clones the right template based on the
-      # resolved style (`config.confirm.style`, overridable per-link
-      # via `data-turbo-confirm-style`). When no variant partial is
-      # present, the hook falls back to the browser-native `confirm()`.
+      # Partial resolution per variant prefers `_confirm.html+<variant>.erb`,
+      # then falls back to a shared `_confirm.html.erb`. The shared
+      # partial — if it's the only one present — is rendered once for
+      # both modal and popover styles so apps that don't want
+      # chrome-specific variants can ship a single file.
       #
-      # The configured default style is exposed as a data attribute on
-      # the stack container so the JS can read it without a separate
-      # config plumbing pass.
+      # The same shape applies to the loading partials:
+      #
+      #   <template id="turbo_overlay_loading_modal_template">…</template>
+      #   <template id="turbo_overlay_loading_drawer_template">…</template>
+      #   <template id="turbo_overlay_loading_popover_template">…</template>
+      #   <template id="turbo_overlay_loading_hint_template">…</template>
+      #
+      # rendered from `_loading.html+<type>.erb` with `_loading.html.erb`
+      # as the shared fallback. Cloned by the JS at click time to give
+      # users immediate feedback while the real response is in flight.
+      #
+      # The configured default confirm style is exposed as a data
+      # attribute on the stack container so the JS can read it without
+      # a separate config plumbing pass.
       def overlay_stack_tag
         stack_id      = TurboOverlay.configuration.stack_id
         confirm_style = TurboOverlay.configuration.confirm.style.to_s
@@ -216,12 +227,23 @@ module TurboOverlay
         parts = [stack]
 
         [:modal, :popover].each do |variant|
-          next unless lookup_context.exists?(
-            "turbo_overlay/confirm", [], true, [], variants: [variant]
+          rendered = _render_overlay_chrome_partial(
+            "turbo_overlay/confirm", variant,
+            chrome: variant, locals: { close_button: false }
           )
-          parts << content_tag(:template,
-            render(partial: "turbo_overlay/confirm", variants: [variant]),
+          next unless rendered
+          parts << content_tag(:template, rendered,
             id: "turbo_overlay_confirm_#{variant}_template")
+        end
+
+        [:modal, :drawer, :popover, :hint].each do |variant|
+          rendered = _render_overlay_chrome_partial(
+            "turbo_overlay/loading", variant,
+            chrome: variant, locals: { loading: true, close_button: false }
+          )
+          next unless rendered
+          parts << content_tag(:template, rendered,
+            id: "turbo_overlay_loading_#{variant}_template")
         end
 
         if content_for?(:turbo_overlay_hint)
@@ -367,6 +389,31 @@ module TurboOverlay
       end
 
       private
+
+      # Render `turbo_overlay/<name>` for the given variant, preferring
+      # `_<name>.html+<variant>.erb` and falling back to a shared
+      # `_<name>.html.erb` when no variant-specific override exists.
+      # Returns nil when neither file is present so callers can skip
+      # emitting an empty `<template>` wrapper.
+      #
+      # When `chrome:` is supplied, the rendered body is wrapped in the
+      # `turbo_overlay/<chrome>` chrome partial (modal/drawer/popover/hint)
+      # so confirm and loading body partials don't have to repeat
+      # `<%= render "turbo_overlay/modal" do %>...<% end %>` boilerplate.
+      # `locals:` flows to both the body and the chrome.
+      def _render_overlay_chrome_partial(name, variant, chrome: nil, locals: {})
+        unless lookup_context.exists?(name, [], true, [], variants: [variant]) ||
+               lookup_context.exists?(name, [], true)
+          return nil
+        end
+
+        if chrome
+          render(partial: name, layout: "turbo_overlay/#{chrome}",
+            variants: [variant], locals: locals)
+        else
+          render(partial: name, variants: [variant], locals: locals)
+        end
+      end
 
       def _overlay_link_to(type, name, options, html_options, &block)
         if block_given?

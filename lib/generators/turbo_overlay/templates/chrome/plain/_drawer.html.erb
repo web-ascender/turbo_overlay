@@ -1,15 +1,22 @@
-<% position = current_overlay_position || TurboOverlay.configuration.drawer.position %>
-<% backdrop = current_overlay_backdrop? %>
+<% loading      = local_assigns.fetch(:loading, false) %>
+<% position    = current_overlay_position || TurboOverlay.configuration.drawer.position %>
+<% backdrop    = current_overlay_backdrop? %>
 <% close_button = local_assigns.fetch(:close_button) { overlay_close? } %>
-<dialog class="turbo-overlay turbo-overlay--drawer turbo-overlay--drawer-<%= position %> turbo-drawer<%= " turbo-overlay--no-backdrop" unless backdrop %>"
+<dialog class="<%= token_list("turbo-overlay", "turbo-overlay--drawer", "turbo-overlay--drawer-#{position}", "turbo-drawer", "turbo-overlay--loading": loading, "turbo-overlay--no-backdrop": !backdrop) %>"
+        <% if loading %>
+        role="status"
+        aria-live="polite"
+        aria-label="Loading"
+        <% else %>
         data-controller="turbo-overlay"
         data-turbo-overlay-id-value="<%= current_overlay_id %>"
         data-turbo-overlay-type-value="drawer"
         data-turbo-overlay-backdrop-value="<%= backdrop %>"
         data-action="cancel->turbo-overlay#cancel click->turbo-overlay#backdropClick"
-        aria-labelledby="turbo-drawer-title-<%= current_overlay_id %>">
+        aria-labelledby="turbo-drawer-title-<%= current_overlay_id %>"
+        <% end %>>
   <div class="turbo-drawer__content">
-    <% if content_for?(:overlay_title) %>
+    <% if !loading && content_for?(:overlay_title) %>
       <header class="turbo-drawer__header">
         <h2 id="turbo-drawer-title-<%= current_overlay_id %>" class="turbo-drawer__title">
           <%= yield(:overlay_title) %>
@@ -21,7 +28,7 @@
                   aria-label="Close">&times;</button>
         <% end %>
       </header>
-    <% elsif close_button %>
+    <% elsif !loading && close_button %>
       <button type="button"
               class="turbo-drawer__close turbo-drawer__close--floating"
               data-action="turbo-overlay#close"
@@ -32,7 +39,7 @@
       <%= yield %>
     </div>
 
-    <% if content_for?(:overlay_footer) %>
+    <% if !loading && content_for?(:overlay_footer) %>
       <footer class="turbo-drawer__footer">
         <%= yield(:overlay_footer) %>
       </footer>

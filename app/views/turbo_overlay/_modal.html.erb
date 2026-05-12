@@ -1,12 +1,19 @@
+<% loading      = local_assigns.fetch(:loading, false) %>
 <% close_button = local_assigns.fetch(:close_button) { overlay_close? } %>
-<dialog class="turbo-overlay turbo-overlay--modal turbo-modal"
+<dialog class="<%= token_list("turbo-overlay", "turbo-overlay--modal", "turbo-modal", "turbo-overlay--loading": loading) %>"
+        <% if loading %>
+        role="status"
+        aria-live="polite"
+        aria-label="Loading"
+        <% else %>
         data-controller="turbo-overlay"
         data-turbo-overlay-id-value="<%= current_overlay_id %>"
         data-turbo-overlay-type-value="modal"
         data-action="cancel->turbo-overlay#cancel click->turbo-overlay#backdropClick"
-        aria-labelledby="turbo-modal-title-<%= current_overlay_id %>">
+        aria-labelledby="turbo-modal-title-<%= current_overlay_id %>"
+        <% end %>>
   <div class="turbo-modal__content">
-    <% if content_for?(:overlay_title) %>
+    <% if !loading && content_for?(:overlay_title) %>
       <header class="turbo-modal__header">
         <h2 id="turbo-modal-title-<%= current_overlay_id %>" class="turbo-modal__title">
           <%= yield(:overlay_title) %>
@@ -18,7 +25,7 @@
                   aria-label="Close">&times;</button>
         <% end %>
       </header>
-    <% elsif close_button %>
+    <% elsif !loading && close_button %>
       <button type="button"
               class="turbo-modal__close turbo-modal__close--floating"
               data-action="turbo-overlay#close"
@@ -29,7 +36,7 @@
       <%= yield %>
     </div>
 
-    <% if content_for?(:overlay_footer) %>
+    <% if !loading && content_for?(:overlay_footer) %>
       <footer class="turbo-modal__footer">
         <%= yield(:overlay_footer) %>
       </footer>

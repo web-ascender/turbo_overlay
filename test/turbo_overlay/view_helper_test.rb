@@ -3,17 +3,43 @@ require "turbo_overlay/helpers/view_helper"
 
 class ViewHelperTest < Minitest::Test
   class FakeLookupContext
-    # `exists:` may be:
+    # `exists:` accepts:
     #   - true / false → all queries return that value
-    #   - Array of variant symbols → only those variants exist
+    #   - Array of variant symbols → those variants exist for any
+    #     partial; the no-variant ("shared") query returns false.
+    #   - Hash `{ variants: [:modal], shared: true }` → both axes.
+    #   - Hash keyed by partial path (e.g.
+    #     `{ "turbo_overlay/confirm" => { variants: [:modal] } }`) →
+    #     per-partial fine-grained control. Unmatched partials are
+    #     treated as absent.
     def initialize(exists:)
       @exists = exists
     end
 
-    def exists?(_name, _prefixes = [], _partial = false, _keys = [], **details)
-      return @exists unless @exists.is_a?(Array)
+    def exists?(name, _prefixes = [], _partial = false, _keys = [], **details)
       variants = details[:variants] || []
-      variants.any? { |v| @exists.include?(v) }
+
+      spec = if @exists.is_a?(Hash) && (@exists.key?(name) || @exists.key?(:_default))
+        @exists[name] || @exists[:_default] || false
+      else
+        @exists
+      end
+
+      _resolve_exists(spec, variants)
+    end
+
+    private
+
+    def _resolve_exists(spec, variants)
+      return spec if spec == true || spec == false
+
+      if spec.is_a?(Hash)
+        return spec[:shared] == true if variants.empty?
+        return variants.any? { |v| Array(spec[:variants]).include?(v) }
+      end
+
+      return false if variants.empty?
+      variants.any? { |v| spec.include?(v) }
     end
   end
 
@@ -368,6 +394,71 @@ class ViewHelperTest < Minitest::Test
     output = view.overlay_stack_tag
     assert_includes output, %(<template id="turbo_overlay_confirm_modal_template">)
     assert_includes output, %(<template id="turbo_overlay_confirm_popover_template">)
+  end
+
+  def test_overlay_stack_tag_emits_both_confirm_variants_from_shared_partial
+    view = FakeView.new
+    view._lookup_context = FakeLookupContext.new(exists: {
+      "turbo_overlay/confirm" => { variants: [], shared: true }
+    })
+    view._render_returns = %(<dialog data-controller="turbo-overlay">SHARED_CONFIRM</dialog>)
+    output = view.overlay_stack_tag
+    assert_includes output, %(<template id="turbo_overlay_confirm_modal_template">)
+    assert_includes output, %(<template id="turbo_overlay_confirm_popover_template">)
+    # Shared body rendered into both confirm templates.
+    assert_equal 2, output.scan("SHARED_CONFIRM").size
+  end
+
+  def test_overlay_stack_tag_emits_loading_templates_per_variant
+    view = FakeView.new
+    view._lookup_context = FakeLookupContext.new(exists: {
+      "turbo_overlay/loading" => { variants: [:modal, :drawer, :popover, :hint], shared: false }
+    })
+    view._render_returns = %(<dialog data-controller="turbo-overlay">LOADING_BODY</dialog>)
+    output = view.overlay_stack_tag
+    assert_includes output, %(<template id="turbo_overlay_loading_modal_template">)
+    assert_includes output, %(<template id="turbo_overlay_loading_drawer_template">)
+    assert_includes output, %(<template id="turbo_overlay_loading_popover_template">)
+    assert_includes output, %(<template id="turbo_overlay_loading_hint_template">)
+  end
+
+  def test_overlay_stack_tag_emits_loading_templates_from_shared_partial
+    view = FakeView.new
+    view._lookup_context = FakeLookupContext.new(exists: {
+      "turbo_overlay/loading" => { variants: [], shared: true }
+    })
+    view._render_returns = %(<dialog data-controller="turbo-overlay">SHARED_LOADING</dialog>)
+    output = view.overlay_stack_tag
+    # All four loading templates emitted from the single shared partial.
+    assert_includes output, %(<template id="turbo_overlay_loading_modal_template">)
+    assert_includes output, %(<template id="turbo_overlay_loading_drawer_template">)
+    assert_includes output, %(<template id="turbo_overlay_loading_popover_template">)
+    assert_includes output, %(<template id="turbo_overlay_loading_hint_template">)
+    assert_equal 4, output.scan("SHARED_LOADING").size
+  end
+
+  def test_overlay_stack_tag_omits_loading_templates_when_partials_missing
+    view = FakeView.new
+    view._lookup_context = FakeLookupContext.new(exists: false)
+    output = view.overlay_stack_tag
+    refute_includes output, %(turbo_overlay_loading_modal_template)
+    refute_includes output, %(turbo_overlay_loading_drawer_template)
+    refute_includes output, %(turbo_overlay_loading_popover_template)
+    refute_includes output, %(turbo_overlay_loading_hint_template)
+  end
+
+  def test_overlay_stack_tag_prefers_variant_loading_partial_over_shared
+    view = FakeView.new
+    view._lookup_context = FakeLookupContext.new(exists: {
+      "turbo_overlay/loading" => { variants: [:modal], shared: true }
+    })
+    view._render_returns = %(<dialog data-controller="turbo-overlay">LOADING</dialog>)
+    output = view.overlay_stack_tag
+    # All four are emitted; modal from variant, others from shared.
+    assert_includes output, %(<template id="turbo_overlay_loading_modal_template">)
+    assert_includes output, %(<template id="turbo_overlay_loading_drawer_template">)
+    assert_includes output, %(<template id="turbo_overlay_loading_popover_template">)
+    assert_includes output, %(<template id="turbo_overlay_loading_hint_template">)
   end
 
   def test_overlay_stack_tag_emits_default_confirm_style_data_attribute
