@@ -239,7 +239,7 @@ navigation also seeds the hint — single fetch, two purposes.
 
 ```erb
 <%# users/show.html.erb — emit a hint template for THIS page %>
-<% turbo_overlay_hint do %>
+<%= turbo_overlay_hint do %>
   <h3><%= @user.name %></h3>
   <p>Last seen <%= time_ago_in_words(@user.last_seen_at) %> ago</p>
 <% end %>
@@ -248,13 +248,16 @@ navigation also seeds the hint — single fetch, two purposes.
 <%= hint_link_to "User", user_path(@user) %>
 ```
 
-`turbo_overlay_hint do … end` captures a hint body for the page.
-`overlay_stack_tag` emits it as a `<template id="turbo-overlay-hint">`
-near the bottom of the body. When another page links to this one
+`turbo_overlay_hint do … end` outputs a
+`<template id="turbo-overlay-hint">…body…</template>` element at the
+call site (note the `<%=`). When another page links to this one
 with `hint_link_to`, Turbo's hover prefetch fetches this page; the
 gem hooks `turbo:before-fetch-response`, finds the template in the
-prefetched HTML, caches the fragment by URL, and shows it on hover
-delay.
+prefetched HTML via `DOMParser` + `querySelector`, caches the
+fragment by URL, and shows it on hover delay.
+
+Call `turbo_overlay_hint` once per page — a second call emits a
+second `<template>` with the same id and only the first is used.
 
 #### Compose with overlay link helpers
 
@@ -285,21 +288,19 @@ Embed the hint template on the destination page with
 
 **Overlay links** (`modal_link_to` / `drawer_link_to` /
 `popover_link_to`) carry `data-turbo-stream="true"`, which **Turbo's
-hover prefetch ignores**. So embedding `turbo_overlay_hint` on the
-modal-served page won't help — Turbo never prefetches it. For these,
-provide an explicit `hint_url:` that the gem fetches with the
+hover prefetch ignores**. So just embedding `turbo_overlay_hint` on
+the modal-served page won't help — Turbo never prefetches it. For
+these, provide an explicit `hint_url:` that the gem fetches with the
 `:hint` request variant on hover. The `:hint` variant request hits
 the same action as the destination URL (e.g.
-`client_root_path` → `clients/dashboard#show`). The gem's
-`turbo_hint` layout looks for a `turbo_overlay_hint do … end` block
-in the view and uses *just that body* as the hint, ignoring the rest
-of the page render. So if the destination already has a
-`turbo_overlay_hint do … end` for the inline prefetch path, that
-same block drives the explicit `hint_url:` path automatically:
+`client_root_path` → `clients/dashboard#show`), so the same
+`turbo_overlay_hint do … end` block on `show.html.erb` drives both
+the inline prefetch path AND the `hint_url:` path with the same
+body:
 
 ```erb
 <%# app/views/clients/dashboard/show.html.erb %>
-<% turbo_overlay_hint do %>
+<%= turbo_overlay_hint do %>
   <h3><%= @client.name %></h3>
   <p>Last updated <%= time_ago_in_words(@client.updated_at) %> ago</p>
 <% end %>
@@ -314,19 +315,20 @@ same block drives the explicit `hint_url:` path automatically:
                   hint: true, hint_url: client_root_path(@client) %>
 ```
 
-For a leaner hint render (skip rendering the rest of the view server-side),
-drop a `show.html+hint.erb` variant that returns just the body — when
-no `content_for(:turbo_overlay_hint)` is set, the layout uses `yield`:
+For a leaner hint render that skips the rest of the view server-side,
+drop a `show.html+hint.erb` variant containing just the helper call:
 
 ```erb
 <%# app/views/clients/dashboard/show.html+hint.erb %>
-<h3><%= @client.name %></h3>
-<p>Last updated <%= time_ago_in_words(@client.updated_at) %> ago</p>
+<%= turbo_overlay_hint do %>
+  <h3><%= @client.name %></h3>
+  <p>Last updated <%= time_ago_in_words(@client.updated_at) %> ago</p>
+<% end %>
 ```
 
-Either way the `turbo_hint` layout wraps the chosen body in the same
-`<template id="turbo-overlay-hint">` shape the inline path emits, so
-the JS extractor has one code path.
+Either way the helper emits a `<template id="turbo-overlay-hint">`
+in the response body. The gem's `turbo_hint` layout strips the host
+app's chrome so the response stays lean.
 
 #### Touch, accessibility, and dismissal
 
