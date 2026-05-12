@@ -48,6 +48,33 @@ module TurboOverlay
     end
   end
 
+  # Hint config. Hover-triggered preview overlays. Hint attributes
+  # (`data-turbo-overlay-hint`, `data-turbo-overlay-hint-url`) compose
+  # with every overlay link helper and with plain `link_to`/`hint_link_to`.
+  #
+  # - `show_delay_ms`: hover must persist this long before the hint
+  #   shows (default 250ms).
+  # - `hide_delay_ms`: grace window after mouseleave before dismissing,
+  #   so the user can move the cursor into the hint (default 120ms).
+  # - `template_id`: id of the `<template>` element the gem emits
+  #   inline AND that hint-variant responses wrap their body in,
+  #   so the JS extractor has one code path (default
+  #   `"turbo-overlay-hint"`).
+  # - `enabled`: globally turn the hint feature off (default true).
+  #   Inert without `data-turbo-overlay-hint` markers anyway, so the
+  #   knob is mostly for opting an app out entirely.
+  class HintConfig < OverlayTypeConfig
+    attr_accessor :show_delay_ms, :hide_delay_ms, :template_id, :enabled
+
+    def initialize(show_delay_ms:, hide_delay_ms:, template_id:, enabled:, **kwargs)
+      super(**kwargs)
+      @show_delay_ms = show_delay_ms
+      @hide_delay_ms = hide_delay_ms
+      @template_id   = template_id
+      @enabled       = enabled
+    end
+  end
+
   # Popover config extends OverlayTypeConfig with anchored-positioning
   # defaults. Popovers attach to their trigger element rather than
   # centering (modal) or pinning to an edge (drawer).
@@ -107,6 +134,17 @@ module TurboOverlay
       )
 
       @confirm = ConfirmConfig.new(style: :modal)
+
+      @hint = HintConfig.new(
+        frame_id:            nil,
+        variant:             :hint,
+        layout_name:         "turbo_hint",
+        stimulus_identifier: "turbo-overlay-hint",
+        show_delay_ms:       250,
+        hide_delay_ms:       120,
+        template_id:         "turbo-overlay-hint",
+        enabled:             true
+      )
     end
 
     # Modal config. With a block, yields the type config for setters;
@@ -159,6 +197,19 @@ module TurboOverlay
     def confirm
       yield @confirm if block_given?
       @confirm
+    end
+
+    # Hint config. Hover-triggered preview overlays.
+    #
+    #   TurboOverlay.configure do |c|
+    #     c.hint do |h|
+    #       h.show_delay_ms = 400
+    #       h.enabled       = false   # turn the feature off entirely
+    #     end
+    #   end
+    def hint
+      yield @hint if block_given?
+      @hint
     end
   end
 end

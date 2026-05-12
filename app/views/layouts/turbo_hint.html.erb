@@ -1,0 +1,6 @@
+<%# Layout for :hint-variant responses fetched by the gem's hint
+    controller via explicit `hint_url:`. Same wire shape as the
+    inline-hint template emitted by `overlay_stack_tag` so the JS
+    extractor has one code path: a <template id="…"> wrapping the
+    hint chrome partial wrapping the response body. %>
+<template id="<%= TurboOverlay.configuration.hint.template_id %>"><%= render layout: "turbo_overlay/hint" do %><%= yield %><% end %></template>

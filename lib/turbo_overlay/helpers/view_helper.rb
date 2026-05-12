@@ -114,6 +114,57 @@ module TurboOverlay
         _detect_overlay_type == :popover
       end
 
+      # ----- Hint-specific helpers -----
+
+      # Decorate any `<a>` so the gem's JS shows a hover-hint preview.
+      # `hint_link_to` is a thin wrapper around `link_to` that sets the
+      # two data attributes the JS reads. Compose freely with overlay
+      # helpers (`modal_link_to "Edit", path, hint: true, hint_url: …`)
+      # or set the data attributes directly on any `link_to`.
+      #
+      #   <%= hint_link_to "User", user_path(@user) %>
+      #   <%= hint_link_to "User", user_path(@user), hint_url: hint_user_path(@user) %>
+      #
+      # Without `hint_url:`, the gem extracts a `<template id="...">`
+      # from the page's own response when Turbo prefetches it on hover.
+      # With `hint_url:`, the gem fetches the alternate URL with the
+      # `:hint` request variant on hover. Overlay links
+      # (`modal_link_to` etc.) are excluded from Turbo's hover prefetch
+      # — provide `hint_url:` for them.
+      def hint_link_to(name = nil, options = nil, html_options = nil, &block)
+        if block_given?
+          html_options = options || {}
+          options      = name
+          options, html_options = _hint_normalize_link_args(options, html_options)
+          link_to(options, html_options, &block)
+        else
+          html_options = (html_options || {}).dup
+          options, html_options = _hint_normalize_link_args(options, html_options)
+          link_to(name, options, html_options)
+        end
+      end
+
+      # Capture a hint body for the current page. Emitted by
+      # `overlay_stack_tag` as
+      # `<template id="turbo-overlay-hint">...</template>` so Turbo's
+      # hover prefetch picks it up alongside the regular page render.
+      #
+      #   <% turbo_overlay_hint do %>
+      #     <h3><%= @user.name %></h3>
+      #     <p>Last seen <%= time_ago_in_words(@user.last_seen_at) %> ago</p>
+      #   <% end %>
+      def turbo_overlay_hint(value = nil, &block)
+        content_for(:turbo_overlay_hint, value, &block)
+      end
+
+      # Whether the current request was served as a `:hint` variant.
+      # True only for explicit `hint_url:` fetches the gem made for a
+      # hover hint — useful inside `show.html+hint.erb` etc.
+      def hint_request?
+        return controller.hint_request? if controller.respond_to?(:hint_request?)
+        _detect_overlay_type == :hint
+      end
+
       # ----- Generic in-view helpers (shared across overlay types) -----
 
       # Emit the receiving stack container for overlays. Drop this in
@@ -141,14 +192,24 @@ module TurboOverlay
       def overlay_stack_tag
         stack_id      = TurboOverlay.configuration.stack_id
         confirm_style = TurboOverlay.configuration.confirm.style.to_s
+        hint_cfg      = TurboOverlay.configuration.hint
+
+        controllers = "turbo-overlay-stack"
+        controllers += " turbo-overlay-hint" if hint_cfg.enabled
+
+        data_attrs = {
+          controller: controllers,
+          "turbo-overlay-confirm-style": confirm_style,
+          "turbo-overlay-hint-enabled-value":     hint_cfg.enabled,
+          "turbo-overlay-hint-show-delay-value":  hint_cfg.show_delay_ms,
+          "turbo-overlay-hint-hide-delay-value":  hint_cfg.hide_delay_ms,
+          "turbo-overlay-hint-template-id-value": hint_cfg.template_id
+        }
 
         stack = content_tag(:div, "".html_safe,
           id: stack_id,
           class: "turbo-overlay-stack",
-          data: {
-            controller: "turbo-overlay-stack",
-            "turbo-overlay-confirm-style": confirm_style
-          })
+          data: data_attrs)
 
         return stack unless respond_to?(:lookup_context) && lookup_context
 
@@ -161,6 +222,19 @@ module TurboOverlay
           parts << content_tag(:template,
             render(partial: "turbo_overlay/confirm", variants: [variant]),
             id: "turbo_overlay_confirm_#{variant}_template")
+        end
+
+        if content_for?(:turbo_overlay_hint)
+          hint_body = if lookup_context.exists?("turbo_overlay/hint", [], true)
+            render(partial: "turbo_overlay/hint") { content_for(:turbo_overlay_hint) }
+          else
+            # No chrome partial in the app yet; emit the body unwrapped
+            # so the JS still has something to extract. The gem-fallback
+            # partial in app/views/turbo_overlay/_hint.html.erb supplies
+            # the default chrome when nothing app-side overrides it.
+            content_for(:turbo_overlay_hint)
+          end
+          parts << content_tag(:template, hint_body, id: hint_cfg.template_id)
         end
 
         return stack if parts.size == 1
@@ -338,6 +412,10 @@ module TurboOverlay
         has_close    = html_options.key?(:close_button) || html_options.key?("close_button")
         close_button = html_options.delete(:close_button)
         close_button = html_options.delete("close_button") if close_button.nil? && has_close
+        has_hint     = html_options.key?(:hint) || html_options.key?("hint")
+        hint_value   = html_options.delete(:hint)
+        hint_value   = html_options.delete("hint") if hint_value.nil? && has_hint
+        hint_url     = html_options.delete(:hint_url) || html_options.delete("hint_url")
 
         data = (html_options[:data] || {}).dup
         data[:turbo_stream] = true unless data.key?(:turbo_stream) || html_options.key?("data-turbo-stream")
@@ -352,10 +430,34 @@ module TurboOverlay
         if has_close && close_button == false && !data.key?(:turbo_overlay_close) && !html_options.key?("data-turbo-overlay-close")
           data[:turbo_overlay_close] = "false"
         end
+        if has_hint && hint_value && !data.key?(:turbo_overlay_hint) && !html_options.key?("data-turbo-overlay-hint")
+          data[:turbo_overlay_hint] = "true"
+        end
+        if hint_url && !data.key?(:turbo_overlay_hint_url) && !html_options.key?("data-turbo-overlay-hint-url")
+          data[:turbo_overlay_hint_url] = hint_url.to_s
+        end
         # Break out of any enclosing per-overlay turbo-frame so a click
         # on a modal/drawer/popover link from inside an open overlay
         # opens a new (stacked) overlay instead of replacing the current one.
         data[:turbo_frame] = "_top" unless data.key?(:turbo_frame) || html_options.key?("data-turbo-frame")
+        html_options[:data] = data unless data.empty?
+
+        [options, html_options]
+      end
+
+      # Decorate a plain link with the gem's hint data attributes. Unlike
+      # `_overlay_normalize_link_args` this does NOT set data-turbo-stream
+      # or data-turbo-frame=_top — hint_link_to behaves as a regular link
+      # (Turbo prefetch can still apply); the hint is just hover preview.
+      def _hint_normalize_link_args(options, html_options)
+        html_options = (html_options || {}).dup
+        hint_url = html_options.delete(:hint_url) || html_options.delete("hint_url")
+
+        data = (html_options[:data] || {}).dup
+        data[:turbo_overlay_hint] = "true" unless data.key?(:turbo_overlay_hint) || html_options.key?("data-turbo-overlay-hint")
+        if hint_url && !data.key?(:turbo_overlay_hint_url) && !html_options.key?("data-turbo-overlay-hint-url")
+          data[:turbo_overlay_hint_url] = hint_url.to_s
+        end
         html_options[:data] = data unless data.empty?
 
         [options, html_options]
@@ -368,6 +470,7 @@ module TurboOverlay
         return :modal   if header == "modal"
         return :drawer  if header == "drawer"
         return :popover if header == "popover"
+        return :hint    if header == "hint"
 
         frame = request.headers["Turbo-Frame"].to_s
         if frame.start_with?("turbo_overlay_")

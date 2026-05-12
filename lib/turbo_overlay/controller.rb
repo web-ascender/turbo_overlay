@@ -44,6 +44,7 @@ module TurboOverlay
       helper_method :modal_request?, :modal_layout_name,
         :drawer_request?, :drawer_layout_name,
         :popover_request?, :popover_layout_name,
+        :hint_request?, :hint_layout_name,
         :overlay_request?, :current_overlay_id, :current_overlay_type,
         :current_overlay_position, :current_overlay_align,
         :current_overlay_offset, :current_overlay_backdrop?,
@@ -78,6 +79,16 @@ module TurboOverlay
 
     def popover_layout_name
       TurboOverlay.configuration.popover.layout_name
+    end
+
+    # ----- hint -----
+
+    def hint_request?
+      current_overlay_type == :hint
+    end
+
+    def hint_layout_name
+      TurboOverlay.configuration.hint.layout_name
     end
 
     # ----- generic -----
@@ -190,6 +201,7 @@ module TurboOverlay
       return :modal   if header == "modal"
       return :drawer  if header == "drawer"
       return :popover if header == "popover"
+      return :hint    if header == "hint"
 
       frame = request.headers["Turbo-Frame"].to_s
       if frame.start_with?(OVERLAY_FRAME_PREFIX)
@@ -270,13 +282,21 @@ module TurboOverlay
     # to provide `*.turbo_stream.erb` variants); we override the
     # response Content-Type after the action so Turbo still processes
     # the embedded `<turbo-stream>` tags.
+    #
+    # Hint requests skip both: they're fetched by the gem's JS via
+    # plain `fetch()` (not Turbo), the Accept header is `text/html`
+    # already, and the response is parsed via DOMParser. Forcing the
+    # turbo-stream content type would make Turbo try to process the
+    # response if it ever did intercept it.
     def _turbo_overlay_force_html_format
       return unless turbo_overlay_initial_open?
+      return if current_overlay_type == :hint
       request.format = :html
     end
 
     def _turbo_overlay_set_stream_content_type
       return unless turbo_overlay_initial_open?
+      return if current_overlay_type == :hint
       return unless response
       response.content_type = "text/vnd.turbo-stream.html; charset=utf-8"
     end

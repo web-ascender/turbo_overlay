@@ -91,6 +91,22 @@ dialog.turbo-popover {
   display: flex; justify-content: flex-end; gap: 0.5rem;
 }
 
+/* === Hint (hover-triggered preview, non-modal, non-dialog) === */
+/* The hint is appended to <body> as a plain div. JS sets top/left
+   via the same anchor math as the popover. */
+.turbo-overlay-hint {
+  position: fixed; z-index: 1000;
+  max-width: 20rem; padding: 0.75rem 1rem;
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+  font-size: 0.875rem;
+  pointer-events: auto;
+}
+.turbo-overlay-hint[data-state="entering"] { animation: turbo-overlay-fade-in 0.12s ease-out; }
+.turbo-overlay-hint[data-state="leaving"]  { animation: turbo-overlay-fade-out 0.12s ease-out forwards; }
+
 /* === Animations (apply to every theme via shared classes) === */
 dialog.turbo-overlay--modal[open]                            { animation: turbo-overlay-fade-in 0.15s ease-out; }
 dialog.turbo-overlay--modal[open]::backdrop                  { animation: turbo-overlay-backdrop-in 0.15s ease-out; }
@@ -130,7 +146,8 @@ dialog.turbo-overlay--popover.turbo-overlay-closing  { animation: turbo-overlay-
   dialog.turbo-overlay,
   dialog.turbo-overlay::backdrop,
   dialog.turbo-overlay.turbo-overlay-closing,
-  dialog.turbo-overlay.turbo-overlay-closing::backdrop { animation: none !important; }
+  dialog.turbo-overlay.turbo-overlay-closing::backdrop,
+  .turbo-overlay-hint[data-state] { animation: none !important; }
 }
 
 /* === Non-modal drawer (opened via dialog.show(), no ::backdrop) === */

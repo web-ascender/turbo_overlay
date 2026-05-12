@@ -55,6 +55,8 @@ module TurboOverlay
           "app/javascript/turbo_overlay/stack_controller.js"
         copy_gem_file "app/javascript/turbo_overlay/overlay_controller.js",
           "app/javascript/turbo_overlay/overlay_controller.js"
+        copy_gem_file "app/javascript/turbo_overlay/hint_controller.js",
+          "app/javascript/turbo_overlay/hint_controller.js"
         copy_gem_file "app/javascript/turbo_overlay/popover_position.js",
           "app/javascript/turbo_overlay/popover_position.js"
 
@@ -86,6 +88,8 @@ module TurboOverlay
           "app/views/layouts/turbo_drawer.html.erb"
         copy_gem_file "app/views/layouts/turbo_popover.html.erb",
           "app/views/layouts/turbo_popover.html.erb"
+        copy_gem_file "app/views/layouts/turbo_hint.html.erb",
+          "app/views/layouts/turbo_hint.html.erb"
       end
 
       private

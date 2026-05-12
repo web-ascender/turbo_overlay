@@ -50,4 +50,15 @@ TurboOverlay.configure do |config|
     # `data-turbo-confirm-style="popover"` (or "modal") on the link/form.
     # cf.style = :modal
   end
+
+  config.hint do |h|
+    # Hover-triggered preview overlays. Inert without
+    # `data-turbo-overlay-hint` (or `hint: true` on an overlay helper)
+    # on the link, so leaving `enabled` on for apps that don't use
+    # hints is free.
+    # h.enabled       = true
+    # h.show_delay_ms = 250       # hover must persist this long
+    # h.hide_delay_ms = 120       # grace window after mouseleave
+    # h.template_id   = "turbo-overlay-hint"
+  end
 end

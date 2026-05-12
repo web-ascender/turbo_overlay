@@ -122,6 +122,38 @@ class ConfigurationTest < Minitest::Test
     assert_kind_of TurboOverlay::ConfirmConfig, TurboOverlay.configuration.confirm
   end
 
+  # ---- hint ----
+
+  def test_default_hint_values
+    hint = TurboOverlay.configuration.hint
+    assert_equal :hint,                hint.variant
+    assert_equal "turbo_hint",         hint.layout_name
+    assert_equal "turbo-overlay-hint", hint.stimulus_identifier
+    assert_equal 250,                  hint.show_delay_ms
+    assert_equal 120,                  hint.hide_delay_ms
+    assert_equal "turbo-overlay-hint", hint.template_id
+    assert_equal true,                 hint.enabled
+  end
+
+  def test_configure_hint_with_block
+    TurboOverlay.configure do |c|
+      c.hint do |h|
+        h.enabled       = false
+        h.show_delay_ms = 400
+        h.template_id   = "preview"
+      end
+    end
+    hint = TurboOverlay.configuration.hint
+    assert_equal false,     hint.enabled
+    assert_equal 400,       hint.show_delay_ms
+    assert_equal "preview", hint.template_id
+  end
+
+  def test_hint_returns_hint_config_subclass
+    assert_kind_of TurboOverlay::HintConfig,        TurboOverlay.configuration.hint
+    assert_kind_of TurboOverlay::OverlayTypeConfig, TurboOverlay.configuration.hint
+  end
+
   # ---- reset ----
 
   def test_reset_configuration_restores_defaults
@@ -130,12 +162,15 @@ class ConfigurationTest < Minitest::Test
       c.drawer  { |d| d.position = :top }
       c.popover { |p| p.position = :left; p.offset = 12 }
       c.confirm { |cf| cf.style = :popover }
+      c.hint    { |h| h.enabled = false; h.show_delay_ms = 500 }
     end
     assert_equal "custom_stack", TurboOverlay.configuration.stack_id
     assert_equal :top,           TurboOverlay.configuration.drawer.position
     assert_equal :left,          TurboOverlay.configuration.popover.position
     assert_equal 12,             TurboOverlay.configuration.popover.offset
     assert_equal :popover,       TurboOverlay.configuration.confirm.style
+    assert_equal false,          TurboOverlay.configuration.hint.enabled
+    assert_equal 500,            TurboOverlay.configuration.hint.show_delay_ms
 
     TurboOverlay.reset_configuration!
     assert_equal "turbo_overlay_stack", TurboOverlay.configuration.stack_id
@@ -143,5 +178,7 @@ class ConfigurationTest < Minitest::Test
     assert_equal :bottom,               TurboOverlay.configuration.popover.position
     assert_equal 4,                     TurboOverlay.configuration.popover.offset
     assert_equal :modal,                TurboOverlay.configuration.confirm.style
+    assert_equal true,                  TurboOverlay.configuration.hint.enabled
+    assert_equal 250,                   TurboOverlay.configuration.hint.show_delay_ms
   end
 end

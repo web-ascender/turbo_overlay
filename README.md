@@ -229,6 +229,125 @@ in a small floating panel. Opt back in per-view with
 `<% overlay_close true %>`, or globally by editing
 `app/views/turbo_overlay/_popover.html.erb`.
 
+### Hover hints
+
+Hover over a link, get a small preview popover. The hint shows after
+a short hover (default 250ms) and dismisses on mouseout (with a grace
+window so the user can move into the hint to read or click). Combines
+with Turbo's hover prefetch so the same fetch that warms the
+navigation also seeds the hint — single fetch, two purposes.
+
+```erb
+<%# users/show.html.erb — emit a hint template for THIS page %>
+<% turbo_overlay_hint do %>
+  <h3><%= @user.name %></h3>
+  <p>Last seen <%= time_ago_in_words(@user.last_seen_at) %> ago</p>
+<% end %>
+
+<%# anywhere — make a link show that hint on hover %>
+<%= hint_link_to "User", user_path(@user) %>
+```
+
+`turbo_overlay_hint do … end` captures a hint body for the page.
+`overlay_stack_tag` emits it as a `<template id="turbo-overlay-hint">`
+near the bottom of the body. When another page links to this one
+with `hint_link_to`, Turbo's hover prefetch fetches this page; the
+gem hooks `turbo:before-fetch-response`, finds the template in the
+prefetched HTML, caches the fragment by URL, and shows it on hover
+delay.
+
+#### Compose with overlay link helpers
+
+`hint:` / `hint_url:` work on every overlay helper:
+
+```erb
+<%= modal_link_to   "Edit", edit_user_path(@user),
+                    hint: true, hint_url: hint_user_path(@user) %>
+<%= drawer_link_to  "Filters", filters_path,
+                    hint: true, hint_url: hint_filters_path %>
+<%= popover_link_to "Edit", edit_user_path(@user),
+                    hint: true, hint_url: hint_user_path(@user) %>
+```
+
+Or via plain `link_to` if you don't want the helper sugar:
+
+```erb
+<%= link_to "User", user_path(@user),
+            data: { turbo_overlay_hint: true,
+                    turbo_overlay_hint_url: hint_user_path(@user) } %>
+```
+
+#### Plain links vs overlay links
+
+**Plain links** (no `data-turbo-stream`) ride Turbo's hover prefetch.
+Embed the hint template on the destination page with
+`turbo_overlay_hint do … end` and you're done.
+
+**Overlay links** (`modal_link_to` / `drawer_link_to` /
+`popover_link_to`) carry `data-turbo-stream="true"`, which **Turbo's
+hover prefetch ignores**. So embedding `turbo_overlay_hint` on the
+modal-served page won't help — Turbo never prefetches it. For these,
+provide an explicit `hint_url:` that the gem fetches with the
+`:hint` request variant on hover. A lean `show.html+hint.erb` is the
+natural target:
+
+```ruby
+# config/routes.rb
+resources :users do
+  get :hint, on: :member
+end
+
+# app/controllers/users_controller.rb
+def hint
+  @user = User.find(params[:id])
+end
+```
+
+```erb
+<%# app/views/users/hint.html+hint.erb %>
+<h3><%= @user.name %></h3>
+<p>Last seen <%= time_ago_in_words(@user.last_seen_at) %> ago</p>
+```
+
+The `turbo_hint` layout wraps the body in the same
+`<template id="turbo-overlay-hint">` shape the inline path emits, so
+the JS extractor has one code path.
+
+#### Touch, accessibility, and dismissal
+
+- **Touch devices** (`(hover: none)`) are detected at `connect` and
+  the controller short-circuits — no hint behavior, no listeners.
+- **Keyboard accessibility**: focusing a hint-marked link shows the
+  hint after the same delay; blurring it starts the grace timer.
+  The hint element gets a `role="tooltip"` and is linked to the
+  trigger via `aria-describedby` while visible.
+- **Dismissal**: mouseout (with grace), focusout (with grace), ESC,
+  Turbo navigation (`turbo:visit`), or any click intercepted by Turbo
+  (`turbo:click`). Hints don't participate in the overlay stack —
+  they dismiss purely client-side, which is the documented exception
+  to "closing is always explicit" (see below).
+
+#### Redirects
+
+If `users/42` redirects to `profiles/42`, the gem caches the
+extracted fragment under **both** URLs so hovering either link in
+the same page lifetime resolves to the same hint without a refetch.
+
+#### Disabling globally
+
+```ruby
+TurboOverlay.configure do |config|
+  config.hint.enabled = false   # opt out entirely
+  # ...or tune:
+  # config.hint.show_delay_ms = 400
+  # config.hint.hide_delay_ms = 200
+end
+```
+
+The feature is inert on pages without `data-turbo-overlay-hint`
+markers anyway, so the global switch is mostly for apps that have
+strong opinions about hover UI.
+
 ### Stable ids and closing from server code
 
 If you want to close a specific overlay later from server code, give
@@ -343,11 +462,16 @@ turbo_stream.overlay(:close, scope: :all, type: :popover) # close all popovers o
 turbo_stream.overlay(:close, id: "edit_user_42")          # close one specific
 ```
 
-> **Closing is always explicit.** This gem does *not* auto-close on
+> **Closing is always explicit (for modals, drawers, and popovers).**
+> This gem does *not* auto-close click-opened overlays on
 > `turbo:submit-end`. A submission only closes the overlay if the
 > response includes `turbo_stream.overlay(:close, …)`. That avoids
 > surprise dismissals when a form inside the overlay should leave it
 > open (wizard step, search, inline edit).
+>
+> **Hints are the exception** — they open from hover state and dismiss
+> purely client-side on mouseout (with a grace window). There's no
+> `turbo_stream.overlay(:close, type: :hint)` path for that reason.
 
 ### User-initiated dismissal
 
@@ -474,16 +598,24 @@ TurboOverlay.configure do |config|
   config.confirm do |cf|
     cf.style = :modal                      # :modal (default) or :popover
   end
+
+  config.hint do |h|
+    h.enabled       = true                 # default on; inert without links
+    h.show_delay_ms = 250
+    h.hide_delay_ms = 120                  # grace window after mouseleave
+    h.template_id   = "turbo-overlay-hint"
+  end
 end
 ```
 
 ### Customizing the chrome
 
-The install generator copies five partials into your app:
+The install generator copies six partials into your app:
 
 - `app/views/turbo_overlay/_modal.html.erb`
 - `app/views/turbo_overlay/_drawer.html.erb`
 - `app/views/turbo_overlay/_popover.html.erb`
+- `app/views/turbo_overlay/_hint.html.erb`
 - `app/views/turbo_overlay/_confirm.html+modal.erb`
 - `app/views/turbo_overlay/_confirm.html+popover.erb`
 
@@ -511,18 +643,19 @@ Available on controllers (when the concern is included) and views:
 
 | Helper                                  | Returns                                                                |
 |-----------------------------------------|------------------------------------------------------------------------|
-| `modal_request?` / `drawer_request?` / `popover_request?` | `true` if the current request targets that overlay type   |
+| `modal_request?` / `drawer_request?` / `popover_request?` / `hint_request?` | `true` if the current request targets that overlay type |
 | `overlay_request?`                      | `true` if the current request targets *any* overlay                    |
-| `current_overlay_type`                  | `:modal`, `:drawer`, `:popover`, or `nil`                              |
+| `current_overlay_type`                  | `:modal`, `:drawer`, `:popover`, `:hint`, or `nil`                     |
 | `current_overlay_id`                    | The overlay id for the current request (user-supplied or generated)    |
 | `current_overlay_position`              | Per-link position override (drawer or popover), or `nil`               |
 | `current_overlay_align`                 | Per-link popover cross-axis alignment, or `nil`                        |
 | `current_overlay_offset`                | Per-link popover pixel offset, or `nil`                                |
 | `current_overlay_backdrop?`             | `false` only when the link opened with `backdrop: false`; else `true`  |
 | `current_overlay_close?`                | `false` only when the link opened with `close_button: false`; else `true` |
-| `modal_link_to(name, path, overlay_id:, close_button:)` | `link_to` that opens the target as a stacked modal; `close_button: false` suppresses the default × |
-| `drawer_link_to(name, path, overlay_id:, position:, backdrop:, close_button:)` | `link_to` that opens the target as a stacked drawer; `position:` overrides the configured side, `backdrop: false` opens non-modally, `close_button: false` suppresses the default × |
-| `popover_link_to(name, path, overlay_id:, position:, align:, offset:, close_button:)` | `link_to` that opens the target as a popover anchored to the link |
+| `modal_link_to(name, path, overlay_id:, close_button:, hint:, hint_url:)` | `link_to` that opens the target as a stacked modal; `hint:` / `hint_url:` add a hover preview |
+| `drawer_link_to(name, path, overlay_id:, position:, backdrop:, close_button:, hint:, hint_url:)` | `link_to` that opens the target as a stacked drawer |
+| `popover_link_to(name, path, overlay_id:, position:, align:, offset:, close_button:, hint:, hint_url:)` | `link_to` that opens the target as a popover anchored to the link |
+| `hint_link_to(name, path, hint_url:)`   | plain `link_to` decorated with hint data attributes (no overlay opening) |
 | `modal_dismiss_link_to(...)`            | dismiss link inside a modal                                            |
 | `drawer_dismiss_link_to(...)`           | dismiss link inside a drawer                                           |
 | `popover_dismiss_link_to(...)`          | dismiss link inside a popover                                          |
@@ -530,16 +663,17 @@ Available on controllers (when the concern is included) and views:
 | `overlay_title(value, &block)`          | sets `content_for :overlay_title`                                      |
 | `overlay_footer(value, &block)`         | sets `content_for :overlay_footer`                                     |
 | `overlay_close(show = true)`            | toggle the chrome's default close button for this render (`overlay_close false` to hide) |
+| `turbo_overlay_hint(value, &block)`     | capture a hint body for this page (emitted as `<template id="…">` by `overlay_stack_tag`) |
 | `turbo_stream.overlay(:close, scope:, type:, id:)` | turbo-stream action; closes top, all, or one overlay        |
 
 ## Themes
 
-| Theme        | Modal | Drawer | Popover | Notes                                                       |
-|--------------|:-----:|:------:|:-------:|-------------------------------------------------------------|
-| `plain`      | ✓     | ✓      | ✓       | Native `<dialog>`, minimal vanilla CSS                      |
-| `tailwind`   | ✓     | ✓      | ✓       | Native `<dialog>`, Tailwind classes                         |
-| `bootstrap5` | ✓     | ✓      | ✓       | Native `<dialog>` wrapping BS5 modal/offcanvas/popover markup |
-| `bootstrap3` | ✓     | ✓      | ✓       | Native `<dialog>` wrapping BS3 modal/popover markup; vanilla drawer |
+| Theme        | Modal | Drawer | Popover | Hint | Notes                                                       |
+|--------------|:-----:|:------:|:-------:|:----:|-------------------------------------------------------------|
+| `plain`      | ✓     | ✓      | ✓       | ✓    | Native `<dialog>`, minimal vanilla CSS                      |
+| `tailwind`   | ✓     | ✓      | ✓       | ✓    | Native `<dialog>`, Tailwind classes                         |
+| `bootstrap5` | ✓     | ✓      | ✓       | ✓    | Native `<dialog>` wrapping BS5 modal/offcanvas/popover markup |
+| `bootstrap3` | ✓     | ✓      | ✓       | ✓    | Native `<dialog>` wrapping BS3 modal/popover markup; vanilla drawer |
 
 Every theme uses the same JavaScript and CSS — the only thing that
 varies is the chrome partial Rails renders inside the dialog. Pick a

@@ -49,6 +49,18 @@ class ViewHelperTest < Minitest::Test
 
     def content_for(name, value = nil, &block)
       @content_for_calls << [name, value, block]
+      @_captured ||= {}
+      if block || value
+        stored = block ? block.call : value
+        @_captured[name] = stored
+        stored
+      else
+        @_captured[name]
+      end
+    end
+
+    def content_for?(name)
+      @_captured && @_captured.key?(name)
     end
 
     def turbo_frame_tag(id, **attrs, &block)
@@ -312,7 +324,7 @@ class ViewHelperTest < Minitest::Test
     view = FakeView.new
     output = view.overlay_stack_tag
     assert_includes output, %(id="turbo_overlay_stack")
-    assert_includes output, %(data-controller="turbo-overlay-stack")
+    assert_match(/data-controller="turbo-overlay-stack(\s+turbo-overlay-hint)?"/, output)
   end
 
   def test_overlay_stack_tag_uses_configured_stack_id
@@ -516,5 +528,119 @@ class ViewHelperTest < Minitest::Test
     _, _, html_options = view.link_to_args
     refute html_options.key?("data-action")
     refute html_options.key?("data-turbo-popover-dismiss")
+  end
+
+  # ---- hint_link_to ----
+
+  def test_hint_link_to_sets_data_attribute
+    view = FakeView.new
+    view.hint_link_to("User", "/users/1")
+
+    _, _, html_options = view.link_to_args
+    assert_equal "true", html_options[:data][:turbo_overlay_hint]
+  end
+
+  def test_hint_link_to_with_hint_url_sets_url_attribute
+    view = FakeView.new
+    view.hint_link_to("User", "/users/1", hint_url: "/users/1/hint")
+
+    _, _, html_options = view.link_to_args
+    assert_equal "/users/1/hint", html_options[:data][:turbo_overlay_hint_url]
+  end
+
+  def test_hint_link_to_does_not_set_turbo_stream_or_top_frame
+    # hint_link_to is meant to be a plain navigation link with a hover
+    # preview — not an overlay-opening link.
+    view = FakeView.new
+    view.hint_link_to("User", "/users/1")
+
+    _, _, html_options = view.link_to_args
+    refute html_options[:data].key?(:turbo_stream)
+    refute html_options[:data].key?(:turbo_frame)
+  end
+
+  # ---- hint composition on overlay link helpers ----
+
+  def test_modal_link_to_with_hint_true_sets_data_attribute
+    view = FakeView.new
+    view.modal_link_to("Edit", "/edit", hint: true)
+
+    _, _, html_options = view.link_to_args
+    assert_equal "true", html_options[:data][:turbo_overlay_hint]
+  end
+
+  def test_modal_link_to_with_hint_url_sets_url_attribute
+    view = FakeView.new
+    view.modal_link_to("Edit", "/edit", hint: true, hint_url: "/edit/hint")
+
+    _, _, html_options = view.link_to_args
+    assert_equal "true",       html_options[:data][:turbo_overlay_hint]
+    assert_equal "/edit/hint", html_options[:data][:turbo_overlay_hint_url]
+  end
+
+  def test_drawer_link_to_with_hint_true_sets_data_attribute
+    view = FakeView.new
+    view.drawer_link_to("Filters", "/filters", hint: true)
+
+    _, _, html_options = view.link_to_args
+    assert_equal "true", html_options[:data][:turbo_overlay_hint]
+  end
+
+  def test_popover_link_to_with_hint_true_sets_data_attribute
+    view = FakeView.new
+    view.popover_link_to("Edit", "/edit", hint: true)
+
+    _, _, html_options = view.link_to_args
+    assert_equal "true", html_options[:data][:turbo_overlay_hint]
+  end
+
+  def test_overlay_link_omits_hint_attributes_when_not_provided
+    view = FakeView.new
+    view.modal_link_to("Edit", "/edit")
+
+    _, _, html_options = view.link_to_args
+    refute html_options[:data].key?(:turbo_overlay_hint)
+    refute html_options[:data].key?(:turbo_overlay_hint_url)
+  end
+
+  # ---- turbo_overlay_hint capture ----
+
+  def test_turbo_overlay_hint_sets_content_for
+    view = FakeView.new
+    view.turbo_overlay_hint("preview body")
+    name, value, _block = view.content_for_calls.first
+    assert_equal :turbo_overlay_hint, name
+    assert_equal "preview body", value
+  end
+
+  def test_overlay_stack_tag_emits_hint_template_when_content_present
+    view = FakeView.new
+    view._lookup_context = FakeLookupContext.new(exists: false)
+    view.turbo_overlay_hint("PREVIEW")
+    output = view.overlay_stack_tag
+    assert_includes output, %(<template id="turbo-overlay-hint">)
+    assert_includes output, "PREVIEW"
+  end
+
+  def test_overlay_stack_tag_omits_hint_template_without_content
+    view = FakeView.new
+    output = view.overlay_stack_tag
+    refute_includes output, %(<template id="turbo-overlay-hint">)
+  end
+
+  def test_overlay_stack_tag_includes_hint_controller_by_default
+    view = FakeView.new
+    output = view.overlay_stack_tag
+    assert_includes output, "turbo-overlay-hint"
+    # And the hint config values are exposed:
+    assert_includes output, "data-turbo-overlay-hint-show-delay-value"
+    assert_includes output, "data-turbo-overlay-hint-template-id-value"
+  end
+
+  def test_overlay_stack_tag_drops_hint_controller_when_disabled
+    TurboOverlay.configure { |c| c.hint { |h| h.enabled = false } }
+    view = FakeView.new
+    output = view.overlay_stack_tag
+    refute_match(/data-controller="[^"]*turbo-overlay-hint/, output)
   end
 end

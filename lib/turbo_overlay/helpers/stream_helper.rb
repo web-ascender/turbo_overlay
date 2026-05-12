@@ -14,6 +14,8 @@ module TurboOverlay
     module StreamHelper
       ALLOWED_MESSAGES = %i[close hide dismiss].freeze
       ALLOWED_SCOPES   = %i[top all].freeze
+      # :hint is intentionally absent — hints dismiss client-side on
+      # mouseout and don't participate in the server-driven close path.
       ALLOWED_TYPES    = %i[modal drawer popover].freeze
 
       def overlay(message = :close, scope: :top, type: nil, id: nil)

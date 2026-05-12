@@ -63,11 +63,13 @@ module TurboOverlay
         modal_src           = chrome_source_path("_modal.html.erb")
         drawer_src          = chrome_source_path("_drawer.html.erb")
         popover_src         = chrome_source_path("_popover.html.erb")
+        hint_src            = chrome_source_path("_hint.html.erb")
         confirm_modal_src   = chrome_source_path("_confirm.html+modal.erb")
         confirm_popover_src = chrome_source_path("_confirm.html+popover.erb")
         copy_file modal_src,           "app/views/turbo_overlay/_modal.html.erb"
         copy_file drawer_src,          "app/views/turbo_overlay/_drawer.html.erb"
         copy_file popover_src,         "app/views/turbo_overlay/_popover.html.erb"
+        copy_file hint_src,            "app/views/turbo_overlay/_hint.html.erb"
         copy_file confirm_modal_src,   "app/views/turbo_overlay/_confirm.html+modal.erb"
         copy_file confirm_popover_src, "app/views/turbo_overlay/_confirm.html+popover.erb"
       end
@@ -140,6 +142,7 @@ module TurboOverlay
                 return modal_layout_name   if modal_request?
                 return drawer_layout_name  if drawer_request?
                 return popover_layout_name if popover_request?
+                return hint_layout_name    if hint_request?
                 "application"
               end
             end
@@ -149,6 +152,12 @@ module TurboOverlay
             <%= modal_link_to   "New",     new_thing_path %>
             <%= drawer_link_to  "Filters", filters_path %>
             <%= popover_link_to "Edit",    edit_thing_path(@thing) %>
+
+          Add hover-hint previews to any link with `hint: true`, and
+          (optionally) `hint_url:` for content from a separate URL:
+
+            <%= hint_link_to "User",       user_path(@user) %>
+            <%= modal_link_to "Edit", path, hint: true, hint_url: hint_path %>
 
         MSG
 

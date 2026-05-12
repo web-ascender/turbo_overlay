@@ -65,6 +65,11 @@ class StreamHelperTest < Minitest::Test
     assert_equal [["overlay", { message: "close", scope: "all", type: "popover" }]], @builder.calls
   end
 
+  def test_close_with_hint_type_raises
+    # Hints are dismissed client-side; intentionally not in ALLOWED_TYPES.
+    assert_raises(ArgumentError) { @builder.overlay(:close, type: :hint) }
+  end
+
   def test_close_with_id_targets_specific_overlay
     @builder.overlay(:close, id: "edit_user_42")
     assert_equal [["overlay", { message: "close", scope: "top", :"overlay-id" => "edit_user_42" }]], @builder.calls
