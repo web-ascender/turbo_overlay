@@ -187,7 +187,7 @@ class ViewHelperTest < Minitest::Test
       self
     end
 
-    def turbo_overlay_hintable_request?
+    def overlay_hintable_request?
       @_hintable_request
     end
 

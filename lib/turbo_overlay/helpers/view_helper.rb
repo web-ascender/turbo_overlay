@@ -213,7 +213,7 @@ module TurboOverlay
 
         # On a hintable request, render the action's `+hint.erb`
         # variant template if one exists. Gated on
-        # `_turbo_overlay_hintable_request?` so a regular page render
+        # `_overlay_hintable_request?` so a regular page render
         # doesn't pay the cost.
         body = _turbo_overlay_resolved_hint_body
         if body
@@ -317,7 +317,7 @@ module TurboOverlay
       # Apps that want hint previews drop a `show.html+hint.erb` next
       # to `show.html.erb` and the gem auto-emits its content.
       def _turbo_overlay_resolved_hint_body
-        return nil unless _turbo_overlay_hintable_request?
+        return nil unless _overlay_hintable_request?
         return nil unless _turbo_overlay_action_hint_variant_exists?
         render(
           template: _turbo_overlay_action_template_path,
@@ -349,8 +349,8 @@ module TurboOverlay
       # True for prefetches and explicit `:hint` variant fetches. The
       # detection lives on the controller concern; the view helper just
       # delegates so chrome-rendering code paths can read it.
-      def _turbo_overlay_hintable_request?
-        controller.turbo_overlay_hintable_request?
+      def _overlay_hintable_request?
+        controller.overlay_hintable_request?
       end
 
       # Render `turbo_overlay/<name>` for the given variant, preferring

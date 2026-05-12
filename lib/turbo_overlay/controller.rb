@@ -48,8 +48,8 @@ module TurboOverlay
         :overlay_request?, :turbo_overlay_id, :turbo_overlay_type,
         :turbo_overlay_position, :turbo_overlay_align,
         :turbo_overlay_offset, :turbo_overlay_backdrop?,
-        :turbo_overlay_close?, :turbo_overlay_prefetch_request?,
-        :turbo_overlay_hintable_request?
+        :turbo_overlay_close?, :overlay_prefetch_request?,
+        :overlay_hintable_request?
     end
 
     # ----- modal -----
@@ -107,7 +107,7 @@ module TurboOverlay
     # JS-initiated `fetch()` requests, so Turbo prepends `X-`. Used
     # by `overlay_stack_tag` to decide whether to render the action's
     # `+hint` variant template inline.
-    def turbo_overlay_prefetch_request?
+    def overlay_prefetch_request?
       return false unless respond_to?(:request) && request
       request.headers["X-Sec-Purpose"].to_s.include?("prefetch")
     end
@@ -116,8 +116,8 @@ module TurboOverlay
     # a hover prefetch (which the gem's JS extracts the template from)
     # or an explicit `:hint` variant fetch. Gates the `+hint` variant
     # auto-render in `overlay_stack_tag`.
-    def turbo_overlay_hintable_request?
-      hint_request? || turbo_overlay_prefetch_request?
+    def overlay_hintable_request?
+      hint_request? || overlay_prefetch_request?
     end
 
     # Returns `:modal`, `:drawer`, `:popover`, or `nil`. Detected from
