@@ -288,28 +288,43 @@ Embed the hint template on the destination page with
 hover prefetch ignores**. So embedding `turbo_overlay_hint` on the
 modal-served page won't help — Turbo never prefetches it. For these,
 provide an explicit `hint_url:` that the gem fetches with the
-`:hint` request variant on hover. A lean `show.html+hint.erb` is the
-natural target:
+`:hint` request variant on hover. The `:hint` variant request hits
+the same action as the destination URL (e.g.
+`client_root_path` → `clients/dashboard#show`). The gem's
+`turbo_hint` layout looks for a `turbo_overlay_hint do … end` block
+in the view and uses *just that body* as the hint, ignoring the rest
+of the page render. So if the destination already has a
+`turbo_overlay_hint do … end` for the inline prefetch path, that
+same block drives the explicit `hint_url:` path automatically:
 
-```ruby
-# config/routes.rb
-resources :users do
-  get :hint, on: :member
-end
+```erb
+<%# app/views/clients/dashboard/show.html.erb %>
+<% turbo_overlay_hint do %>
+  <h3><%= @client.name %></h3>
+  <p>Last updated <%= time_ago_in_words(@client.updated_at) %> ago</p>
+<% end %>
 
-# app/controllers/users_controller.rb
-def hint
-  @user = User.find(params[:id])
-end
+<%# …regular page content below… %>
 ```
 
 ```erb
-<%# app/views/users/hint.html+hint.erb %>
-<h3><%= @user.name %></h3>
-<p>Last seen <%= time_ago_in_words(@user.last_seen_at) %> ago</p>
+<%# anywhere — both work, both show the same hint body %>
+<%= hint_link_to "Open", client_root_path(@client) %>
+<%= modal_link_to "Agency view", agency_client_path(@client),
+                  hint: true, hint_url: client_root_path(@client) %>
 ```
 
-The `turbo_hint` layout wraps the body in the same
+For a leaner hint render (skip rendering the rest of the view server-side),
+drop a `show.html+hint.erb` variant that returns just the body — when
+no `content_for(:turbo_overlay_hint)` is set, the layout uses `yield`:
+
+```erb
+<%# app/views/clients/dashboard/show.html+hint.erb %>
+<h3><%= @client.name %></h3>
+<p>Last updated <%= time_ago_in_words(@client.updated_at) %> ago</p>
+```
+
+Either way the `turbo_hint` layout wraps the chosen body in the same
 `<template id="turbo-overlay-hint">` shape the inline path emits, so
 the JS extractor has one code path.
 
