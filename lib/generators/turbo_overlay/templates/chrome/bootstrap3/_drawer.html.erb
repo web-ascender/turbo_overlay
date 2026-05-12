@@ -1,6 +1,6 @@
 <% loading      = local_assigns.fetch(:loading, false) %>
-<% position    = current_overlay_position || TurboOverlay.configuration.drawer.position %>
-<% backdrop    = current_overlay_backdrop? %>
+<% position    = turbo_overlay_position || TurboOverlay.configuration.drawer.position %>
+<% backdrop    = turbo_overlay_backdrop? %>
 <% close_button = local_assigns.fetch(:close_button) { overlay_close? } %>
 <dialog class="<%= token_list("turbo-overlay", "turbo-overlay--drawer", "turbo-overlay--drawer-#{position}", "turbo-overlay-scaffold", "turbo-overlay--loading": loading, "turbo-overlay--no-backdrop": !backdrop) %>"
         <% if loading %>
@@ -9,11 +9,11 @@
         aria-label="Loading"
         <% else %>
         data-controller="turbo-overlay"
-        data-turbo-overlay-id-value="<%= current_overlay_id %>"
+        data-turbo-overlay-id-value="<%= turbo_overlay_id %>"
         data-turbo-overlay-type-value="drawer"
         data-turbo-overlay-backdrop-value="<%= backdrop %>"
         data-action="cancel->turbo-overlay#cancel click->turbo-overlay#backdropClick"
-        aria-labelledby="turbo-drawer-title-<%= current_overlay_id %>"
+        aria-labelledby="turbo-drawer-title-<%= turbo_overlay_id %>"
         <% end %>>
   <div class="panel panel-default turbo-drawer-panel" style="position:relative;">
     <% if !loading && content_for?(:overlay_title) %>
@@ -24,7 +24,7 @@
                   data-action="turbo-overlay#close"
                   aria-label="Close"><span aria-hidden="true">&times;</span></button>
         <% end %>
-        <h4 id="turbo-drawer-title-<%= current_overlay_id %>" class="panel-title">
+        <h4 id="turbo-drawer-title-<%= turbo_overlay_id %>" class="panel-title">
           <%= yield(:overlay_title) %>
         </h4>
       </div>

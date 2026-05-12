@@ -293,9 +293,9 @@ module TurboOverlay
       # The id of the overlay currently being rendered. Available
       # inside overlay layouts/partials and in any code path serving
       # an overlay request. Useful for `aria-labelledby` ids and for
-      # `turbo_stream.overlay(:close, id: current_overlay_id)`.
-      def current_overlay_id
-        return controller.current_overlay_id if controller.respond_to?(:current_overlay_id)
+      # `turbo_stream.overlay(:close, id: turbo_overlay_id)`.
+      def turbo_overlay_id
+        return controller.turbo_overlay_id if controller.respond_to?(:turbo_overlay_id)
         nil
       end
 
@@ -305,23 +305,23 @@ module TurboOverlay
       # `TurboOverlay.configuration.drawer.position`; popover
       # partials fall back to
       # `TurboOverlay.configuration.popover.position`.
-      def current_overlay_position
-        return controller.current_overlay_position if controller.respond_to?(:current_overlay_position)
+      def turbo_overlay_position
+        return controller.turbo_overlay_position if controller.respond_to?(:turbo_overlay_position)
         nil
       end
 
       # The per-link cross-axis alignment for popovers, or `nil`.
       # Popover partials fall back to
       # `TurboOverlay.configuration.popover.align`.
-      def current_overlay_align
-        return controller.current_overlay_align if controller.respond_to?(:current_overlay_align)
+      def turbo_overlay_align
+        return controller.turbo_overlay_align if controller.respond_to?(:turbo_overlay_align)
         nil
       end
 
       # The per-link pixel offset for popovers, or `nil`. Popover
       # partials fall back to `TurboOverlay.configuration.popover.offset`.
-      def current_overlay_offset
-        return controller.current_overlay_offset if controller.respond_to?(:current_overlay_offset)
+      def turbo_overlay_offset
+        return controller.turbo_overlay_offset if controller.respond_to?(:turbo_overlay_offset)
         nil
       end
 
@@ -329,18 +329,18 @@ module TurboOverlay
       # backdrop (the default) or non-modally (`backdrop: false` on
       # the link helper). Drawer partials switch the `<dialog>` open
       # mode and CSS based on this.
-      def current_overlay_backdrop?
-        return controller.current_overlay_backdrop? if controller.respond_to?(:current_overlay_backdrop?)
+      def turbo_overlay_backdrop?
+        return controller.turbo_overlay_backdrop? if controller.respond_to?(:turbo_overlay_backdrop?)
         true
       end
 
       # The DOM id of the per-overlay turbo-frame for the current
       # request: `turbo_overlay_<type>_<id>`. Used by overlay layouts
       # to tag the wrapping frame.
-      def current_overlay_frame_id(type = nil)
-        type ||= controller.respond_to?(:current_overlay_type) ? controller.current_overlay_type : nil
-        return nil unless type && current_overlay_id
-        "turbo_overlay_#{type}_#{current_overlay_id}"
+      def turbo_overlay_frame_id(type = nil)
+        type ||= controller.respond_to?(:turbo_overlay_type) ? controller.turbo_overlay_type : nil
+        return nil unless type && turbo_overlay_id
+        "turbo_overlay_#{type}_#{turbo_overlay_id}"
       end
 
       # Wraps the given block in the appropriate response primitive
@@ -357,7 +357,7 @@ module TurboOverlay
       #
       # Used by the modal/drawer layouts to keep them readable.
       def overlay_response_wrapper(type, &block)
-        frame_id = "turbo_overlay_#{type}_#{current_overlay_id}"
+        frame_id = "turbo_overlay_#{type}_#{turbo_overlay_id}"
         frame_html = turbo_frame_tag(frame_id, class: "turbo-overlay-frame", &block)
 
         is_re_render = controller.respond_to?(:turbo_overlay_frame_re_render?) &&
@@ -390,7 +390,7 @@ module TurboOverlay
       # Precedence (highest first): partial local `close_button:` on
       # `render "turbo_overlay/modal"`, this helper, the link option
       # `close_button: false` (carried as a request header and exposed
-      # via `current_overlay_close?`), then the default `true`.
+      # via `turbo_overlay_close?`), then the default `true`.
       def overlay_close(show = true)
         @_overlay_close = show
       end
@@ -399,7 +399,7 @@ module TurboOverlay
       # Resolves the precedence described on `overlay_close`.
       def overlay_close?
         return @_overlay_close != false if defined?(@_overlay_close)
-        return controller.current_overlay_close? if controller.respond_to?(:current_overlay_close?)
+        return controller.turbo_overlay_close? if controller.respond_to?(:turbo_overlay_close?)
         true
       end
 

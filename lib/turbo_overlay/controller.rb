@@ -45,17 +45,17 @@ module TurboOverlay
         :drawer_request?, :drawer_layout_name,
         :popover_request?, :popover_layout_name,
         :hint_request?, :hint_layout_name,
-        :overlay_request?, :current_overlay_id, :current_overlay_type,
-        :current_overlay_position, :current_overlay_align,
-        :current_overlay_offset, :current_overlay_backdrop?,
-        :current_overlay_close?, :turbo_overlay_prefetch_request?,
+        :overlay_request?, :turbo_overlay_id, :turbo_overlay_type,
+        :turbo_overlay_position, :turbo_overlay_align,
+        :turbo_overlay_offset, :turbo_overlay_backdrop?,
+        :turbo_overlay_close?, :turbo_overlay_prefetch_request?,
         :turbo_overlay_hintable_request?
     end
 
     # ----- modal -----
 
     def modal_request?
-      current_overlay_type == :modal
+      turbo_overlay_type == :modal
     end
 
     def modal_layout_name
@@ -65,7 +65,7 @@ module TurboOverlay
     # ----- drawer -----
 
     def drawer_request?
-      current_overlay_type == :drawer
+      turbo_overlay_type == :drawer
     end
 
     def drawer_layout_name
@@ -75,7 +75,7 @@ module TurboOverlay
     # ----- popover -----
 
     def popover_request?
-      current_overlay_type == :popover
+      turbo_overlay_type == :popover
     end
 
     def popover_layout_name
@@ -85,7 +85,7 @@ module TurboOverlay
     # ----- hint -----
 
     def hint_request?
-      current_overlay_type == :hint
+      turbo_overlay_type == :hint
     end
 
     def hint_layout_name
@@ -98,7 +98,7 @@ module TurboOverlay
     # (initial open or in-overlay form re-render). Useful in shared
     # partials.
     def overlay_request?
-      !current_overlay_type.nil?
+      !turbo_overlay_type.nil?
     end
 
     # True if the current request is a Turbo hover prefetch. Detected
@@ -124,7 +124,7 @@ module TurboOverlay
     # the `X-Turbo-Overlay` request header (initial open) or the
     # `Turbo-Frame: turbo_overlay_<type>_<id>` header (form re-render
     # inside an open overlay).
-    def current_overlay_type
+    def turbo_overlay_type
       return @_turbo_overlay_type if defined?(@_turbo_overlay_type)
       @_turbo_overlay_type = _resolve_overlay_type
     end
@@ -139,8 +139,8 @@ module TurboOverlay
     #    memoized for the duration of the request
     #
     # Available in the controller and in views (e.g. for
-    # `turbo_stream.overlay(:close, id: current_overlay_id)`).
-    def current_overlay_id
+    # `turbo_stream.overlay(:close, id: turbo_overlay_id)`).
+    def turbo_overlay_id
       return @_turbo_overlay_id if defined?(@_turbo_overlay_id)
       @_turbo_overlay_id = _resolve_overlay_id
     end
@@ -152,7 +152,7 @@ module TurboOverlay
     # fallback to `TurboOverlay.configuration.drawer.position`;
     # popover partials use it with a fallback to
     # `TurboOverlay.configuration.popover.position`.
-    def current_overlay_position
+    def turbo_overlay_position
       return @_turbo_overlay_position if defined?(@_turbo_overlay_position)
       @_turbo_overlay_position = _resolve_overlay_position
     end
@@ -161,7 +161,7 @@ module TurboOverlay
     # `X-Turbo-Overlay-Align` header. Returns a Symbol (`:start`,
     # `:center`, `:end`) or `nil`. Popover partials fall back to
     # `TurboOverlay.configuration.popover.align`.
-    def current_overlay_align
+    def turbo_overlay_align
       return @_turbo_overlay_align if defined?(@_turbo_overlay_align)
       @_turbo_overlay_align = _resolve_overlay_align
     end
@@ -170,7 +170,7 @@ module TurboOverlay
     # from the `X-Turbo-Overlay-Offset` header. Returns an Integer or
     # `nil`. Popover partials fall back to
     # `TurboOverlay.configuration.popover.offset`.
-    def current_overlay_offset
+    def turbo_overlay_offset
       return @_turbo_overlay_offset if defined?(@_turbo_overlay_offset)
       @_turbo_overlay_offset = _resolve_overlay_offset
     end
@@ -180,7 +180,7 @@ module TurboOverlay
     # explicitly passed `backdrop: false` (carried in the
     # `X-Turbo-Overlay-Backdrop` header). Drawer partials switch the
     # `<dialog>` open mode and CSS based on this.
-    def current_overlay_backdrop?
+    def turbo_overlay_backdrop?
       return @_turbo_overlay_backdrop if defined?(@_turbo_overlay_backdrop)
       @_turbo_overlay_backdrop = _resolve_overlay_backdrop
     end
@@ -191,7 +191,7 @@ module TurboOverlay
     # (carried in the `X-Turbo-Overlay-Close` header). Chrome partials
     # consult `overlay_close?` (view helper) which folds this into the
     # full opt-out precedence chain.
-    def current_overlay_close?
+    def turbo_overlay_close?
       return @_turbo_overlay_close if defined?(@_turbo_overlay_close)
       @_turbo_overlay_close = _resolve_overlay_close
     end
@@ -201,7 +201,7 @@ module TurboOverlay
     # overlay frame). Used internally to decide between turbo-stream
     # append wrapping and turbo-frame replace wrapping.
     def turbo_overlay_initial_open?
-      return false unless current_overlay_type
+      return false unless turbo_overlay_type
       !turbo_overlay_frame_re_render?
     end
 
@@ -235,7 +235,7 @@ module TurboOverlay
     end
 
     def _resolve_overlay_id
-      return nil unless current_overlay_type
+      return nil unless turbo_overlay_type
 
       supplied = request.headers[OVERLAY_ID_HEADER].to_s
       return supplied unless supplied.empty?
@@ -285,7 +285,7 @@ module TurboOverlay
     end
 
     def _turbo_overlay_set_variant
-      type = current_overlay_type
+      type = turbo_overlay_type
       return unless type
 
       variant = TurboOverlay.configuration.public_send(type).variant
@@ -310,13 +310,13 @@ module TurboOverlay
     # response if it ever did intercept it.
     def _turbo_overlay_force_html_format
       return unless turbo_overlay_initial_open?
-      return if current_overlay_type == :hint
+      return if turbo_overlay_type == :hint
       request.format = :html
     end
 
     def _turbo_overlay_set_stream_content_type
       return unless turbo_overlay_initial_open?
-      return if current_overlay_type == :hint
+      return if turbo_overlay_type == :hint
       return unless response
       response.content_type = "text/vnd.turbo-stream.html; charset=utf-8"
     end

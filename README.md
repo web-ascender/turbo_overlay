@@ -471,12 +471,12 @@ turbo_stream.overlay(:close, id: "edit_user_#{@user.id}")
 ```
 
 When `overlay_id:` is omitted, the gem generates a random id. Inside
-the controller and views you can read it as `current_overlay_id` —
+the controller and views you can read it as `turbo_overlay_id` —
 useful for closing the overlay you're currently rendering after a
 side-effect:
 
 ```ruby
-render turbo_stream: turbo_stream.overlay(:close, id: current_overlay_id)
+render turbo_stream: turbo_stream.overlay(:close, id: turbo_overlay_id)
 ```
 
 ### Customize what the overlay renders
@@ -773,13 +773,13 @@ Available on controllers (when the concern is included) and views:
 |-----------------------------------------|------------------------------------------------------------------------|
 | `modal_request?` / `drawer_request?` / `popover_request?` / `hint_request?` | `true` if the current request targets that overlay type |
 | `overlay_request?`                      | `true` if the current request targets *any* overlay                    |
-| `current_overlay_type`                  | `:modal`, `:drawer`, `:popover`, `:hint`, or `nil`                     |
-| `current_overlay_id`                    | The overlay id for the current request (user-supplied or generated)    |
-| `current_overlay_position`              | Per-link position override (drawer or popover), or `nil`               |
-| `current_overlay_align`                 | Per-link popover cross-axis alignment, or `nil`                        |
-| `current_overlay_offset`                | Per-link popover pixel offset, or `nil`                                |
-| `current_overlay_backdrop?`             | `false` only when the link opened with `backdrop: false`; else `true`  |
-| `current_overlay_close?`                | `false` only when the link opened with `close_button: false`; else `true` |
+| `turbo_overlay_type`                  | `:modal`, `:drawer`, `:popover`, `:hint`, or `nil`                     |
+| `turbo_overlay_id`                    | The overlay id for the current request (user-supplied or generated)    |
+| `turbo_overlay_position`              | Per-link position override (drawer or popover), or `nil`               |
+| `turbo_overlay_align`                 | Per-link popover cross-axis alignment, or `nil`                        |
+| `turbo_overlay_offset`                | Per-link popover pixel offset, or `nil`                                |
+| `turbo_overlay_backdrop?`             | `false` only when the link opened with `backdrop: false`; else `true`  |
+| `turbo_overlay_close?`                | `false` only when the link opened with `close_button: false`; else `true` |
 | `modal_link_to(name, path, overlay_id:, close_button:, hint:, hint_url:)` | `link_to` that opens the target as a stacked modal; `hint:` / `hint_url:` add a hover preview |
 | `drawer_link_to(name, path, overlay_id:, position:, backdrop:, close_button:, hint:, hint_url:)` | `link_to` that opens the target as a stacked drawer |
 | `popover_link_to(name, path, overlay_id:, position:, align:, offset:, close_button:, hint:, hint_url:)` | `link_to` that opens the target as a popover anchored to the link |

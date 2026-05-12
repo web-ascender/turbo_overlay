@@ -47,7 +47,7 @@ class ViewHelperTest < Minitest::Test
     include TurboOverlay::Helpers::ViewHelper
 
     attr_reader :link_to_args, :content_for_calls, :modal_request_value, :drawer_request_value, :popover_request_value
-    attr_accessor :_current_overlay_id, :_lookup_context, :_render_returns, :_hintable_request, :_controller_path, :_action_name
+    attr_accessor :_turbo_overlay_id, :_lookup_context, :_render_returns, :_hintable_request, :_controller_path, :_action_name
 
     def initialize(modal_request: false, drawer_request: false, popover_request: false, hintable_request: true, controller_path: "users", action_name: "show")
       # Default `hintable_request: true` so the existing hint-emission
@@ -61,7 +61,7 @@ class ViewHelperTest < Minitest::Test
       @popover_request_value = popover_request
       @link_to_args = nil
       @content_for_calls = []
-      @_current_overlay_id = nil
+      @_turbo_overlay_id = nil
       @_lookup_context = nil
       @_render_returns = ""
     end
@@ -135,7 +135,7 @@ class ViewHelperTest < Minitest::Test
 
     def respond_to?(method_name, include_private = false)
       return true if method_name == :modal_request? || method_name == :drawer_request? || method_name == :popover_request?
-      return true if method_name == :current_overlay_id
+      return true if method_name == :turbo_overlay_id
       return true if method_name == :turbo_overlay_frame_re_render?
       return true if method_name == :lookup_context
       return true if method_name == :turbo_overlay_hintable_request?
@@ -155,8 +155,8 @@ class ViewHelperTest < Minitest::Test
       @_action_name
     end
 
-    def current_overlay_id
-      @_current_overlay_id
+    def turbo_overlay_id
+      @_turbo_overlay_id
     end
 
     def turbo_overlay_frame_re_render?
@@ -545,16 +545,16 @@ class ViewHelperTest < Minitest::Test
 
   def test_overlay_close_predicate_ivar_wins_over_controller
     view = FakeView.new
-    def view.current_overlay_close?; false; end
-    def view.respond_to?(name, *); name == :current_overlay_close? || super; end
+    def view.turbo_overlay_close?; false; end
+    def view.respond_to?(name, *); name == :turbo_overlay_close? || super; end
     view.overlay_close true
     assert view.overlay_close?
   end
 
   def test_overlay_close_predicate_falls_back_to_controller
     view = FakeView.new
-    def view.current_overlay_close?; false; end
-    def view.respond_to?(name, *); name == :current_overlay_close? || super; end
+    def view.turbo_overlay_close?; false; end
+    def view.respond_to?(name, *); name == :turbo_overlay_close? || super; end
     refute view.overlay_close?
   end
 

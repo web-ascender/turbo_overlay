@@ -7,15 +7,15 @@
         aria-label="Loading"
         <% else %>
         data-controller="turbo-overlay"
-        data-turbo-overlay-id-value="<%= current_overlay_id %>"
+        data-turbo-overlay-id-value="<%= turbo_overlay_id %>"
         data-turbo-overlay-type-value="modal"
         data-action="cancel->turbo-overlay#cancel click->turbo-overlay#backdropClick"
-        aria-labelledby="turbo-modal-title-<%= current_overlay_id %>"
+        aria-labelledby="turbo-modal-title-<%= turbo_overlay_id %>"
         <% end %>>
   <div class="relative flex flex-col bg-white text-gray-900 rounded-lg shadow-xl dark:bg-gray-900 dark:text-gray-100 dark:ring-1 dark:ring-white/10">
     <% if !loading && content_for?(:overlay_title) %>
       <header class="flex items-center justify-between px-5 py-4 border-b border-gray-200 dark:border-gray-700">
-        <h2 id="turbo-modal-title-<%= current_overlay_id %>" class="text-lg font-semibold text-gray-900 dark:text-gray-100">
+        <h2 id="turbo-modal-title-<%= turbo_overlay_id %>" class="text-lg font-semibold text-gray-900 dark:text-gray-100">
           <%= yield(:overlay_title) %>
         </h2>
         <% if close_button %>
