@@ -18,7 +18,34 @@ module TurboOverlay
     class InstallGenerator < ::Rails::Generators::Base
       source_root File.expand_path("templates", __dir__)
 
+      GEM_ROOT = File.expand_path("../../..", __dir__)
+
       THEMES = %w[plain tailwind bootstrap5 bootstrap3].freeze
+
+      # Chrome + loading partials the gem ships fallbacks for under
+      # `app/views/turbo_overlay/`. For the `plain` theme the install
+      # generator copies those fallbacks directly so we don't have two
+      # canonical copies of the same markup. Themed (`tailwind`,
+      # `bootstrap5`, `bootstrap3`) installs source from the
+      # per-theme template directory.
+      FALLBACK_PARTIALS = %w[
+        _modal.html.erb
+        _drawer.html.erb
+        _popover.html.erb
+        _hint.html.erb
+        _loading.html+modal.erb
+        _loading.html+drawer.erb
+        _loading.html+popover.erb
+        _loading.html+hint.erb
+      ].freeze
+
+      # Confirm partials have no gem-side fallback — they're optional
+      # (only used when `register(application, confirm: true)`) and
+      # require per-theme markup. Always source from the theme directory.
+      THEME_ONLY_PARTIALS = %w[
+        _confirm.html+modal.erb
+        _confirm.html+popover.erb
+      ].freeze
 
       class_option :theme,
         type: :string,
@@ -60,22 +87,18 @@ module TurboOverlay
       def copy_chrome_partials
         return if options[:skip_chrome]
 
-        chrome_files = {
-          "_modal.html.erb"             => "_modal.html.erb",
-          "_drawer.html.erb"            => "_drawer.html.erb",
-          "_popover.html.erb"           => "_popover.html.erb",
-          "_hint.html.erb"              => "_hint.html.erb",
-          "_confirm.html+modal.erb"     => "_confirm.html+modal.erb",
-          "_confirm.html+popover.erb"   => "_confirm.html+popover.erb",
-          "_loading.html+modal.erb"     => "_loading.html+modal.erb",
-          "_loading.html+drawer.erb"    => "_loading.html+drawer.erb",
-          "_loading.html+popover.erb"   => "_loading.html+popover.erb",
-          "_loading.html+hint.erb"      => "_loading.html+hint.erb"
-        }
+        FALLBACK_PARTIALS.each do |filename|
+          dest = "app/views/turbo_overlay/#{filename}"
+          if @theme == "plain"
+            copy_gem_fallback_partial(filename, dest)
+          else
+            copy_file chrome_source_path(filename), dest
+          end
+        end
 
-        chrome_files.each do |source_name, dest_name|
-          copy_file chrome_source_path(source_name),
-            "app/views/turbo_overlay/#{dest_name}"
+        THEME_ONLY_PARTIALS.each do |filename|
+          copy_file chrome_source_path(filename),
+            "app/views/turbo_overlay/#{filename}"
         end
       end
 
@@ -174,6 +197,15 @@ module TurboOverlay
 
       def chrome_source_path(filename)
         "chrome/#{@theme}/#{filename}"
+      end
+
+      def copy_gem_fallback_partial(filename, destination_relative)
+        source = File.join(GEM_ROOT, "app/views/turbo_overlay", filename)
+        unless File.exist?(source)
+          say_status :missing, source, :red
+          return
+        end
+        create_file destination_relative, File.read(source)
       end
 
       def locate_application_layout
