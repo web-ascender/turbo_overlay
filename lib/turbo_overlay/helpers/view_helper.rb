@@ -159,9 +159,9 @@ module TurboOverlay
       # prefetch or `:hint` variant fetch. The block isn't evaluated,
       # so any DB queries or partial renders inside it don't run when
       # the user is actually viewing the page. Detection uses the
-      # `Sec-Purpose: prefetch` request header (W3C standard, what
-      # Turbo sends) and `X-Turbo-Overlay: hint` for the explicit
-      # variant fetch path.
+      # `X-Sec-Purpose: prefetch` request header (what Turbo sends —
+      # the `Sec-*` prefix is forbidden for JS-set headers) and
+      # `X-Turbo-Overlay: hint` for the explicit variant fetch path.
       def turbo_overlay_hint(value = nil, &block)
         return unless _turbo_overlay_hintable_request?
         content_for(:turbo_overlay_hint, value, &block)
@@ -444,8 +444,7 @@ module TurboOverlay
         end
         return false unless respond_to?(:request) && request
         return true if hint_request?
-        return true if request.headers["Sec-Purpose"].to_s.include?("prefetch")
-        request.headers["Purpose"].to_s == "prefetch"
+        request.headers["X-Sec-Purpose"].to_s.include?("prefetch")
       end
 
       # Render `turbo_overlay/<name>` for the given variant, preferring

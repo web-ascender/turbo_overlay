@@ -102,14 +102,14 @@ module TurboOverlay
     end
 
     # True if the current request is a Turbo hover prefetch. Detected
-    # via the `Sec-Purpose: prefetch` request header (W3C standard,
-    # what Turbo sends) with `Purpose: prefetch` accepted as a
-    # fallback for older user agents. Used by `turbo_overlay_hint` to
-    # skip its block on regular page renders.
+    # via the `X-Sec-Purpose: prefetch` request header that Turbo
+    # sends — the W3C `Sec-Purpose` is a Forbidden Header for
+    # JS-initiated `fetch()` requests, so Turbo prepends `X-`. Used
+    # by `turbo_overlay_hint` to skip its block on regular page
+    # renders.
     def turbo_overlay_prefetch_request?
       return false unless respond_to?(:request) && request
-      return true if request.headers["Sec-Purpose"].to_s.include?("prefetch")
-      request.headers["Purpose"].to_s == "prefetch"
+      request.headers["X-Sec-Purpose"].to_s.include?("prefetch")
     end
 
     # True if the current request will use the hint template the page
