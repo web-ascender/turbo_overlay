@@ -187,10 +187,10 @@ module TurboOverlay
 
     # Whether the current overlay request should render the chrome's
     # default close ("×") button. Defaults to `true`; only `false`
-    # when the link helper explicitly passed `close_button: false`
-    # (carried in the `X-Turbo-Overlay-Close` header). Chrome partials
-    # consult `overlay_close?` (view helper) which folds this into the
-    # full opt-out precedence chain.
+    # when the link helper explicitly passed `close: false` (carried in
+    # the `X-Turbo-Overlay-Close` header). Chrome partials consult
+    # `overlay_close?` (view helper) which folds this into the full
+    # opt-out precedence chain.
     def turbo_overlay_close?
       return @_turbo_overlay_close if defined?(@_turbo_overlay_close)
       @_turbo_overlay_close = _resolve_overlay_close

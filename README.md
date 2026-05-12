@@ -468,15 +468,15 @@ either a modal or a drawer.
 The chrome partials render a default close ("×") button. When the
 view sets `overlay_title`, it sits inside the header; without a title
 it floats in the top-right corner. Suppress it per overlay with
-`overlay_close false` in the view, or `close_button: false` on the
-link helper:
+`overlay_close false` in the view, or `close: false` on the link
+helper:
 
 ```erb
 <%# inside the rendered view %>
 <% overlay_close false %>
 
 <%# at the call site %>
-<%= modal_link_to "Promo", promo_path, close_button: false %>
+<%= modal_link_to "Promo", promo_path, close: false %>
 ```
 
 ### Different markup for modal / drawer / popover / full-page renders
@@ -805,10 +805,10 @@ Available on controllers (when the concern is included) and views:
 | `turbo_overlay_align`                 | Per-link popover cross-axis alignment, or `nil`                        |
 | `turbo_overlay_offset`                | Per-link popover pixel offset, or `nil`                                |
 | `turbo_overlay_backdrop?`             | `false` only when the link opened with `backdrop: false`; else `true`  |
-| `turbo_overlay_close?`                | `false` only when the link opened with `close_button: false`; else `true` |
-| `modal_link_to(name, path, overlay_id:, close_button:, hint:, hint_url:)` | `link_to` that opens the target as a stacked modal; `hint:` / `hint_url:` add a hover preview |
-| `drawer_link_to(name, path, overlay_id:, position:, backdrop:, close_button:, hint:, hint_url:)` | `link_to` that opens the target as a stacked drawer |
-| `popover_link_to(name, path, overlay_id:, position:, align:, offset:, close_button:, hint:, hint_url:)` | `link_to` that opens the target as a popover anchored to the link |
+| `turbo_overlay_close?`                | `false` only when the link opened with `close: false`; else `true` |
+| `modal_link_to(name, path, overlay_id:, close:, hint:, hint_url:)` | `link_to` that opens the target as a stacked modal; `hint:` / `hint_url:` add a hover preview |
+| `drawer_link_to(name, path, overlay_id:, position:, backdrop:, close:, hint:, hint_url:)` | `link_to` that opens the target as a stacked drawer |
+| `popover_link_to(name, path, overlay_id:, position:, align:, offset:, close:, hint:, hint_url:)` | `link_to` that opens the target as a popover anchored to the link |
 | `hint_link_to(name, path, hint_url:)`   | plain `link_to` decorated with hint data attributes (no overlay opening) |
 | `modal_dismiss_link_to(...)`            | dismiss link inside a modal                                            |
 | `drawer_dismiss_link_to(...)`           | dismiss link inside a drawer                                           |

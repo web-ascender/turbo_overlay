@@ -7,7 +7,7 @@
   bottom: "offcanvas-bottom"
 }.fetch(position) %>
 <% backdrop    = turbo_overlay_backdrop? %>
-<% close_button = local_assigns.fetch(:close_button) { overlay_close? } %>
+<% close_button = local_assigns.fetch(:close) { overlay_close? } %>
 <dialog class="<%= token_list("turbo-overlay", "turbo-overlay--drawer", "turbo-overlay--drawer-#{position}", "turbo-overlay-scaffold", "turbo-overlay--loading": loading, "turbo-overlay--no-backdrop": !backdrop) %>"
         <% if loading %>
         role="status"

@@ -352,25 +352,25 @@ class ViewHelperTest < Minitest::Test
     refute html_options[:data].key?(:turbo_overlay_backdrop)
   end
 
-  def test_modal_link_to_with_close_button_false_sets_data_attribute
+  def test_modal_link_to_with_close_false_sets_data_attribute
     view = FakeView.new
-    view.modal_link_to("Open", "/things/1", close_button: false)
+    view.modal_link_to("Open", "/things/1", close: false)
 
     _, _, html_options = view.link_to_args
     assert_equal "false", html_options[:data][:turbo_overlay_close]
   end
 
-  def test_drawer_link_to_with_close_button_false_sets_data_attribute
+  def test_drawer_link_to_with_close_false_sets_data_attribute
     view = FakeView.new
-    view.drawer_link_to("Filter", "/filters", close_button: false)
+    view.drawer_link_to("Filter", "/filters", close: false)
 
     _, _, html_options = view.link_to_args
     assert_equal "false", html_options[:data][:turbo_overlay_close]
   end
 
-  def test_drawer_link_to_with_close_button_true_omits_data_attribute
+  def test_drawer_link_to_with_close_true_omits_data_attribute
     view = FakeView.new
-    view.drawer_link_to("Filter", "/filters", close_button: true)
+    view.drawer_link_to("Filter", "/filters", close: true)
 
     _, _, html_options = view.link_to_args
     refute html_options[:data].key?(:turbo_overlay_close)

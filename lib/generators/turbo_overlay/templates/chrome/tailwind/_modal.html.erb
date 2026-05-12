@@ -1,5 +1,5 @@
 <% loading      = local_assigns.fetch(:loading, false) %>
-<% close_button = local_assigns.fetch(:close_button) { overlay_close? } %>
+<% close_button = local_assigns.fetch(:close) { overlay_close? } %>
 <dialog class="<%= token_list("turbo-overlay", "turbo-overlay--modal", "fixed inset-0 m-auto w-full max-w-lg rounded-lg p-0 backdrop:bg-black/50 backdrop:backdrop-blur-sm", "turbo-overlay--loading": loading) %>"
         <% if loading %>
         role="status"

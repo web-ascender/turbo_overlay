@@ -27,10 +27,10 @@ module TurboOverlay
       # later from server code via
       # `turbo_stream.overlay(:close, id: "...")`.
       #
-      # `close_button: false` opens the modal without the default close
-      # ("×") button rendered by the chrome partial. Useful when the
-      # body provides its own dismiss controls (the confirm partial
-      # uses this internally). ESC and backdrop click still close.
+      # `close: false` opens the modal without the default close ("×")
+      # button rendered by the chrome partial. Useful when the body
+      # provides its own dismiss controls (the confirm partial uses
+      # this internally). ESC and backdrop click still close.
       def modal_link_to(name = nil, options = nil, html_options = nil, &block)
         _overlay_link_to(:modal, name, options, html_options, &block)
       end
@@ -65,9 +65,8 @@ module TurboOverlay
       #
       #   <%= drawer_link_to "Inspector", inspect_path, backdrop: false %>
       #
-      # `close_button: false` opens the drawer without the default
-      # close ("×") button. ESC still closes; the backdrop is
-      # unaffected.
+      # `close: false` opens the drawer without the default close
+      # ("×") button. ESC still closes; the backdrop is unaffected.
       def drawer_link_to(name = nil, options = nil, html_options = nil, &block)
         _overlay_link_to(:drawer, name, options, html_options, &block)
       end
@@ -195,7 +194,7 @@ module TurboOverlay
         [:modal, :popover].each do |variant|
           rendered = _render_overlay_chrome_partial(
             "turbo_overlay/confirm", variant,
-            chrome: variant, locals: { close_button: false }
+            chrome: variant, locals: { close: false }
           )
           next unless rendered
           parts << content_tag(:template, rendered,
@@ -205,7 +204,7 @@ module TurboOverlay
         [:modal, :drawer, :popover, :hint].each do |variant|
           rendered = _render_overlay_chrome_partial(
             "turbo_overlay/loading", variant,
-            chrome: variant, locals: { loading: true, close_button: false }
+            chrome: variant, locals: { loading: true, close: false }
           )
           next unless rendered
           parts << content_tag(:template, rendered,
@@ -295,10 +294,10 @@ module TurboOverlay
       #
       #   <% overlay_close false %>
       #
-      # Precedence (highest first): partial local `close_button:` on
-      # `render "turbo_overlay/modal"`, this helper, the link option
-      # `close_button: false` (carried as a request header and exposed
-      # via `turbo_overlay_close?`), then the default `true`.
+      # Precedence (highest first): partial local `close:` on `render
+      # "turbo_overlay/modal"`, this helper, the link option `close:
+      # false` (carried as a request header and exposed via
+      # `turbo_overlay_close?`), then the default `true`.
       def overlay_close(show = true)
         @_overlay_close = show
       end
@@ -421,9 +420,9 @@ module TurboOverlay
         has_backdrop = html_options.key?(:backdrop) || html_options.key?("backdrop")
         backdrop     = html_options.delete(:backdrop)
         backdrop     = html_options.delete("backdrop") if backdrop.nil? && has_backdrop
-        has_close    = html_options.key?(:close_button) || html_options.key?("close_button")
-        close_button = html_options.delete(:close_button)
-        close_button = html_options.delete("close_button") if close_button.nil? && has_close
+        has_close    = html_options.key?(:close) || html_options.key?("close")
+        close_value  = html_options.delete(:close)
+        close_value  = html_options.delete("close") if close_value.nil? && has_close
         has_hint     = html_options.key?(:hint) || html_options.key?("hint")
         hint_value   = html_options.delete(:hint)
         hint_value   = html_options.delete("hint") if hint_value.nil? && has_hint
@@ -439,7 +438,7 @@ module TurboOverlay
         if has_backdrop && backdrop == false && !data.key?(:turbo_overlay_backdrop) && !html_options.key?("data-turbo-overlay-backdrop")
           data[:turbo_overlay_backdrop] = "false"
         end
-        if has_close && close_button == false && !data.key?(:turbo_overlay_close) && !html_options.key?("data-turbo-overlay-close")
+        if has_close && close_value == false && !data.key?(:turbo_overlay_close) && !html_options.key?("data-turbo-overlay-close")
           data[:turbo_overlay_close] = "false"
         end
         if has_hint && hint_value && !data.key?(:turbo_overlay_hint) && !html_options.key?("data-turbo-overlay-hint")
