@@ -44,11 +44,14 @@ Themes: `plain` (default), `tailwind`, `bootstrap5`, `bootstrap3`.
 The generator wires the host app and scaffolds the modal/drawer
 chrome you'll customize:
 
-- Copies `_modal.html.erb`, `_drawer.html.erb`, `_popover.html.erb`,
-  and `_confirm.html.erb` (in the chosen theme) to
-  `app/views/turbo_overlay/`. These are *your* files — edit freely.
-  Tailwind / similar content scanners pick them up here automatically
-  (which they can't if the file lives inside the gem).
+- Copies the chosen theme's chrome partials to `app/views/turbo_overlay/`:
+  `_modal.html.erb`, `_drawer.html.erb`, `_popover.html.erb`,
+  `_hint.html.erb`, plus body-only `_confirm.html+<modal|popover>.erb`
+  and `_loading.html+<modal|drawer|popover|hint>.erb` partials that the
+  gem wraps in the matching chrome at template-emission time. These are
+  *your* files — edit freely. Tailwind / similar content scanners pick
+  them up here automatically (which they can't if the file lives inside
+  the gem).
 - Writes `config/initializers/turbo_overlay.rb`.
 - Injects `<%= overlay_stack_tag %>` before `</body>` in
   `app/views/layouts/application.html.erb`.
@@ -229,6 +232,39 @@ in a small floating panel. Opt back in per-view with
 `<% overlay_close true %>`, or globally by editing
 `app/views/turbo_overlay/_popover.html.erb`.
 
+### Loading state
+
+Every `modal_link_to` / `drawer_link_to` / `popover_link_to` click drops
+a loading placeholder into the stack immediately so the user sees
+feedback even when the controller is slow. The placeholder inherits
+the link's options — backdrop on/off, drawer position, popover
+position/align/offset, close-button suppression — so it reads visually
+the same as the eventual chrome. When the server-rendered overlay
+arrives in its turbo-stream, Turbo's `before-stream-render` removes
+the placeholder. The same cleanup fires on fetch errors and on
+`turbo:visit`.
+
+The placeholder is cloned from `<template id="turbo_overlay_loading_<modal|drawer|popover|hint>_template">`
+that `overlay_stack_tag` emits — one per chrome type, rendered from
+`_loading.html+<variant>.erb` (body-only) wrapped in the matching
+chrome partial with `loading: true`. The `loading:` flag tells the
+chrome partial to:
+
+- skip the Stimulus controller wiring (the placeholder is static, not
+  a real overlay)
+- skip the close button, overlay title, and overlay footer slots
+- swap `aria-labelledby` for `role="status" aria-live="polite"
+  aria-label="Loading"`
+- add a `turbo-overlay--loading` modifier class for any visual tweaks
+  (the shipped CSS adds a spinner with `prefers-reduced-motion`
+  support)
+
+Apps that want a different spinner / different loading layout per
+chrome type override `_loading.html+modal.erb` etc. — same body-only
+contract as the confirm partials. Or to share one loader across all
+four chromes, drop a single `_loading.html.erb` and delete the
+variants.
+
 ### Hover hints
 
 Hover over a link, get a small preview popover. The hint shows after
@@ -327,6 +363,39 @@ no `content_for(:turbo_overlay_hint)` is set, the layout uses `yield`:
 Either way the `turbo_hint` layout wraps the chosen body in the same
 `<template id="turbo-overlay-hint">` shape the inline path emits, so
 the JS extractor has one code path.
+
+#### Pending placeholder while the hint loads
+
+After `show_delay_ms`, if the hint content isn't cached yet, the gem
+paints a pending placeholder (cloned from
+`_loading.html+hint.erb`) so the user sees feedback while the
+prefetch or `hint_url:` fetch is in flight. When the real content
+lands the placeholder swaps in place — no flicker. If the response
+carries no hint template (or the request errored out), the
+placeholder dismisses silently.
+
+This fixes a race that used to bite slow controllers: if the response
+arrived after `show_delay_ms`, the user would never see a hint until
+the next hover hit the cache.
+
+#### Prefetch-disabled sites
+
+If the site sets `<meta name="turbo-prefetch" content="false">`, or
+the link / an ancestor has `data-turbo-prefetch="false"`, Turbo won't
+prefetch for the gem to piggy-back on. The hint controller detects
+these opt-outs and falls back to a plain `fetch()` of the URL — same
+shape Turbo's prefetch would have used, so a host app's existing
+`turbo_overlay_hint do … end` capture continues to work without any
+extra config.
+
+#### Negative caching
+
+When a hint-marked URL is fetched and the response has no
+`<template id="turbo-overlay-hint">` (or the fetch errors), the gem
+caches a `NO_HINT` sentinel for that URL. Subsequent hovers
+short-circuit at the show-delay tick: no placeholder is painted, no
+fetch is repeated. The negative cache clears on `turbo:visit`, so a
+page navigation gives the gem a fresh chance to discover a hint.
 
 #### Touch, accessibility, and dismissal
 
@@ -625,24 +694,47 @@ end
 
 ### Customizing the chrome
 
-The install generator copies six partials into your app:
+The install generator copies these partials into your app:
+
+**Chrome partials** (the dialog/wrapper for each overlay type):
 
 - `app/views/turbo_overlay/_modal.html.erb`
 - `app/views/turbo_overlay/_drawer.html.erb`
 - `app/views/turbo_overlay/_popover.html.erb`
 - `app/views/turbo_overlay/_hint.html.erb`
+
+**Body-only variant partials** (rendered *inside* the matching chrome
+at template-emission time by `overlay_stack_tag`):
+
 - `app/views/turbo_overlay/_confirm.html+modal.erb`
 - `app/views/turbo_overlay/_confirm.html+popover.erb`
+- `app/views/turbo_overlay/_loading.html+modal.erb`
+- `app/views/turbo_overlay/_loading.html+drawer.erb`
+- `app/views/turbo_overlay/_loading.html+popover.erb`
+- `app/views/turbo_overlay/_loading.html+hint.erb`
 
 These are *your* files. Edit them freely — change classes, add a
-brand container, restyle the close button. They're rendered as
-layouts (`render layout: ...`), so they use `<%= yield %>` for the
-body and read `content_for(:overlay_title)` /
-`content_for(:overlay_footer)` for the slots. Keep the `<dialog>`
-element's `data-controller="turbo-overlay"` and its data values so
-the Stimulus controllers can attach. The confirm partial renders
-inside the modal partial (via `render "turbo_overlay/modal" do ... %>`),
-so retheming the modal carries through to confirm automatically.
+brand container, restyle the close button.
+
+**Chrome partials** are rendered as layouts (`render layout: ...`),
+so they use `<%= yield %>` for the body and read
+`content_for(:overlay_title)` / `content_for(:overlay_footer)` for
+the slots. Keep the `<dialog>` element's `data-controller="turbo-overlay"`
+and its data values so the Stimulus controllers can attach. They
+accept a `loading:` local — when `true`, the chrome drops the
+Stimulus controller wiring, close button, and overlay title/footer
+slots, and switches the ARIA role to `status` for the loading
+placeholder use case.
+
+**Body-only confirm/loading partials** only contain the content that
+goes inside the chrome — no `<dialog>` wrapper, no Stimulus
+controller. `overlay_stack_tag` does `render(partial: "turbo_overlay/confirm",
+layout: "turbo_overlay/<variant>", ...)` so retheming the chrome
+carries through to confirm and loading automatically.
+
+Apps that want one confirm or loading body across chromes can ship a
+single `_confirm.html.erb` or `_loading.html.erb` instead of the
+variant files; per-chrome overrides still win when present.
 
 If you delete these files, the gem's plain fallback partials kick in.
 To switch themes (e.g. plain → tailwind), re-run install with
