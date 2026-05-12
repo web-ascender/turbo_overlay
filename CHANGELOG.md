@@ -40,6 +40,7 @@
 - The interim `turbo_overlay_styles` view helper (superseded by the stylesheet asset).
 
 ### Fixed
+- **Safety-net cap on pending hint placeholder.** If neither `hint-ready` nor `fetch-request-error` arrives within 10s (Turbo silently cancelling a queued prefetch, an indefinitely-hung server), the placeholder auto-dismisses and the URL is cached as `NO_HINT` so the next hover doesn't strand a new spinner.
 - **Pending hint no longer disappears mid-flight.** A vestigial 750ms timeout was tearing down the pending placeholder before slow controllers could respond. Removed — the placeholder now stays until the response arrives, the user hovers away, or the page navigates.
 - **Pending hint dismisses on no-template / errored responses.** Previously a race could strand the spinner forever when the prefetch landed before `show_delay_ms` and the response had no `<template id>`. Negative caching closes the race: the no-hint outcome is cached before the show timer fires.
 - **`turbo:fetch-request-error` cleanup.** Network failures on hint prefetches now dismiss the pending placeholder and cache `NO_HINT` so subsequent hovers don't strand a new spinner.

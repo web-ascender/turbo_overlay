@@ -30,6 +30,13 @@ import { computePopoverPosition } from "turbo_overlay/popover_position"
 // placeholder. The negative cache clears on `turbo:visit`, so a page
 // navigation gives the gem a fresh chance to discover a hint.
 //
+// Safety-net cap: the pending placeholder auto-dismisses after
+// MAX_PENDING_MS (10s) if neither a `hint-ready` nor a
+// `fetch-request-error` event arrives. Turbo doesn't dispatch on
+// silently-cancelled prefetches (e.g. queue eviction) and the browser
+// won't time out a hung server fetch, so this is the backstop. NO_HINT
+// is cached when it fires so retries wait for the next page visit.
+//
 // Three content sources, one extraction path:
 //
 //   1. Turbo's hover prefetch (plain links, prefetch enabled).
@@ -63,6 +70,15 @@ import { computePopoverPosition } from "turbo_overlay/popover_position"
 // which always emits a same-origin GET.
 
 const CACHE_LIMIT = 50
+
+// Safety-net cap on how long the pending placeholder can spin before
+// we give up. The happy path resolves via `hint-ready` (fetch
+// success) or `fetch-request-error` (network failure). This catches
+// the cases where neither fires: Turbo silently cancelling a queued
+// prefetch, an indefinitely-hung server, or a browser that swallows
+// the fetch event lifecycle. Cached as NO_HINT so a retry only
+// happens after the next page visit.
+const MAX_PENDING_MS = 10000
 
 // Sentinel cached against a URL that we know has no hint template
 // (or whose prefetch failed). Distinguishes "fetched and confirmed
@@ -255,7 +271,7 @@ export default class extends Controller {
     if (!url) return
 
     const showTimer = setTimeout(() => this._onShowTimerFire(link, url), this.showDelayValue)
-    this.pending = { link, url, showTimer, fetchController: null, hintReadyHandler: null, hideTimer: null, element: null }
+    this.pending = { link, url, showTimer, fetchController: null, hintReadyHandler: null, hideTimer: null, element: null, maxPendingTimer: null }
   }
 
   _hoverLeave(link) {
@@ -353,6 +369,16 @@ export default class extends Controller {
     node.addEventListener("mouseleave", () => this._scheduleHide())
 
     this.pending.element = node
+
+    // Safety net: if no hint-ready / fetch-error event fires within
+    // MAX_PENDING_MS (silently cancelled prefetch, hung server, etc.),
+    // dismiss the placeholder and cache NO_HINT so the next hover
+    // doesn't strand a new one.
+    this.pending.maxPendingTimer = setTimeout(() => {
+      if (!this.pending || this.pending.link !== link) return
+      this._cacheFragment(this.pending.url, NO_HINT)
+      this._cancelPending()
+    }, MAX_PENDING_MS)
 
     setTimeout(() => { if (node.dataset.state === "entering") delete node.dataset.state }, 200)
   }
@@ -563,8 +589,9 @@ export default class extends Controller {
 
   _cancelPending() {
     if (!this.pending) return
-    if (this.pending.showTimer) clearTimeout(this.pending.showTimer)
-    if (this.pending.hideTimer) clearTimeout(this.pending.hideTimer)
+    if (this.pending.showTimer)       clearTimeout(this.pending.showTimer)
+    if (this.pending.hideTimer)       clearTimeout(this.pending.hideTimer)
+    if (this.pending.maxPendingTimer) clearTimeout(this.pending.maxPendingTimer)
     if (this.pending.hintReadyHandler) {
       document.removeEventListener("turbo-overlay:hint-ready", this.pending.hintReadyHandler)
     }
