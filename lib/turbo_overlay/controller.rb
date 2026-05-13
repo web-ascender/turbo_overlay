@@ -28,6 +28,16 @@ module TurboOverlay
     OVERLAY_BACKDROP_HEADER = "X-Turbo-Overlay-Backdrop".freeze
     OVERLAY_CLOSE_HEADER    = "X-Turbo-Overlay-Close".freeze
 
+    # Whitelists for values that originate from request headers and get
+    # reflected into rendered chrome (CSS class tokens, DOM ids,
+    # frame names). Constraining them at the resolver protects every
+    # downstream consumer — gem partials, generator templates, JS data
+    # attributes — without each having to re-validate.
+    ALLOWED_POSITIONS = %i[left right top bottom].freeze
+    ALLOWED_ALIGNS    = %i[start center end].freeze
+    OVERLAY_ID_FORMAT = /\A[A-Za-z0-9_-]{1,64}\z/.freeze
+    OFFSET_RANGE      = (-10_000..10_000).freeze
+
     included do
       prepend_before_action :_turbo_overlay_force_html_format
       prepend_before_action :_turbo_overlay_set_variant
@@ -240,13 +250,16 @@ module TurboOverlay
       return nil unless turbo_overlay_type
 
       supplied = request.headers[OVERLAY_ID_HEADER].to_s
-      return supplied unless supplied.empty?
+      return supplied if supplied.match?(OVERLAY_ID_FORMAT)
 
       frame = request.headers["Turbo-Frame"].to_s
       if frame.start_with?(OVERLAY_FRAME_PREFIX)
         rest = frame[OVERLAY_FRAME_PREFIX.length..]
         underscore = rest.index("_")
-        return rest[(underscore + 1)..] if underscore
+        if underscore
+          parsed = rest[(underscore + 1)..]
+          return parsed if parsed.match?(OVERLAY_ID_FORMAT)
+        end
       end
 
       SecureRandom.alphanumeric(8)
@@ -257,7 +270,8 @@ module TurboOverlay
 
       value = request.headers[OVERLAY_POSITION_HEADER].to_s
       return nil if value.empty?
-      value.to_sym
+      sym = value.to_sym
+      ALLOWED_POSITIONS.include?(sym) ? sym : nil
     end
 
     def _resolve_overlay_align
@@ -265,7 +279,8 @@ module TurboOverlay
 
       value = request.headers[OVERLAY_ALIGN_HEADER].to_s
       return nil if value.empty?
-      value.to_sym
+      sym = value.to_sym
+      ALLOWED_ALIGNS.include?(sym) ? sym : nil
     end
 
     def _resolve_overlay_offset
@@ -273,7 +288,8 @@ module TurboOverlay
 
       value = request.headers[OVERLAY_OFFSET_HEADER].to_s
       return nil if value.empty?
-      Integer(value, exception: false)
+      n = Integer(value, exception: false)
+      n && n.clamp(OFFSET_RANGE.min, OFFSET_RANGE.max)
     end
 
     def _resolve_overlay_backdrop
@@ -290,7 +306,14 @@ module TurboOverlay
       type = turbo_overlay_type
       return unless type
 
-      variant = TurboOverlay.configuration.public_send(type).variant
+      config = TurboOverlay.configuration
+      type_config = case type
+                    when :modal   then config.modal
+                    when :drawer  then config.drawer
+                    when :popover then config.popover
+                    when :hint    then config.hint
+                    end
+      variant = type_config.variant
       if request.variant.is_a?(Array)
         request.variant << variant unless request.variant.include?(variant)
       else

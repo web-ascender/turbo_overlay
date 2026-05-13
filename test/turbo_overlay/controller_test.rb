@@ -212,6 +212,55 @@ class ControllerTest < Minitest::Test
     assert_nil @controller.turbo_overlay_offset
   end
 
+  # ---- header value validation (security) ----
+
+  def test_position_rejects_non_whitelist_value
+    with_headers("X-Turbo-Overlay" => "drawer",
+                 "X-Turbo-Overlay-Position" => "evil display-none")
+    assert_nil @controller.turbo_overlay_position
+  end
+
+  def test_align_rejects_non_whitelist_value
+    with_headers("X-Turbo-Overlay" => "popover",
+                 "X-Turbo-Overlay-Align" => "bogus")
+    assert_nil @controller.turbo_overlay_align
+  end
+
+  def test_offset_clamped_to_max
+    with_headers("X-Turbo-Overlay" => "popover",
+                 "X-Turbo-Overlay-Offset" => "99999999999")
+    assert_equal 10_000, @controller.turbo_overlay_offset
+  end
+
+  def test_offset_clamped_to_min
+    with_headers("X-Turbo-Overlay" => "popover",
+                 "X-Turbo-Overlay-Offset" => "-99999999999")
+    assert_equal(-10_000, @controller.turbo_overlay_offset)
+  end
+
+  def test_overlay_id_falls_back_to_generated_when_malformed_header
+    with_headers("X-Turbo-Overlay" => "modal",
+                 "X-Turbo-Overlay-Id" => "../../etc/passwd")
+    id = @controller.turbo_overlay_id
+    refute_equal "../../etc/passwd", id
+    assert_equal 8, id.length
+  end
+
+  def test_overlay_id_falls_back_to_generated_when_malformed_frame_id
+    with_headers("Turbo-Frame" => "turbo_overlay_modal_bad id with spaces")
+    id = @controller.turbo_overlay_id
+    refute_match(/\s/, id)
+    assert_equal 8, id.length
+  end
+
+  def test_overlay_id_rejects_too_long_value
+    with_headers("X-Turbo-Overlay" => "modal",
+                 "X-Turbo-Overlay-Id" => "a" * 65)
+    id = @controller.turbo_overlay_id
+    refute_equal "a" * 65, id
+    assert_equal 8, id.length
+  end
+
   # ---- backdrop / close ----
 
   def test_backdrop_defaults_to_true

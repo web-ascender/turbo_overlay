@@ -108,3 +108,26 @@ Individual links can override either delay with `show_delay:` /
 Useful for dense datatables and menus where a longer show delay
 keeps hints from flickering during scroll or keyboard navigation,
 or for a single high-signal link that wants a near-zero delay.
+
+## Trust boundary for `hint_url:`
+
+The gem fetches `hint_url:` (or the link's `href`, for plain prefetch
+hints), parses the response with `DOMParser`, and clones the
+`<template id="turbo-overlay-hint">` content into the live page. The
+clone-into-document path doesn't execute `<script>` tags, but it
+does activate `<img onerror>`, `<svg onload>`, `<iframe>`, and other
+HTML that runs on insertion — exactly like any server-rendered
+partial.
+
+That means the hint endpoint is a trust boundary. Two rules:
+
+- **Treat the hint response like any other server-rendered HTML.**
+  The `+hint` template runs through the usual Rails escaping, so
+  the normal Rails XSS protections apply. Don't `raw` user-supplied
+  content into a hint partial any more than you would into a page
+  partial.
+- **Never pass user-controlled input as `hint_url:`.** The value
+  becomes a same-origin GET issued from the victim's browser on
+  hover, and its response is inlined into the page. Build hint URLs
+  from route helpers (`hint_user_path(@user)`), not from
+  `params[:url]` or any other request-derived string.
