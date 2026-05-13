@@ -153,6 +153,15 @@ export default class extends Controller {
 
     this._targetLinksTop()
     this._positionPopover()
+    // The dialog was just morphed in from a loading placeholder
+    // (small spinner). The first _positionPopover above used whatever
+    // the dialog measured immediately after Stimulus connected, which
+    // can lag the actual content layout by a frame. Re-run on the
+    // next animation frame so we measure against the final content
+    // size and reposition (auto-flip) accordingly.
+    requestAnimationFrame(() => {
+      if (this.dialog && this._isShown()) this._positionPopover()
+    })
     // The anchor may still be moving (e.g. opened a popover from
     // inside a drawer that's mid-slide-in). Re-position on subsequent
     // frames until the anchor's left edge stabilizes, with a safety

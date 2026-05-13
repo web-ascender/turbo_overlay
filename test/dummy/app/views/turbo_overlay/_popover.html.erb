@@ -1,0 +1,52 @@
+<% loading      = local_assigns.fetch(:loading, false) %>
+<% position    = turbo_overlay_position || TurboOverlay.configuration.popover.position %>
+<% align       = turbo_overlay_align    || TurboOverlay.configuration.popover.align %>
+<% offset      = turbo_overlay_offset   || TurboOverlay.configuration.popover.offset %>
+<% close_button = local_assigns.fetch(:close) { defined?(@_overlay_close) && @_overlay_close != false } %>
+<dialog popover="manual"
+        class="<%= class_names("turbo-overlay", "turbo-overlay--popover", "turbo-overlay--no-backdrop", "popover position-fixed m-0 p-0 d-block", "turbo-overlay--loading": loading) %>"
+        style="max-width: 22rem;"
+        <% if loading %>
+        role="status"
+        aria-live="polite"
+        aria-label="Loading"
+        <% else %>
+        data-controller="turbo-overlay"
+        data-turbo-overlay-id-value="<%= turbo_overlay_id %>"
+        data-turbo-overlay-type-value="popover"
+        data-turbo-overlay-backdrop-value="false"
+        data-turbo-overlay-position-value="<%= position %>"
+        data-turbo-overlay-align-value="<%= align %>"
+        data-turbo-overlay-offset-value="<%= offset %>"
+        data-action="cancel->turbo-overlay#cancel"
+        aria-labelledby="turbo-popover-title-<%= turbo_overlay_id %>"
+        <% end %>>
+  <div class="position-relative">
+    <% if !loading && content_for?(:overlay_title) %>
+      <div class="popover-header d-flex align-items-center justify-content-between">
+        <span id="turbo-popover-title-<%= turbo_overlay_id %>"><%= yield(:overlay_title) %></span>
+        <% if close_button %>
+          <button type="button"
+                  class="btn-close btn-close-sm"
+                  data-action="turbo-overlay#close"
+                  aria-label="Close"></button>
+        <% end %>
+      </div>
+    <% elsif !loading && close_button %>
+      <button type="button"
+              class="btn-close position-absolute top-0 end-0 m-2"
+              data-action="turbo-overlay#close"
+              aria-label="Close"></button>
+    <% end %>
+
+    <div class="popover-body">
+      <%= yield %>
+    </div>
+
+    <% if !loading && content_for?(:overlay_footer) %>
+      <div class="popover-footer border-top px-3 py-2 d-flex justify-content-end gap-2">
+        <%= yield(:overlay_footer) %>
+      </div>
+    <% end %>
+  </div>
+</dialog>

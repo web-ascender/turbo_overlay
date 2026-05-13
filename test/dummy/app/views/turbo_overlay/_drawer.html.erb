@@ -1,0 +1,54 @@
+<% loading      = local_assigns.fetch(:loading, false) %>
+<% position    = turbo_overlay_position || TurboOverlay.configuration.drawer.position %>
+<% offcanvas_class = {
+  right:  "offcanvas-end",
+  left:   "offcanvas-start",
+  top:    "offcanvas-top",
+  bottom: "offcanvas-bottom"
+}.fetch(position) %>
+<% backdrop    = turbo_overlay_backdrop? %>
+<% close_button = local_assigns.fetch(:close) { overlay_close? } %>
+<dialog class="<%= class_names("turbo-overlay", "turbo-overlay--drawer", "turbo-overlay--drawer-#{position}", "turbo-overlay-scaffold", "turbo-overlay--loading": loading, "turbo-overlay--no-backdrop": !backdrop) %>"
+        <% if loading %>
+        role="status"
+        aria-live="polite"
+        aria-label="Loading"
+        <% else %>
+        data-controller="turbo-overlay"
+        data-turbo-overlay-id-value="<%= turbo_overlay_id %>"
+        data-turbo-overlay-type-value="drawer"
+        data-turbo-overlay-backdrop-value="<%= backdrop %>"
+        data-action="cancel->turbo-overlay#cancel click->turbo-overlay#backdropClick"
+        aria-labelledby="turbo-drawer-title-<%= turbo_overlay_id %>"
+        <% end %>>
+  <div class="offcanvas <%= offcanvas_class %> show position-relative" tabindex="-1">
+    <% if !loading && content_for?(:overlay_title) %>
+      <div class="offcanvas-header">
+        <h5 id="turbo-drawer-title-<%= turbo_overlay_id %>" class="offcanvas-title">
+          <%= yield(:overlay_title) %>
+        </h5>
+        <% if close_button %>
+          <button type="button"
+                  class="btn-close"
+                  data-action="turbo-overlay#close"
+                  aria-label="Close"></button>
+        <% end %>
+      </div>
+    <% elsif !loading && close_button %>
+      <button type="button"
+              class="btn-close position-absolute top-0 end-0 m-3"
+              data-action="turbo-overlay#close"
+              aria-label="Close"></button>
+    <% end %>
+
+    <div class="offcanvas-body">
+      <%= yield %>
+    </div>
+
+    <% if !loading && content_for?(:overlay_footer) %>
+      <div class="offcanvas-footer p-3 border-top d-flex justify-content-end gap-2">
+        <%= yield(:overlay_footer) %>
+      </div>
+    <% end %>
+  </div>
+</dialog>
