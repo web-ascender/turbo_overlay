@@ -1,0 +1,12 @@
+<h1>Widgets</h1>
+
+<ul>
+  <% @widgets.each do |id, w| %>
+    <li>
+      <%= w[:name] %>
+      <%= modal_link_to   "Modal",   widget_path(id), id: "modal-link-#{id}" %>
+      <%= drawer_link_to  "Drawer",  widget_path(id), id: "drawer-link-#{id}" %>
+      <%= popover_link_to "Popover", widget_path(id), id: "popover-link-#{id}" %>
+    </li>
+  <% end %>
+</ul>
