@@ -103,6 +103,65 @@ Inside the controller and views read it as `turbo_overlay_id`:
 render turbo_stream: turbo_stream.overlay(:close, id: turbo_overlay_id)
 ```
 
+## Branching in controllers
+
+The gem sets `request.variant` to `:modal`, `:drawer`, `:popover`, or
+`:hint` on overlay requests, and exposes `overlay_request?` plus
+per-type predicates (`modal_request?`, `drawer_request?`,
+`popover_request?`, `hint_request?`) on both controllers and views.
+Use either to fork an action's response.
+
+### `respond_to` with variant blocks
+
+Because `request.variant` is set, standard Rails variant-block API
+works out of the box:
+
+```ruby
+def show
+  @user = User.find(params[:id])
+
+  respond_to do |format|
+    format.html.modal   { render :show_modal }
+    format.html.drawer  { render :show_drawer }
+    format.html         { render :show }  # full-page fallback
+  end
+end
+```
+
+For pure markup differences, [variant templates](#variant-templates-per-chrome)
+(`show.html+modal.erb` etc.) are simpler — branch in the action
+itself only when you need to load different data or run different
+logic per chrome.
+
+### Closing on success, redirecting on failure
+
+The most common controller pattern: a `create`/`update` that closes
+the overlay on success when one is open, and falls through to a
+normal redirect for full-page callers.
+
+```ruby
+def create
+  @user = User.new(user_params)
+
+  if @user.save
+    if overlay_request?
+      render turbo_stream: [
+        turbo_stream.overlay(:close, id: turbo_overlay_id),
+        turbo_stream.prepend("users", partial: "users/user", locals: { user: @user })
+      ]
+    else
+      redirect_to @user, notice: "Created."
+    end
+  else
+    render :new, status: :unprocessable_entity
+  end
+end
+```
+
+`render :new, status: :unprocessable_entity` works for both overlay
+and full-page submissions — Turbo re-renders the form in place
+either way, so validation errors don't need a separate code path.
+
 ## Chrome partials
 
 The install generator copies these into your app. They're yours —

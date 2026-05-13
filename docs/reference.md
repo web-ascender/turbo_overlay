@@ -37,7 +37,11 @@ end
 
 ## Helpers
 
-Available on controllers (when the concern is included) and views:
+Available on controllers (when the concern is included) and views.
+On overlay requests `request.variant` is also set to `:modal`,
+`:drawer`, `:popover`, or `:hint`, so `format.html.modal { }` blocks
+in `respond_to` work as expected — see
+[Branching in controllers](customization.md#branching-in-controllers).
 
 | Helper                                  | Returns                                                                |
 |-----------------------------------------|------------------------------------------------------------------------|
