@@ -329,6 +329,31 @@ class OverlayTest < ApplicationSystemTestCase
     # show_delay_ms defaults to 250ms; prefetch + render adds a bit
     # more. Give it some headroom.
     assert_selector "[data-test-hint-body]", text: "Flywheel", wait: 2
+
+    # The hint should be anchored near its trigger, not centered or
+    # drifted across the viewport. UA `[popover]` styles (inset: 0;
+    # margin: auto) would re-center the hint via the auto margins if
+    # we didn't explicitly null right/bottom/margin before positioning.
+    rects = page.evaluate_script(<<~JS)
+      (() => {
+        // Find the hint trigger by its text — multiple hint-marked
+        // links exist in the dummy index, only "Hint Flywheel" was
+        // hovered.
+        const trigger = Array.from(document.querySelectorAll("a[data-turbo-overlay-hint]"))
+          .find((a) => a.textContent.trim() === "Hint Flywheel")
+        const hint = document.querySelector(".turbo-overlay-hint:not([data-turbo-overlay-hint-pending])") ||
+                     document.querySelector(".turbo-overlay-hint")
+        return {
+          trigger: trigger.getBoundingClientRect().toJSON(),
+          hint:    hint.getBoundingClientRect().toJSON()
+        }
+      })()
+    JS
+    # Default hint position is :bottom with align :start and 6px gap.
+    assert_in_delta rects["trigger"]["bottom"] + 6, rects["hint"]["top"], 3,
+      "hint not anchored 6px below trigger (trigger.bottom=#{rects["trigger"]["bottom"]} vs hint.top=#{rects["hint"]["top"]})"
+    assert_in_delta rects["trigger"]["left"], rects["hint"]["left"], 12,
+      "hint not aligned with trigger left edge (trigger.left=#{rects["trigger"]["left"]} vs hint.left=#{rects["hint"]["left"]})"
   end
 
   test "data-turbo-confirm renders the gem's themed modal instead of window.confirm" do

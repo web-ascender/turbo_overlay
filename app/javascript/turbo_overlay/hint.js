@@ -351,6 +351,18 @@ function renderPendingHint(link) {
 }
 
 function positionFloatingHint(node, link) {
+  // Normalize positioning BEFORE measuring. UA `[popover]` rules
+  // (which apply since hints render as `<div popover="manual">` and
+  // enter the top layer via showPopover) set `inset: 0; margin: auto`
+  // — without explicit `right: auto; bottom: auto; margin: 0` on our
+  // side, the leftover space gets distributed via the auto margins
+  // and the hint ends up centered in the gap rather than anchored to
+  // our computed left.
+  node.style.position = "fixed"
+  node.style.right    = "auto"
+  node.style.bottom   = "auto"
+  node.style.margin   = "0"
+
   const dialogRect = node.getBoundingClientRect()
   const anchorRect = link.getBoundingClientRect()
   const viewport = {
@@ -366,7 +378,6 @@ function positionFloatingHint(node, link) {
     offset: 6,
     autoFlip: true
   })
-  node.style.position = "fixed"
   node.style.top  = `${top}px`
   node.style.left = `${left}px`
 }
