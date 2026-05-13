@@ -45,28 +45,50 @@ wiring appropriate to your build setup (importmap, propshaft,
 sprockets, jsbundling, cssbundling).
 
 The final wiring step is your `ApplicationController`. Include the
-concern and pick a layout per request:
+concern:
 
 ```ruby
 class ApplicationController < ActionController::Base
   include TurboOverlay::Controller
-  layout :resolve_layout
-
-  private
-
-  def resolve_layout
-    return modal_layout_name   if modal_request?
-    return drawer_layout_name  if drawer_request?
-    return popover_layout_name if popover_request?
-    return hint_layout_name    if hint_request?
-    "application"
-  end
 end
 ```
+
+Including the concern auto-installs a `layout` proc that swaps in the
+matching overlay layout for overlay requests. It also preserves
+turbo-rails' `"turbo_rails/frame"` layout for plain turbo-frame
+requests, so including the concern does **not** regress Turbo's
+frame-layout optimization.
 
 Overlay layouts **replace** your application layout for overlay
 requests — only the view content is wrapped in the dialog markup,
 not your nav, header, or footer.
+
+### A note on custom layouts
+
+The concern's auto-installed proc replaces any `layout` declaration
+already on the controller. If your app uses a custom layout method,
+call `turbo_overlay_layout` from it — the helper covers both overlay
+requests and plain turbo-frame requests, so a single line preserves
+everything:
+
+```ruby
+layout :custom_layout
+
+def custom_layout
+  turbo_overlay_layout || "my_app_layout"
+end
+```
+
+If you have a static `layout "admin"` declaration, you **have** to
+change it to a layout method to thread `turbo_overlay_layout` through:
+
+```ruby
+layout :custom_layout
+
+def custom_layout
+  turbo_overlay_layout || "admin"
+end
+```
 
 If you skip the install generator the gem falls back to a plain
 `<dialog>` chrome so modals and drawers still work, just unstyled

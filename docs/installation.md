@@ -58,29 +58,28 @@ unstyled beyond the gem's CSS.
 
 ## ApplicationController
 
-Include the concern and add a layout method:
+Include the concern:
 
 ```ruby
 class ApplicationController < ActionController::Base
   include TurboOverlay::Controller
-  layout :resolve_layout
-
-  private
-
-  def resolve_layout
-    return modal_layout_name   if modal_request?
-    return drawer_layout_name  if drawer_request?
-    return popover_layout_name if popover_request?
-    return hint_layout_name    if hint_request?
-    "application"
-  end
 end
 ```
+
+Including the concern auto-installs a `layout` proc that swaps in the
+matching overlay layout for overlay requests. It also preserves
+turbo-rails' `"turbo_rails/frame"` layout for plain turbo-frame
+requests, so the concern does not regress Turbo's frame-layout
+optimization.
 
 The overlay layout **replaces** your application layout for overlay
 requests — only the view content is wrapped in the dialog/drawer/popover
 markup, not your nav, header, or footer. The host page already has
 those; the appended overlay sits on top.
+
+For apps with a custom layout method, call `turbo_overlay_layout`
+from your method — see the "A note on custom layouts" section in the
+README.
 
 ## Bundling apps
 

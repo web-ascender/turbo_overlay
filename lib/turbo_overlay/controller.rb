@@ -3,27 +3,19 @@ require "securerandom"
 
 module TurboOverlay
   # Controller concern. Include in `ApplicationController` (or any
-  # controller you want overlay-aware).
-  #
-  # Layout swapping uses standard Rails. Pick a layout method and
-  # return the matching overlay layout for overlay requests:
+  # controller you want overlay-aware):
   #
   #   class ApplicationController < ActionController::Base
   #     include TurboOverlay::Controller
-  #     layout :resolve_layout
-  #
-  #     private
-  #
-  #     def resolve_layout
-  #       return modal_layout_name  if modal_request?
-  #       return drawer_layout_name if drawer_request?
-  #       "application"
-  #     end
   #   end
   #
-  # The overlay layout *replaces* the application layout for overlay
-  # requests — only the view content gets wrapped in the overlay
-  # markup, not the host page's chrome.
+  # The concern auto-installs a `layout` proc that swaps in the
+  # matching overlay layout for overlay requests and preserves
+  # `"turbo_rails/frame"` for plain turbo-frame requests (so including
+  # this concern does not regress Turbo's frame-layout optimization).
+  # For apps with a custom layout method, call `turbo_overlay_layout`
+  # from your method — see the README "A note on custom layouts"
+  # section.
   module Controller
     extend ActiveSupport::Concern
 
@@ -41,10 +33,12 @@ module TurboOverlay
       prepend_before_action :_turbo_overlay_set_variant
       after_action :_turbo_overlay_set_stream_content_type
 
-      helper_method :modal_request?, :modal_layout_name,
-        :drawer_request?, :drawer_layout_name,
-        :popover_request?, :popover_layout_name,
-        :hint_request?, :hint_layout_name,
+      layout -> { turbo_overlay_layout }
+
+      helper_method :modal_request?,
+        :drawer_request?,
+        :popover_request?,
+        :hint_request?,
         :overlay_request?, :turbo_overlay_id, :turbo_overlay_type,
         :turbo_overlay_position, :turbo_overlay_align,
         :turbo_overlay_offset, :turbo_overlay_backdrop?,
@@ -58,18 +52,10 @@ module TurboOverlay
       turbo_overlay_type == :modal
     end
 
-    def modal_layout_name
-      TurboOverlay.configuration.modal.layout_name
-    end
-
     # ----- drawer -----
 
     def drawer_request?
       turbo_overlay_type == :drawer
-    end
-
-    def drawer_layout_name
-      TurboOverlay.configuration.drawer.layout_name
     end
 
     # ----- popover -----
@@ -78,18 +64,34 @@ module TurboOverlay
       turbo_overlay_type == :popover
     end
 
-    def popover_layout_name
-      TurboOverlay.configuration.popover.layout_name
-    end
-
     # ----- hint -----
 
     def hint_request?
       turbo_overlay_type == :hint
     end
 
-    def hint_layout_name
-      TurboOverlay.configuration.hint.layout_name
+    # ----- layout -----
+
+    # Layout name for the current request. Returns the matching overlay
+    # layout for overlay requests, `"turbo_rails/frame"` for plain
+    # turbo-frame requests (preserving Turbo's optimization, since our
+    # auto-installed `layout` proc replaces Turbo's), or `nil`
+    # otherwise so Rails picks the default layout.
+    #
+    # Apps with a custom layout method should call this first:
+    #
+    #   def custom_layout
+    #     turbo_overlay_layout || "my_app_layout"
+    #   end
+    def turbo_overlay_layout
+      case turbo_overlay_type
+      when :modal   then "turbo_overlay/modal"
+      when :drawer  then "turbo_overlay/drawer"
+      when :popover then "turbo_overlay/popover"
+      when :hint    then "turbo_overlay/hint"
+      else
+        "turbo_rails/frame" if respond_to?(:turbo_frame_request?) && turbo_frame_request?
+      end
     end
 
     # ----- generic -----

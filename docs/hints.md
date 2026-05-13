@@ -70,7 +70,7 @@ Drop a `show.html+hint.erb` on the destination page and you're done.
 `popover_link_to`) carry `data-turbo-stream="true"`, which Turbo's
 hover prefetch **ignores**. For these, provide an explicit `hint_url:`
 that the gem fetches with the `:hint` request variant on hover. Rails
-resolves the same `+hint` variant template; the gem's `turbo_hint`
+resolves the same `+hint` variant template; the gem's `turbo_overlay/hint`
 layout wraps it in `<template id="turbo-overlay-hint">` for the JS
 extractor.
 

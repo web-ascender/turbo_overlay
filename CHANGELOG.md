@@ -4,6 +4,29 @@
 
 Big iteration cycle ahead of the first public release. Highlights:
 
+### Changed
+- **Auto-installed overlay `layout` proc.** Including
+  `TurboOverlay::Controller` now declares `layout -> { turbo_overlay_layout }`
+  on its own, so host apps no longer hand-write a `resolve_layout`
+  method. The proc also re-installs Turbo's `"turbo_rails/frame"`
+  layout for plain turbo-frame requests, so including the concern
+  does not regress Turbo's frame-layout optimization. Apps with a
+  custom layout method call `turbo_overlay_layout` from it (see
+  README "A note on custom layouts").
+- **Bundled layouts moved to `app/views/layouts/turbo_overlay/{modal,drawer,popover,hint}.html.erb`**
+  to mirror `turbo_rails/frame.html.erb`. Layout names returned by
+  the helper are now `"turbo_overlay/modal"`, `"turbo_overlay/drawer"`,
+  `"turbo_overlay/popover"`, `"turbo_overlay/hint"`.
+
+### Removed
+- `modal/drawer/popover/hint.layout_name` configuration and the
+  matching `modal_layout_name` / `drawer_layout_name` /
+  `popover_layout_name` / `hint_layout_name` controller helpers.
+  Layout names are now hard-coded. Host apps that want a different
+  layout file can place their own at
+  `app/views/layouts/turbo_overlay/modal.html.erb` (Rails view
+  precedence wins over the gem's copy).
+
 ### Added
 - **Popover overlay type.** `popover_link_to "Edit", path` opens its
   target as a non-modal `<dialog>` anchored to the clicked link.

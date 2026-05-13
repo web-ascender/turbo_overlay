@@ -1,13 +1,11 @@
 module TurboOverlay
   # Per-overlay-type config. `variant` is the Rails partial-variant
-  # symbol the type renders as; `layout_name` is the layout the install
-  # generator suggests in its `resolve_layout` example.
+  # symbol the type renders as.
   class OverlayTypeConfig
-    attr_accessor :variant, :layout_name
+    attr_accessor :variant
 
-    def initialize(variant:, layout_name:)
-      @variant     = variant
-      @layout_name = layout_name
+    def initialize(variant:)
+      @variant = variant
     end
   end
 
@@ -91,44 +89,32 @@ module TurboOverlay
     def initialize
       @stack_id = "turbo_overlay_stack"
 
-      @modal = OverlayTypeConfig.new(
-        variant:     :modal,
-        layout_name: "turbo_modal"
-      )
+      @modal = OverlayTypeConfig.new(variant: :modal)
 
       @drawer = DrawerConfig.new(
-        variant:     :drawer,
-        layout_name: "turbo_drawer",
-        position:    :right
+        variant:  :drawer,
+        position: :right
       )
 
       @popover = PopoverConfig.new(
-        variant:     :popover,
-        layout_name: "turbo_popover",
-        position:    :bottom,
-        align:       :start,
-        offset:      4,
-        auto_flip:   true
+        variant:   :popover,
+        position:  :bottom,
+        align:     :start,
+        offset:    4,
+        auto_flip: true
       )
 
       @confirm = ConfirmConfig.new(style: :modal)
 
       @hint = HintConfig.new(
-        variant:        :hint,
-        layout_name:    "turbo_hint",
-        show_delay_ms:  250,
-        hide_delay_ms:  120
+        variant:       :hint,
+        show_delay_ms: 250,
+        hide_delay_ms: 120
       )
     end
 
     # Modal config. With a block, yields the type config for setters;
     # without a block, returns it for direct access.
-    #
-    #   TurboOverlay.configure do |c|
-    #     c.modal do |m|
-    #       m.layout_name = "my_modal"
-    #     end
-    #   end
     def modal
       yield @modal if block_given?
       @modal

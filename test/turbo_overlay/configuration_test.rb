@@ -24,20 +24,15 @@ class ConfigurationTest < Minitest::Test
 
   def test_default_modal_values
     modal = TurboOverlay.configuration.modal
-    assert_equal :modal,        modal.variant
-    assert_equal "turbo_modal", modal.layout_name
+    assert_equal :modal, modal.variant
   end
 
   def test_configure_modal_with_block
     TurboOverlay.configure do |c|
-      c.modal do |m|
-        m.variant     = :custom_modal
-        m.layout_name = "my_modal"
-      end
+      c.modal { |m| m.variant = :custom_modal }
     end
 
-    assert_equal :custom_modal,  TurboOverlay.configuration.modal.variant
-    assert_equal "my_modal",     TurboOverlay.configuration.modal.layout_name
+    assert_equal :custom_modal, TurboOverlay.configuration.modal.variant
   end
 
   def test_modal_returns_config_when_no_block
@@ -48,9 +43,8 @@ class ConfigurationTest < Minitest::Test
 
   def test_default_drawer_values
     drawer = TurboOverlay.configuration.drawer
-    assert_equal :drawer,        drawer.variant
-    assert_equal "turbo_drawer", drawer.layout_name
-    assert_equal :right,         drawer.position
+    assert_equal :drawer, drawer.variant
+    assert_equal :right,  drawer.position
   end
 
   def test_configure_drawer_with_block
@@ -72,12 +66,11 @@ class ConfigurationTest < Minitest::Test
 
   def test_default_popover_values
     popover = TurboOverlay.configuration.popover
-    assert_equal :popover,        popover.variant
-    assert_equal "turbo_popover", popover.layout_name
-    assert_equal :bottom,         popover.position
-    assert_equal :start,          popover.align
-    assert_equal 4,               popover.offset
-    assert_equal true,            popover.auto_flip
+    assert_equal :popover, popover.variant
+    assert_equal :bottom,  popover.position
+    assert_equal :start,   popover.align
+    assert_equal 4,        popover.offset
+    assert_equal true,     popover.auto_flip
   end
 
   def test_configure_popover_with_block
@@ -123,10 +116,9 @@ class ConfigurationTest < Minitest::Test
 
   def test_default_hint_values
     hint = TurboOverlay.configuration.hint
-    assert_equal :hint,        hint.variant
-    assert_equal "turbo_hint", hint.layout_name
-    assert_equal 250,          hint.show_delay_ms
-    assert_equal 120,          hint.hide_delay_ms
+    assert_equal :hint, hint.variant
+    assert_equal 250,   hint.show_delay_ms
+    assert_equal 120,   hint.hide_delay_ms
   end
 
   def test_configure_hint_with_block

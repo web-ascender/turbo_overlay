@@ -27,10 +27,18 @@ class ControllerTest < Minitest::Test
     def self.before_action(*); end
     def self.after_action(*); end
     def self.helper_method(*); end
+    def self.layout(*); end
 
     include TurboOverlay::Controller
 
     attr_accessor :request, :response
+
+    # Stand-in for Turbo::Frames::FrameRequest#turbo_frame_request?,
+    # which is auto-included into ActionController::Base by turbo-rails.
+    # Reads the Turbo-Frame request header.
+    def turbo_frame_request?
+      !request.headers["Turbo-Frame"].to_s.empty?
+    end
   end
 
   def setup
@@ -301,18 +309,40 @@ class ControllerTest < Minitest::Test
     refute @controller.turbo_overlay_initial_open?
   end
 
-  # ---- layout_name accessors ----
+  # ---- turbo_overlay_layout ----
 
-  def test_layout_names_from_configuration
-    assert_equal "turbo_modal",   @controller.modal_layout_name
-    assert_equal "turbo_drawer",  @controller.drawer_layout_name
-    assert_equal "turbo_popover", @controller.popover_layout_name
-    assert_equal "turbo_hint",    @controller.hint_layout_name
+  def test_turbo_overlay_layout_returns_modal_layout_for_modal_request
+    with_headers("X-Turbo-Overlay" => "modal")
+    assert_equal "turbo_overlay/modal", @controller.turbo_overlay_layout
   end
 
-  def test_modal_layout_name_respects_config
-    TurboOverlay.configure { |c| c.modal { |m| m.layout_name = "custom_modal" } }
-    assert_equal "custom_modal", @controller.modal_layout_name
+  def test_turbo_overlay_layout_returns_drawer_layout_for_drawer_request
+    with_headers("X-Turbo-Overlay" => "drawer")
+    assert_equal "turbo_overlay/drawer", @controller.turbo_overlay_layout
+  end
+
+  def test_turbo_overlay_layout_returns_popover_layout_for_popover_request
+    with_headers("X-Turbo-Overlay" => "popover")
+    assert_equal "turbo_overlay/popover", @controller.turbo_overlay_layout
+  end
+
+  def test_turbo_overlay_layout_returns_hint_layout_for_hint_request
+    with_headers("X-Turbo-Overlay" => "hint")
+    assert_equal "turbo_overlay/hint", @controller.turbo_overlay_layout
+  end
+
+  def test_turbo_overlay_layout_returns_overlay_layout_for_frame_re_render
+    with_headers("Turbo-Frame" => "turbo_overlay_modal_abc")
+    assert_equal "turbo_overlay/modal", @controller.turbo_overlay_layout
+  end
+
+  def test_turbo_overlay_layout_preserves_turbo_rails_frame_for_plain_frame_request
+    with_headers("Turbo-Frame" => "some_plain_frame")
+    assert_equal "turbo_rails/frame", @controller.turbo_overlay_layout
+  end
+
+  def test_turbo_overlay_layout_returns_nil_for_plain_request
+    assert_nil @controller.turbo_overlay_layout
   end
 
   # ---- _turbo_overlay_force_html_format (before_action body) ----

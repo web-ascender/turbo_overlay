@@ -8,23 +8,20 @@ TurboOverlay.configure do |config|
   config.stack_id = "turbo_overlay_stack"  # host-page stack container DOM id
 
   config.modal do |m|
-    m.variant     = :modal         # Rails request variant
-    m.layout_name = "turbo_modal"  # layout file name
+    m.variant = :modal             # Rails request variant
   end
 
   config.drawer do |d|
-    d.variant     = :drawer
-    d.layout_name = "turbo_drawer"
-    d.position    = :right         # :left, :right, :top, :bottom
+    d.variant  = :drawer
+    d.position = :right            # :left, :right, :top, :bottom
   end
 
   config.popover do |p|
-    p.variant     = :popover
-    p.layout_name = "turbo_popover"
-    p.position    = :bottom        # :top, :bottom, :left, :right
-    p.align       = :start         # :start, :center, :end
-    p.offset      = 4              # pixels between trigger and dialog
-    p.auto_flip   = true           # flip to opposite side on overflow
+    p.variant   = :popover
+    p.position  = :bottom          # :top, :bottom, :left, :right
+    p.align     = :start           # :start, :center, :end
+    p.offset    = 4                # pixels between trigger and dialog
+    p.auto_flip = true             # flip to opposite side on overflow
   end
 
   config.confirm do |cf|
@@ -46,7 +43,7 @@ Available on controllers (when the concern is included) and views:
 |-----------------------------------------|------------------------------------------------------------------------|
 | `modal_request?` / `drawer_request?` / `popover_request?` / `hint_request?` | `true` if the current request targets that overlay type |
 | `overlay_request?`                      | `true` if the current request targets *any* overlay                    |
-| `modal_layout_name` / `drawer_layout_name` / `popover_layout_name` / `hint_layout_name` | configured layout file name; use these in `resolve_layout` |
+| `turbo_overlay_layout`                  | The layout name for the current request: `"turbo_overlay/modal"` etc. for overlay requests, `"turbo_rails/frame"` for plain turbo-frame requests, `nil` otherwise. Auto-installed via `layout -> { turbo_overlay_layout }`; call from a custom layout method to compose with your own logic |
 | `overlay_prefetch_request?`             | `true` when the request is a Turbo hover prefetch (`X-Sec-Purpose: prefetch`) |
 | `overlay_hintable_request?`             | `true` for prefetches and `:hint` variant fetches — used internally to decide whether to emit the `+hint` template |
 | `turbo_overlay_type`                    | `:modal`, `:drawer`, `:popover`, `:hint`, or `nil`                     |
@@ -120,8 +117,8 @@ When you click `<%= modal_link_to "Edit", edit_user_path(@user) %>`:
    resolution.
 3. Rails picks `edit.html+modal.erb` if it exists, else
    `edit.html.erb`.
-4. `resolve_layout` returns `modal_layout_name`. The modal layout
-   wraps the view in
+4. The auto-installed `layout -> { turbo_overlay_layout }` proc
+   returns `"turbo_overlay/modal"`. The modal layout wraps the view in
    `<turbo-stream action="append" target="turbo_overlay_stack">`
    whose template contains a
    `<turbo-frame id="turbo_overlay_modal_<id>">` wrapping the dialog.

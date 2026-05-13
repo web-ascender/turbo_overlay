@@ -26,7 +26,7 @@ module TurboOverlay
       class_option :layouts,
         type: :boolean,
         default: false,
-        desc: "Copy turbo_modal.html.erb and turbo_drawer.html.erb into app/views/layouts/"
+        desc: "Copy the four overlay layouts into app/views/layouts/turbo_overlay/"
 
       def print_help_if_no_flags
         return if any_flag_given?
@@ -84,14 +84,14 @@ module TurboOverlay
       def eject_layouts
         return unless options[:layouts]
 
-        copy_gem_file "app/views/layouts/turbo_modal.html.erb",
-          "app/views/layouts/turbo_modal.html.erb"
-        copy_gem_file "app/views/layouts/turbo_drawer.html.erb",
-          "app/views/layouts/turbo_drawer.html.erb"
-        copy_gem_file "app/views/layouts/turbo_popover.html.erb",
-          "app/views/layouts/turbo_popover.html.erb"
-        copy_gem_file "app/views/layouts/turbo_hint.html.erb",
-          "app/views/layouts/turbo_hint.html.erb"
+        copy_gem_file "app/views/layouts/turbo_overlay/modal.html.erb",
+          "app/views/layouts/turbo_overlay/modal.html.erb"
+        copy_gem_file "app/views/layouts/turbo_overlay/drawer.html.erb",
+          "app/views/layouts/turbo_overlay/drawer.html.erb"
+        copy_gem_file "app/views/layouts/turbo_overlay/popover.html.erb",
+          "app/views/layouts/turbo_overlay/popover.html.erb"
+        copy_gem_file "app/views/layouts/turbo_overlay/hint.html.erb",
+          "app/views/layouts/turbo_overlay/hint.html.erb"
       end
 
       private

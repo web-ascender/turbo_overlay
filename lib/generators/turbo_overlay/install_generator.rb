@@ -162,23 +162,16 @@ module TurboOverlay
 
           Turbo Overlay installed with the #{@theme} theme.
 
-          Wire the controller concern in ApplicationController and swap to
-          the matching layout per overlay request:
+          Wire the controller concern in ApplicationController:
 
             class ApplicationController < ActionController::Base
               include TurboOverlay::Controller
-              layout :resolve_layout
-
-              private
-
-              def resolve_layout
-                return modal_layout_name   if modal_request?
-                return drawer_layout_name  if drawer_request?
-                return popover_layout_name if popover_request?
-                return hint_layout_name    if hint_request?
-                "application"
-              end
             end
+
+          Including the concern auto-installs the overlay layout swap
+          and preserves Turbo's `turbo_rails/frame` layout for plain
+          frame requests. For custom layouts, see "A note on custom
+          layouts" in the README.
 
           Then open views as overlays:
 
