@@ -105,52 +105,38 @@ render turbo_stream: turbo_stream.overlay(:close, id: turbo_overlay_id)
 
 ## Chrome partials
 
-The install generator copies these into your app:
+The install generator copies these into your app. They're yours —
+edit freely.
 
-**Chrome partials** (the dialog/wrapper for each overlay type):
+**Chrome partials** wrap the dialog/drawer/popover/hint:
 
 - `app/views/turbo_overlay/_modal.html.erb`
 - `app/views/turbo_overlay/_drawer.html.erb`
 - `app/views/turbo_overlay/_popover.html.erb`
 - `app/views/turbo_overlay/_hint.html.erb`
 
-**Body-only partials** (rendered *inside* the matching chrome at
-template-emission time by `overlay_stack_tag`):
+When editing a chrome partial, keep the `<dialog>` element with its
+`data-controller="turbo-overlay"` and data values, the `<%= yield %>`
+for the body, and the `content_for(:overlay_title)` /
+`content_for(:overlay_footer)` reads.
 
-- `app/views/turbo_overlay/_confirm.html.erb` — shared confirm body,
-  wrapped in modal or popover chrome per `config.confirm.style`
-- `app/views/turbo_overlay/_loading.html.erb` — shared loading body,
-  wrapped in modal/drawer/popover/hint chrome
+The chrome partials accept a `loading:` local; when `true` they
+render a static placeholder version (no Stimulus controller, no
+close button, no title/footer).
 
-Both default to a single shared file that works across every chrome
-variant. Drop in a chrome-specific override
-(`_confirm.html+modal.erb`, `_loading.html+hint.erb`, etc.) when
-you need different markup for one variant — the variant lookup
-prefers it over the shared file.
+**Body-only partials** render *inside* the matching chrome —
+retheming the chrome flows through to both:
 
-These are *your* files. Edit them freely — change classes, add a
-brand container, restyle the close button.
+- `app/views/turbo_overlay/_confirm.html.erb` — themed
+  `data-turbo-confirm` body.
+- `app/views/turbo_overlay/_loading.html.erb` — loading placeholder
+  body.
 
-**Chrome partials** are rendered as layouts (`render layout: ...`),
-so they use `<%= yield %>` for the body and read
-`content_for(:overlay_title)` / `content_for(:overlay_footer)` for
-the slots. Keep the `<dialog>` element's
-`data-controller="turbo-overlay"` and its data values so the
-Stimulus controllers can attach. They accept a `loading:` local —
-when `true`, the chrome drops the Stimulus controller wiring, close
-button, and overlay title/footer slots, and switches the ARIA role
-to `status` for the loading placeholder use case.
+Add `_confirm.html+<variant>.erb` or `_loading.html+<variant>.erb`
+when you need chrome-specific markup; the variant wins over the
+shared file.
 
-**Body-only confirm/loading partials** only contain the content that
-goes inside the chrome — no `<dialog>` wrapper, no Stimulus
-controller. `overlay_stack_tag` does
-`render(partial: "turbo_overlay/confirm", layout: "turbo_overlay/<variant>", ...)`
-so retheming the chrome carries through to confirm and loading
-automatically.
-
-If you delete these files, the gem's plain fallback partials kick
-in. To switch themes (e.g. plain → tailwind), re-run install with
-`--force`:
+To switch themes, re-run install with `--force`:
 
 ```bash
 bin/rails g turbo_overlay:install --theme tailwind --force
@@ -170,10 +156,9 @@ backdrop-click dismissal — e.g. a form with unsaved input — with:
 ```
 
 On validation failure, just
-`render :new, status: :unprocessable_entity`. The form lives inside
-a per-overlay turbo-frame, so Rails re-renders the form and Turbo
-replaces the frame's contents in place — the overlay stays open and
-shows errors. No special handling required.
+`render :new, status: :unprocessable_entity` — the overlay stays
+open and re-renders the form with errors in place. No special
+handling required.
 
 ## Closing is always explicit
 

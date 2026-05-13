@@ -13,11 +13,10 @@ What the generator does:
 - **Chrome partials** copied to `app/views/turbo_overlay/`:
   `_modal.html.erb`, `_drawer.html.erb`, `_popover.html.erb`,
   `_hint.html.erb`, plus body-only `_confirm.html.erb` and
-  `_loading.html.erb`. The body-only partials are wrapped in the
-  matching chrome at template-emission time. Drop in a
-  `_loading.html+<variant>.erb` or `_confirm.html+<variant>.erb`
-  later if you need chrome-specific markup. These are *your* files —
-  Tailwind / similar content scanners pick them up here automatically.
+  `_loading.html.erb`. These are *your* files — Tailwind and similar
+  content scanners pick them up here automatically. Add
+  `_loading.html+<variant>.erb` or `_confirm.html+<variant>.erb` for
+  chrome-specific markup.
 - **Initializer** at `config/initializers/turbo_overlay.rb`.
 - **Stack tag** — `<%= overlay_stack_tag %>` injected before `</body>`
   in `app/views/layouts/application.html.erb`.
@@ -27,8 +26,7 @@ What the generator does:
   The `{ confirm: true }` flag routes `data-turbo-confirm` through the
   gem's themed dialog.
 - **Propshaft apps** — injects `stylesheet_link_tag "turbo_overlay"`
-  next to your existing one. (Propshaft doesn't rewrite CSS `@import`
-  URLs to digested paths, so a separate link tag is the right primitive.)
+  next to your existing one.
 - **Sprockets apps** — injects `*= require turbo_overlay` into your
   manifest CSS.
 - **jsbundling / cssbundling apps** — prints the snippet to add to
@@ -66,20 +64,16 @@ class ApplicationController < ActionController::Base
 end
 ```
 
-Including the concern auto-installs a `layout` proc that swaps in the
-matching overlay layout for overlay requests. It also preserves
-turbo-rails' `"turbo_rails/frame"` layout for plain turbo-frame
-requests, so the concern does not regress Turbo's frame-layout
-optimization.
+Including the concern installs a `layout` proc that swaps to the
+matching overlay layout on overlay requests. Plain turbo-frame
+requests keep their turbo-rails layout.
 
 The overlay layout **replaces** your application layout for overlay
 requests — only the view content is wrapped in the dialog/drawer/popover
-markup, not your nav, header, or footer. The host page already has
-those; the appended overlay sits on top.
+markup, not your nav, header, or footer.
 
-For apps with a custom layout method, call `turbo_overlay_layout`
-from your method — see the "A note on custom layouts" section in the
-README.
+For controllers with a custom layout method, call
+`turbo_overlay_layout` from it — see the README.
 
 ## Bundling apps
 

@@ -53,23 +53,18 @@ class ApplicationController < ActionController::Base
 end
 ```
 
-Including the concern auto-installs a `layout` proc that swaps in the
-matching overlay layout for overlay requests. It also preserves
-turbo-rails' `"turbo_rails/frame"` layout for plain turbo-frame
-requests, so including the concern does **not** regress Turbo's
-frame-layout optimization.
+Including the concern installs a `layout` proc that swaps to the
+matching overlay layout on overlay requests. Plain turbo-frame
+requests keep their turbo-rails layout.
 
 Overlay layouts **replace** your application layout for overlay
 requests — only the view content is wrapped in the dialog markup,
 not your nav, header, or footer.
 
-### A note on custom layouts
+### Custom layouts
 
-The concern's auto-installed proc replaces any `layout` declaration
-already on the controller. If your app uses a custom layout method,
-call `turbo_overlay_layout` from it — the helper covers both overlay
-requests and plain turbo-frame requests, so a single line preserves
-everything:
+If your controller uses its own layout method, call
+`turbo_overlay_layout` from it:
 
 ```ruby
 layout :custom_layout
@@ -79,16 +74,8 @@ def custom_layout
 end
 ```
 
-If you have a static `layout "admin"` declaration, you **have** to
-change it to a layout method to thread `turbo_overlay_layout` through:
-
-```ruby
-layout :custom_layout
-
-def custom_layout
-  turbo_overlay_layout || "admin"
-end
-```
+A static `layout "admin"` declaration needs to be a method to thread
+`turbo_overlay_layout` through.
 
 If you skip the install generator the gem falls back to a plain
 `<dialog>` chrome so modals and drawers still work, just unstyled
@@ -188,15 +175,10 @@ box. Opt a specific overlay out with
 
 ### Loading state, themed confirms, and hover hints
 
-These get their own pages — they each have enough surface area that
-inlining the docs here drowns the basics:
-
 - [docs/loading-and-confirm.md](docs/loading-and-confirm.md) —
-  immediate-feedback placeholders for slow controllers, and
-  themed `data-turbo-confirm` prompts (modal or popover).
-- [docs/hints.md](docs/hints.md) — hover-preview popovers, Turbo
-  prefetch coordination, the `+hint` variant template, and the
-  `hint:` / `hint_url:` options on every overlay link helper.
+  loading placeholders and themed `data-turbo-confirm`.
+- [docs/hints.md](docs/hints.md) — hover-preview popovers and the
+  `+hint` variant template.
 
 ## Themes
 
@@ -225,7 +207,9 @@ browser's `<dialog>` top layer regardless of theme.
 - [Customization](docs/customization.md) — chrome partials, variant
   templates, stable ids, the full-page-render footgun.
 - [Reference](docs/reference.md) — full configuration, helper
-  reference, JavaScript events, request lifecycle.
+  reference, JavaScript events.
+- [Architecture](docs/architecture.md) — request lifecycle, headers,
+  hint internals, JS module layout. Optional reading.
 
 ## Development
 

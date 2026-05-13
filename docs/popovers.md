@@ -1,9 +1,7 @@
 # Popovers
 
 `popover_link_to` opens its target as a non-modal `<dialog>` anchored
-to the link that was clicked — the same plumbing as modal/drawer, just
-positioned relative to its trigger instead of centered or pinned to
-an edge.
+to the clicked link.
 
 ```erb
 <%= popover_link_to "Edit", edit_user_path(@user) %>
@@ -34,29 +32,21 @@ popover repositions itself as the anchor scrolls.
 Opening a second popover automatically dismisses any other open
 popover. Modals and drawers still stack as normal — a modal opened
 from inside a popover sits on top, and dismissing it leaves the
-popover anchored. "Two free-floating popovers at once" is rarely
-what you want; if you genuinely need stacked popovers, open an
-issue.
+popover anchored.
 
 ## Links inside popovers
 
-A plain `link_to` rendered inside a popover would otherwise navigate
-inside the popover's turbo-frame and replace its contents. The
-controller back-fills `data-turbo-frame="_top"` on any `<a>` that
-doesn't already carry an explicit `data-turbo-frame` or
-`data-turbo-overlay` — so a regular link navigates the page (closing
-the popover), while `modal_link_to` / `drawer_link_to` /
-`popover_link_to` keep their stacking behavior. Forms inside the
-popover are untouched and still re-render in place on validation
-failure.
+A plain `link_to` inside a popover navigates the whole page (and
+closes the popover) instead of replacing the popover's contents.
+Overlay link helpers (`modal_link_to`, `drawer_link_to`,
+`popover_link_to`) keep their stacking behavior. Forms inside the
+popover re-render in place on validation failure as usual.
 
 ## No default close button
 
-Unlike modals and drawers, popovers don't render a "×" by default —
-they already dismiss on click-outside / ESC / opening another
-popover, and a button is mostly visual noise in a small floating
-panel. Opt back in per-view with `<% overlay_close true %>`, or
-globally by editing `app/views/turbo_overlay/_popover.html.erb`.
+Popovers don't render a "×" by default. Opt back in per-view with
+`<% overlay_close true %>`, or globally by editing
+`app/views/turbo_overlay/_popover.html.erb`.
 
 ## Drawer per-link options
 
@@ -72,11 +62,10 @@ kwargs that override the configured defaults:
 <%= drawer_link_to "Inspector", inspect_path, backdrop: false %>
 ```
 
-`backdrop: false` opens the drawer non-modally (`dialog.show()`
-instead of `showModal()`). The browser doesn't render a `::backdrop`,
-the page beneath stays fully interactive, and the page-wide scroll
-lock is disabled. Useful when the user needs to read or copy from
-the host page while the drawer is open.
+`backdrop: false` opens the drawer non-modally: no dimmed backdrop,
+the page stays scrollable and selectable, click-outside is ignored
+(no backdrop to click). Useful when the user needs to read or copy
+from the host page while the drawer is open.
 
 ### Backdrop knobs side-by-side
 
