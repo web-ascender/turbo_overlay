@@ -108,11 +108,15 @@ module TurboOverlay
       end
 
       def inject_stack_tag
-        return if options[:skip_layout_inject]
+        if options[:skip_layout_inject]
+          @layout_instructions_only = true
+          return
+        end
 
         layout_path = locate_application_layout
         unless layout_path
-          say_status :skip, "no application.html.erb found; add `<%= overlay_stack_tag %>` before </body> manually", :yellow
+          @layout_instructions_only = true
+          say_status :skip, "no application.html.erb found; see post-install instructions for `overlay_stack_tag`", :yellow
           return
         end
 
@@ -173,6 +177,10 @@ module TurboOverlay
           frame requests. For custom layouts, see "A note on custom
           layouts" in the README.
 
+          Confirm `<%= overlay_stack_tag %>` is present in your
+          application layout, just before </body>. The generator adds
+          it automatically when it can find app/views/layouts/application.html.erb.
+
           Then open views as overlays:
 
             <%= modal_link_to   "New",     new_thing_path %>
@@ -187,6 +195,7 @@ module TurboOverlay
 
         MSG
 
+        print_layout_instructions_if_needed
         print_js_instructions_if_needed
         print_css_instructions_if_needed
       end
@@ -338,6 +347,23 @@ module TurboOverlay
         inject_into_file layout_path, after: first_link do
           new_line
         end
+      end
+
+      def print_layout_instructions_if_needed
+        return unless @layout_instructions_only
+
+        say <<~MSG, :yellow
+
+          Add the overlay stack tag to your application layout, just
+          before </body>:
+
+            <%= overlay_stack_tag %>
+
+          This renders the slots overlays mount into. Without it, modal /
+          drawer / popover / hint links will navigate full-page instead
+          of opening as overlays.
+
+        MSG
       end
 
       def print_js_instructions_if_needed
