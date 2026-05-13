@@ -85,6 +85,14 @@ dialog.turbo-overlay-scaffold .turbo-drawer-body { flex: 1; overflow-y: auto; }
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
   max-width: 22rem; max-height: 80vh; overflow: auto;
 }
+/* Popovers and non-modal drawers opened from inside an open modal
+   dialog use showModal() themselves to stack above the parent (HTML
+   inertness would otherwise block them). The :modal pseudo matches
+   only when entered via showModal; combined with --no-backdrop the
+   ::backdrop stays transparent so the overlay still visually feels
+   non-modal. */
+dialog.turbo-overlay--popover:modal::backdrop { background: transparent; }
+dialog.turbo-overlay--drawer:modal.turbo-overlay--no-backdrop::backdrop { background: transparent; }
 .turbo-popover__content { display: flex; flex-direction: column; position: relative; }
 .turbo-popover__header {
   display: flex; align-items: center; justify-content: space-between;

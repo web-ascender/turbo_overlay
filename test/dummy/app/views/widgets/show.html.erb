@@ -8,6 +8,11 @@
   <% if @widget[:name] == "Sprocket" %>
     <%= modal_link_to "Open Flywheel", widget_path("2") %>
     <%= popover_link_to "Popover from modal", widget_path("2") %>
+    <%= popover_link_to "Right popover", widget_path("2"),
+                        position: :right, id: "popover-right-from-drawer" %>
+    <%= drawer_link_to "Drawer non-modal", widget_path("2"),
+                       position: :right, backdrop: false,
+                       id: "drawer-non-modal-from-drawer" %>
   <% end %>
 
   <%# Server-initiated close: POST returns a turbo_stream that closes

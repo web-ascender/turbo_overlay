@@ -196,8 +196,19 @@ function spawnLoadingOverlay(link) {
 
   if (root.tagName === "DIALOG") {
     const useModal = (type === "modal") || (type === "drawer" && backdrop)
+    // Non-modal overlays (popovers, drawers with `backdrop: false`)
+    // opened from inside an existing modal dialog must themselves be
+    // modal. The HTML inertness algorithm blocks every non-descendant
+    // of the topmost modal dialog from receiving input, even top-layer
+    // popovers added afterwards; non-modal dialogs additionally aren't
+    // in the top layer at all and render behind the modal. Switching
+    // to showModal makes the new overlay the topmost modal and keeps
+    // it interactive. Transparent ::backdrop CSS preserves the
+    // non-modal visual feel.
+    const needsModalStacking = (type === "popover" || (type === "drawer" && !backdrop)) &&
+                               !!document.querySelector("dialog:modal")
     try {
-      if (useModal) root.showModal()
+      if (useModal || needsModalStacking) root.showModal()
       else if (type === "popover") root.showPopover()
       else root.show()
     } catch (_) {
@@ -277,6 +288,10 @@ function positionLoadingPopover(root, link) {
   root.style.position = "fixed"
   root.style.top      = `${top}px`
   root.style.left     = `${left}px`
+  // Override UA inset: 0 from [popover] / dialog:modal — see comment
+  // in overlay_controller.js#_positionPopover.
+  root.style.right    = "auto"
+  root.style.bottom   = "auto"
   root.style.margin   = "0"
 }
 
@@ -442,6 +457,12 @@ function registerFetchHook() {
       link.dataset.turboOverlayId = generateOverlayId()
     }
     if (link.dataset.turboOverlay === "popover") {
+      // Stash the click coordinates on the element so the popover
+      // positioner can disambiguate which line of a wrapped inline
+      // trigger to anchor to. `getBoundingClientRect()` on a multi-line
+      // anchor returns the union of all line boxes, which is too wide
+      // to position against meaningfully.
+      link.__turboOverlayClickPoint = { x: event.clientX, y: event.clientY }
       popoverTriggers.set(link.dataset.turboOverlayId, link)
     }
 

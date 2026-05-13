@@ -91,11 +91,168 @@ class OverlayTest < ApplicationSystemTestCase
       click_on "Popover from modal"
     end
 
-    # `:popover-open` matches only when the dialog has been promoted to the
-    # top layer via `showPopover()` — proves the popover stacks above the
-    # modal instead of being hidden underneath it.
-    assert_selector "dialog.turbo-overlay--popover:popover-open"
+    # The popover is opened via `showModal()` when a modal dialog is
+    # already open (otherwise the parent modal's inertness blocks it).
+    # Either :popover-open or :modal proves it's in the top layer.
+    assert_selector "dialog.turbo-overlay--popover:is(:popover-open, :modal)"
     assert_selector "dialog.turbo-overlay--modal[open]"
+  end
+
+  test "popover positions correctly when triggered from inside a modal" do
+    visit "/"
+
+    # Baseline: the standalone Flywheel popover. Same widget as the one
+    # the inside-modal trigger will open, so content (and intrinsic
+    # popover width) is identical.
+    find("#popover-link-2").click
+    assert_selector "dialog.turbo-overlay--popover:popover-open"
+
+    baseline = page.evaluate_script(<<~JS)
+      (() => {
+        const trigger = document.querySelector("#popover-link-2")
+        const dialog  = document.querySelector("dialog.turbo-overlay--popover:popover-open")
+        const a = trigger.getBoundingClientRect()
+        const d = dialog.getBoundingClientRect()
+        return { gapY: d.top - a.bottom, deltaX: d.left - a.left, dWidth: d.width, dLeft: d.left, dTop: d.top }
+      })()
+    JS
+    find("dialog.turbo-overlay--popover:popover-open").send_keys :escape
+    assert_no_selector "dialog.turbo-overlay--popover:popover-open"
+
+    # Now open the Sprocket modal and click "Popover from modal", which
+    # opens the *same* Flywheel widget as a popover anchored to a link
+    # inside the modal.
+    click_on "Modal", match: :first
+    assert_selector "dialog.turbo-overlay--modal[open]"
+    within "dialog.turbo-overlay--modal[open]" do
+      click_on "Popover from modal"
+    end
+    assert_selector "dialog.turbo-overlay--popover:is(:popover-open, :modal)"
+
+    inside_modal = page.evaluate_script(<<~JS)
+      (() => {
+        const trigger = document.querySelector("dialog.turbo-overlay--modal a[data-turbo-overlay='popover']")
+        const dialog  = document.querySelector("dialog.turbo-overlay--popover")
+        const a = trigger.getBoundingClientRect()
+        const d = dialog.getBoundingClientRect()
+        return { gapY: d.top - a.bottom, deltaX: d.left - a.left, dWidth: d.width, dLeft: d.left, dTop: d.top }
+      })()
+    JS
+
+    # Same widget content → same intrinsic width.
+    assert_in_delta baseline["dWidth"], inside_modal["dWidth"], 1.5,
+      "popover width differs inside modal (baseline #{baseline["dWidth"]} vs #{inside_modal["dWidth"]})"
+    # Anchored vertical gap matches (default offset 4px, bottom placement).
+    assert_in_delta baseline["gapY"], inside_modal["gapY"], 1.5,
+      "popover vertical gap below trigger differs inside modal (baseline #{baseline["gapY"]} vs #{inside_modal["gapY"]})"
+    # Anchored horizontal offset matches (default align: :start, so deltaX should be ~0).
+    assert_in_delta baseline["deltaX"], inside_modal["deltaX"], 1.5,
+      "popover horizontal offset differs inside modal (baseline #{baseline["deltaX"]} vs #{inside_modal["deltaX"]})"
+    # And the absolute deltaX should be zero — popover's left edge aligns with trigger's left edge.
+    assert_in_delta 0, inside_modal["deltaX"], 1.5,
+      "popover not left-aligned with trigger inside modal (deltaX #{inside_modal["deltaX"]})"
+  end
+
+  test "popover with position right inside a right drawer flips left and clears the trigger" do
+    visit "/"
+
+    # Open the right drawer (gem default position) on Sprocket. The
+    # drawer occupies the right ~24rem of the viewport, so a popover
+    # with preferred position :right anchored to a button inside the
+    # drawer must auto-flip to :left to stay on-screen — and must not
+    # cover the trigger.
+    click_on "Drawer", match: :first
+    assert_selector "dialog.turbo-overlay--drawer[open]"
+
+    within "dialog.turbo-overlay--drawer[open]" do
+      click_on "Right popover"
+    end
+    # Popovers opened from inside a modal context render via showModal()
+    # (so the HTML inertness algorithm doesn't block them); they match
+    # :modal instead of :popover-open. Match either state.
+    assert_selector "dialog.turbo-overlay--popover:is(:popover-open, :modal)"
+
+    rects = page.evaluate_script(<<~JS)
+      (() => {
+        const trigger = document.querySelector("#popover-right-from-drawer")
+        const dialog  = document.querySelector("dialog.turbo-overlay--popover")
+        const a = trigger.getBoundingClientRect()
+        const d = dialog.getBoundingClientRect()
+        return {
+          aLeft: a.left, aRight: a.right,
+          dLeft: d.left, dRight: d.right, dWidth: d.width,
+          vw: document.documentElement.clientWidth,
+          resolved: dialog.dataset.resolvedPosition
+        }
+      })()
+    JS
+
+    # The popover must not overlap the trigger horizontally.
+    overlaps_x = rects["dLeft"] < rects["aRight"] && rects["dRight"] > rects["aLeft"]
+    refute overlaps_x,
+      "popover overlaps trigger horizontally: trigger=[#{rects["aLeft"]}, #{rects["aRight"]}], popover=[#{rects["dLeft"]}, #{rects["dRight"]}] (resolved=#{rects["resolved"]})"
+
+    # The popover must stay inside the viewport.
+    assert_operator rects["dLeft"],  :>=, 0,             "popover left edge off-viewport (#{rects["dLeft"]})"
+    assert_operator rects["dRight"], :<=, rects["vw"],   "popover right edge past viewport (#{rects["dRight"]} > #{rects["vw"]})"
+
+    # The popover must be content-sized (capped at 22rem = 352px), NOT
+    # stretched to fill viewport-minus-left. UA dialog:modal styles
+    # use width:auto + inset:0 which, without explicit right:auto on
+    # our positioned dialog, causes width to fill the gap. Verify the
+    # explicit right:auto override kept the popover at content size.
+    assert_operator rects["dWidth"], :<=, 360,           "popover stretched to fill horizontal gap (width=#{rects["dWidth"]})"
+  end
+
+  test "clicking inside a popover opened from inside a drawer does not dismiss it" do
+    visit "/"
+    click_on "Drawer", match: :first
+    assert_selector "dialog.turbo-overlay--drawer[open]"
+
+    within "dialog.turbo-overlay--drawer[open]" do
+      click_on "Right popover"
+    end
+    # Popovers opened from inside a modal context render via showModal()
+    # (so the HTML inertness algorithm doesn't block them); they match
+    # :modal instead of :popover-open. Match either state.
+    assert_selector "dialog.turbo-overlay--popover:is(:popover-open, :modal)"
+
+    # Real mouse click at coordinates inside the popover's rect.
+    # Without the modal-context popover fix, the parent modal's
+    # inertness blocking would route the click to the drawer underneath
+    # and the popover would dismiss (because target wasn't inside it).
+    rect = page.evaluate_script(<<~JS)
+      (() => {
+        const d = document.querySelector("dialog.turbo-overlay--popover")
+        const r = d.getBoundingClientRect()
+        return { x: Math.round(r.left + 10), y: Math.round(r.top + 30) }
+      })()
+    JS
+
+    page.driver.browser.mouse.click(x: rect["x"], y: rect["y"])
+
+    assert_selector "dialog.turbo-overlay--popover:is(:popover-open, :modal)"
+  end
+
+  test "clicking a non-modal drawer link inside a modal drawer does not dismiss the parent" do
+    visit "/"
+    click_on "Drawer", match: :first
+    assert_selector "dialog.turbo-overlay--drawer[open]", count: 1
+
+    within "dialog.turbo-overlay--drawer[open]" do
+      click_on "Drawer non-modal"
+    end
+
+    # The new non-modal drawer is appended on top; the parent (modal)
+    # drawer should remain open underneath. Without the attribute-name
+    # decoupling fix, the parent's `backdropClick` handler treated the
+    # click on the trigger link as a backdrop click — the trigger
+    # carries `data-turbo-overlay-backdrop="false"` to signal the
+    # fetch hook to add `X-Turbo-Overlay-Backdrop: false`, and the
+    # handler's `hasAttribute("data-turbo-overlay-backdrop")` check
+    # matched it.
+    assert_selector "dialog.turbo-overlay--drawer", count: 2
+    assert_selector "dialog.turbo-overlay--drawer[open]", count: 2
   end
 
   test "re-clicking the same popover_link_to does not duplicate the popover" do

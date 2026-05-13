@@ -17,10 +17,10 @@
       d-block overrides Bootstrap's display:none; position-static
       neutralizes its position:fixed so the native <dialog>'s own
       top-layer positioning still drives placement.
-      data-turbo-overlay-backdrop tells backdropClick that the wrapper
-      counts as a backdrop click — without it, the wrapper would
-      intercept the click that used to hit the dialog's ::backdrop. %>
-  <div class="modal d-block position-static" data-turbo-overlay-backdrop>
+      data-turbo-overlay-backdrop-zone tells backdropClick that the
+      wrapper counts as a backdrop click — without it, the wrapper
+      would intercept the click that used to hit the dialog's ::backdrop. %>
+  <div class="modal d-block position-static" data-turbo-overlay-backdrop-zone>
     <div class="modal-dialog modal-dialog-centered modal-lg" role="document">
       <div class="modal-content position-relative">
         <% if !loading && content_for?(:overlay_title) %>

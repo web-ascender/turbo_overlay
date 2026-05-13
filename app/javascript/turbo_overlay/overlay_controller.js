@@ -46,6 +46,9 @@ export default class extends Controller {
       if (this.dialog && !this._isShown()) {
         if (this.backdropValue) {
           try { this.dialog.showModal() } catch (_) { this.dialog.setAttribute("open", "") }
+        } else if (this._needsModalStacking()) {
+          try { this.dialog.showModal() } catch (_) { this.dialog.setAttribute("open", "") }
+          this._installEscHandler()
         } else if (this.typeValue === "popover") {
           try { this.dialog.showPopover() } catch (_) { this.dialog.setAttribute("open", "") }
           this._installEscHandler()
@@ -74,6 +77,12 @@ export default class extends Controller {
 
     if (this.dialog && !this.dialog.open) {
       if (this.backdropValue) {
+        try { this.dialog.showModal() } catch (_) { this.dialog.setAttribute("open", "") }
+      } else if (this._needsModalStacking()) {
+        // Non-modal drawer opened inside an existing modal: promote to
+        // showModal so it actually stacks above the parent. See
+        // _needsModalStacking. Transparent ::backdrop CSS keeps the
+        // visual feel.
         try { this.dialog.showModal() } catch (_) { this.dialog.setAttribute("open", "") }
       } else {
         // Non-modal: page remains interactive (no backdrop, no focus
@@ -136,19 +145,36 @@ export default class extends Controller {
     if (!registered) return
 
     if (this.dialog && !this._isShown()) {
-      try { this.dialog.showPopover() } catch (_) { this.dialog.setAttribute("open", "") }
+      // See _popoverNeedsModal — popovers opened above an existing
+      // modal dialog must themselves be modal, otherwise the HTML
+      // inertness algorithm makes the popover unresponsive to clicks
+      // even while it renders above the modal.
+      if (this._needsModalStacking()) {
+        try { this.dialog.showModal() } catch (_) { this.dialog.setAttribute("open", "") }
+      } else {
+        try { this.dialog.showPopover() } catch (_) { this.dialog.setAttribute("open", "") }
+      }
     }
 
     this._targetLinksTop()
     this._positionPopover()
+    // The anchor may still be moving (e.g. opened a popover from
+    // inside a drawer that's mid-slide-in). Re-position on subsequent
+    // frames until the anchor's left edge stabilizes, with a safety
+    // cap so animations longer than ~500ms don't pin the CPU.
+    this._trackAnchorUntilSettled()
 
     this._installEscHandler()
 
     // Click-outside dismissal. Use mousedown capture so we fire
     // before any link inside the popover triggers its own navigation.
+    // `target === dialog` catches clicks on the ::backdrop for the
+    // showModal'd path (popovers inside a modal context); descendant
+    // checks handle the showPopover'd path.
     this._outsideClickHandler = (event) => {
       if (!this.dialog) return
       const target = event.target
+      if (target === this.dialog) { this.cancel(event); return }
       if (this.dialog.contains(target)) return
       if (this.anchor && this.anchor.contains && this.anchor.contains(target)) return
       this.cancel(event)
@@ -184,6 +210,75 @@ export default class extends Controller {
     links.forEach((a) => { a.dataset.turboFrame = "_top" })
   }
 
+  // When a modal dialog is already open, non-modal overlays (popovers
+  // and drawers with `backdrop: false`) need to use `showModal()` to
+  // stack correctly. Two browser-side reasons:
+  //   - The HTML inertness algorithm blocks every non-descendant of
+  //     the topmost modal from receiving input, even top-layer
+  //     popovers added afterwards.
+  //   - Non-modal `dialog.show()` doesn't enter the top layer at all,
+  //     so the dialog renders behind the modal.
+  // Switching to `showModal()` makes the new overlay the topmost modal
+  // and keeps it interactive. Transparent `::backdrop` CSS preserves
+  // the non-modal visual feel.
+  //
+  // The check excludes our own dialog: when called from the frame
+  // re-render branch the overlay may already be open via showModal()
+  // and would otherwise match `:modal` against itself.
+  _needsModalStacking() {
+    if (typeof document === "undefined") return false
+    const modals = document.querySelectorAll("dialog:modal")
+    for (const m of modals) {
+      if (m !== this.dialog) return true
+    }
+    return false
+  }
+
+  _trackAnchorUntilSettled() {
+    if (!this.anchor || typeof this.anchor.getBoundingClientRect !== "function") return
+    let lastRect = this.anchor.getBoundingClientRect()
+    let stableFrames = 0
+    let totalFrames = 0
+    const tick = () => {
+      if (!this.dialog || !this._isShown()) return
+      const rect = this.anchor.getBoundingClientRect()
+      if (Math.abs(rect.left - lastRect.left) < 0.5 &&
+          Math.abs(rect.top  - lastRect.top)  < 0.5) {
+        if (++stableFrames >= 2) return
+      } else {
+        stableFrames = 0
+        this._positionPopover()
+      }
+      lastRect = rect
+      if (++totalFrames < 36) requestAnimationFrame(tick)
+    }
+    requestAnimationFrame(tick)
+  }
+
+  // Resolve the anchor rect to position against. For most triggers
+  // (buttons, block-level links) this is just getBoundingClientRect().
+  // For a wrapped inline anchor — multiple line boxes — the bounding
+  // rect spans the union of every line, which is too wide to position
+  // against meaningfully. When we have the recorded click point, pick
+  // the line-box rect containing it; otherwise fall back to the first
+  // line box.
+  _anchorRect() {
+    const rects = typeof this.anchor.getClientRects === "function"
+      ? Array.from(this.anchor.getClientRects())
+      : []
+    if (rects.length <= 1) return this.anchor.getBoundingClientRect()
+
+    const click = this.anchor.__turboOverlayClickPoint
+    if (click) {
+      const hit = rects.find((r) =>
+        click.x >= r.left && click.x <= r.right &&
+        click.y >= r.top  && click.y <= r.bottom
+      )
+      if (hit) return hit
+    }
+    return rects[0]
+  }
+
   _positionPopover() {
     if (!this.dialog) return
 
@@ -198,7 +293,7 @@ export default class extends Controller {
       return
     }
 
-    const anchorRect = this.anchor.getBoundingClientRect()
+    const anchorRect = this._anchorRect()
     const dialogRect = this.dialog.getBoundingClientRect()
     const viewport = {
       width:  document.documentElement.clientWidth,
@@ -216,8 +311,16 @@ export default class extends Controller {
     })
 
     this.dialog.style.position = "fixed"
-    this.dialog.style.top  = `${top}px`
-    this.dialog.style.left = `${left}px`
+    this.dialog.style.top    = `${top}px`
+    this.dialog.style.left   = `${left}px`
+    // Override the UA `inset: 0` that comes with `[popover]` and
+    // `dialog:modal` rules. Without this, having all four insets set
+    // resolves to "fill the gap" sizing (popover stretches from
+    // computed-left to viewport-right) when width is auto, and to
+    // ignored `right` only when width is also a fixed value. Setting
+    // right/bottom: auto explicitly leaves only top/left active.
+    this.dialog.style.right  = "auto"
+    this.dialog.style.bottom = "auto"
     this.dialog.style.margin = "0"
     this.dialog.style.transform = ""
     this.dialog.dataset.resolvedPosition = resolvedPosition
@@ -248,17 +351,28 @@ export default class extends Controller {
   // Themes whose chrome wraps the dialog in an element that fills the
   // dialog (e.g. Bootstrap5's `<div class="modal">`, which exists to
   // scope `--bs-modal-*`) mark that wrapper with
-  // `data-turbo-overlay-backdrop` so clicks on its uncovered area are
-  // also treated as backdrop clicks.
+  // `data-turbo-overlay-backdrop-zone` so clicks on its uncovered area
+  // are also treated as backdrop clicks. The `-zone` suffix is
+  // intentional: a plain `data-turbo-overlay-backdrop` collides with
+  // the same-named attribute the link helper writes on triggers to
+  // signal `backdrop: false` to the fetch hook — a bubbled link click
+  // would otherwise dismiss the parent overlay.
   // Opt out per-overlay with data-turbo-overlay-backdrop-dismiss-value="false".
   backdropClick(event) {
     if (!this.backdropDismissValue) return
+    // The user explicitly opened this overlay with `backdrop: false`
+    // — they don't want backdrop-click dismissal even when the overlay
+    // was auto-promoted to showModal() because of a parent modal. In
+    // that case the ::backdrop is transparent (so the overlay still
+    // looks non-modal); honor the original intent and require ESC or
+    // an explicit close instead.
+    if (!this.backdropValue) return
     const target = event.target
     if (target === this.dialog) {
       this.cancel(event)
       return
     }
-    if (target && target.hasAttribute && target.hasAttribute("data-turbo-overlay-backdrop")) {
+    if (target && target.hasAttribute && target.hasAttribute("data-turbo-overlay-backdrop-zone")) {
       this.cancel(event)
     }
   }
