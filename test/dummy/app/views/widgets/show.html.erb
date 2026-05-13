@@ -2,4 +2,17 @@
 
 <div data-test-widget-show="<%= @widget[:name] %>">
   <p><%= @widget[:description] %></p>
+
+  <%# Stacking: clicking this from inside the Sprocket modal opens a
+      second modal on top, exercising the stack registry. %>
+  <% if @widget[:name] == "Sprocket" %>
+    <%= modal_link_to "Open Flywheel", widget_path("2") %>
+  <% end %>
+
+  <%# Server-initiated close: POST returns a turbo_stream that closes
+      this overlay by id. %>
+  <%= button_to "Save and close",
+                close_widget_path(params[:id]),
+                method: :post,
+                form: { data: { turbo_stream: true } } %>
 </div>
