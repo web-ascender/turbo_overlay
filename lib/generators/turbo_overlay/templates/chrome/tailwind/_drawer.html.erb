@@ -31,14 +31,14 @@
           <button type="button"
                   class="text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 text-2xl leading-none"
                   data-action="turbo-overlay#close"
-                  aria-label="Close">&times;</button>
+                  aria-label="Close"><span aria-hidden="true">&times;</span></button>
         <% end %>
       </header>
     <% elsif !loading && close_button %>
       <button type="button"
               class="absolute top-2 right-3 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 text-2xl leading-none z-10"
               data-action="turbo-overlay#close"
-              aria-label="Close">&times;</button>
+              aria-label="Close"><span aria-hidden="true">&times;</span></button>
     <% end %>
 
     <div class="flex-1 overflow-y-auto px-5 py-4">

@@ -22,14 +22,14 @@
           <button type="button"
                   class="turbo-modal__close"
                   data-action="turbo-overlay#close"
-                  aria-label="Close">&times;</button>
+                  aria-label="Close"><span aria-hidden="true">&times;</span></button>
         <% end %>
       </header>
     <% elsif !loading && close_button %>
       <button type="button"
               class="turbo-modal__close turbo-modal__close--floating"
               data-action="turbo-overlay#close"
-              aria-label="Close">&times;</button>
+              aria-label="Close"><span aria-hidden="true">&times;</span></button>
     <% end %>
 
     <div class="turbo-modal__body">

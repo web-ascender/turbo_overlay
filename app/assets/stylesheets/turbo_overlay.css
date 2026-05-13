@@ -46,6 +46,7 @@ dialog.turbo-overlay-scaffold .turbo-drawer-body { flex: 1; overflow-y: auto; }
 }
 .turbo-modal__title { margin: 0; font-size: 1.125rem; font-weight: 600; }
 .turbo-modal__close { background: none; border: 0; font-size: 1.5rem; cursor: pointer; line-height: 1; }
+.turbo-modal__close:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; border-radius: 2px; }
 .turbo-modal__close--floating { position: absolute; top: 0.5rem; right: 0.75rem; z-index: 1; }
 .turbo-modal__body { padding: 1.25rem; flex: 1; overflow-y: auto; }
 .turbo-modal__footer {
@@ -71,6 +72,7 @@ dialog.turbo-overlay-scaffold .turbo-drawer-body { flex: 1; overflow-y: auto; }
 }
 .turbo-drawer__title { margin: 0; font-size: 1.125rem; font-weight: 600; }
 .turbo-drawer__close { background: none; border: 0; font-size: 1.5rem; cursor: pointer; line-height: 1; }
+.turbo-drawer__close:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; border-radius: 2px; }
 .turbo-drawer__close--floating { position: absolute; top: 0.5rem; right: 0.75rem; z-index: 1; }
 .turbo-drawer__body { padding: 1.25rem; flex: 1; overflow-y: auto; }
 .turbo-drawer__footer {
@@ -98,6 +100,7 @@ dialog.turbo-overlay--popover:modal::backdrop { background: transparent; }
 }
 .turbo-popover__title { margin: 0; font-size: 0.95rem; font-weight: 600; }
 .turbo-popover__close { background: none; border: 0; font-size: 1.25rem; cursor: pointer; line-height: 1; }
+.turbo-popover__close:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; border-radius: 2px; }
 .turbo-popover__close--floating { position: absolute; top: 0.25rem; right: 0.5rem; z-index: 1; }
 .turbo-popover__body { padding: 0.75rem; }
 .turbo-popover__footer {
@@ -190,6 +193,10 @@ dialog.turbo-overlay--popover.turbo-overlay-closing  { animation: turbo-overlay-
   border-radius: 50%;
   opacity: 0.6;
   animation: turbo-overlay-loading-spin 0.8s linear infinite;
+}
+:where(.turbo-overlay-loading__sr-only) {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
 }
 @keyframes turbo-overlay-loading-spin { to { transform: rotate(360deg); } }
 

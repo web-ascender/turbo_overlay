@@ -207,6 +207,8 @@ browser's `<dialog>` top layer regardless of theme.
   templates, stable ids, the full-page-render footgun.
 - [Reference](docs/reference.md) — full configuration, helper
   reference, JavaScript events.
+- [Accessibility](docs/accessibility.md) — what the gem gives you,
+  what you provide, known limitations.
 - [Architecture](docs/architecture.md) — request lifecycle, headers,
   hint internals, JS module layout. Optional reading.
 

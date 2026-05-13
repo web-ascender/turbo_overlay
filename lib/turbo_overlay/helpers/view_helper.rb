@@ -476,6 +476,7 @@ module TurboOverlay
         # opens a new (stacked) overlay instead of replacing the current one.
         data[:turbo_frame] = "_top" unless data.key?(:turbo_frame) || html_options.key?("data-turbo-frame")
         html_options[:data] = data unless data.empty?
+        _merge_aria_haspopup(html_options, "dialog")
 
         [options, html_options]
       end
@@ -502,8 +503,26 @@ module TurboOverlay
           data[:turbo_overlay_hint_hide_delay] = hide_delay.to_s
         end
         html_options[:data] = data unless data.empty?
+        _merge_aria_haspopup(html_options, "tooltip")
 
         [options, html_options]
+      end
+
+      # Signal to assistive tech that activating the link opens a
+      # dialog/tooltip. Caller wins: an explicit `aria: { haspopup: ... }`
+      # or `"aria-haspopup"` key passes through unchanged (including
+      # `false`/nil for opt-out).
+      def _merge_aria_haspopup(html_options, value)
+        return if html_options.key?("aria-haspopup")
+        aria = html_options[:aria] || html_options["aria"]
+        if aria.is_a?(Hash)
+          return if aria.key?(:haspopup) || aria.key?("haspopup")
+          aria = aria.dup
+          aria[:haspopup] = value
+          html_options[:aria] = aria
+        else
+          html_options[:aria] = { haspopup: value }
+        end
       end
 
     end

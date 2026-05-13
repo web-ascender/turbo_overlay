@@ -876,4 +876,64 @@ class ViewHelperTest < Minitest::Test
     assert_includes out, "BODY"
     refute_includes out, %(action="append")
   end
+
+  # ---- aria-haspopup on overlay triggers ----
+
+  def test_modal_link_to_sets_aria_haspopup_dialog
+    view = FakeView.new
+    view.modal_link_to("Open", "/things/1")
+
+    _, _, html_options = view.link_to_args
+    assert_equal "dialog", html_options[:aria][:haspopup]
+  end
+
+  def test_drawer_link_to_sets_aria_haspopup_dialog
+    view = FakeView.new
+    view.drawer_link_to("Filter", "/filters")
+
+    _, _, html_options = view.link_to_args
+    assert_equal "dialog", html_options[:aria][:haspopup]
+  end
+
+  def test_popover_link_to_sets_aria_haspopup_dialog
+    view = FakeView.new
+    view.popover_link_to("Edit", "/things/1")
+
+    _, _, html_options = view.link_to_args
+    assert_equal "dialog", html_options[:aria][:haspopup]
+  end
+
+  def test_hint_link_to_sets_aria_haspopup_tooltip
+    view = FakeView.new
+    view.hint_link_to("User", "/users/1")
+
+    _, _, html_options = view.link_to_args
+    assert_equal "tooltip", html_options[:aria][:haspopup]
+  end
+
+  def test_overlay_link_respects_explicit_aria_haspopup_in_aria_hash
+    view = FakeView.new
+    view.modal_link_to("Open", "/things/1", aria: { haspopup: "menu" })
+
+    _, _, html_options = view.link_to_args
+    assert_equal "menu", html_options[:aria][:haspopup]
+  end
+
+  def test_overlay_link_respects_explicit_aria_haspopup_attribute
+    view = FakeView.new
+    view.modal_link_to("Open", "/things/1", "aria-haspopup" => "menu")
+
+    _, _, html_options = view.link_to_args
+    assert_equal "menu", html_options["aria-haspopup"]
+    refute html_options.key?(:aria)
+  end
+
+  def test_overlay_link_preserves_other_aria_keys
+    view = FakeView.new
+    view.modal_link_to("Open", "/things/1", aria: { label: "Open thing" })
+
+    _, _, html_options = view.link_to_args
+    assert_equal "Open thing", html_options[:aria][:label]
+    assert_equal "dialog",     html_options[:aria][:haspopup]
+  end
 end

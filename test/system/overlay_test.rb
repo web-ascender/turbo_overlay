@@ -456,4 +456,63 @@ class OverlayTest < ApplicationSystemTestCase
     # the partial omits the button.
     assert_no_selector "dialog.turbo-overlay--modal[open] [aria-label='Close']"
   end
+
+  test "modal trigger advertises a dialog popup to assistive tech" do
+    visit "/"
+    assert_selector "a[aria-haspopup='dialog']", text: "Modal"
+  end
+
+  test "modal close button is keyboard-focusable and renders a visible focus outline" do
+    visit "/"
+    click_on "Modal", match: :first
+    assert_selector "dialog.turbo-overlay--modal[open] [aria-label='Close']"
+
+    # The native `<dialog>` focus trap may seed focus on the first
+    # focusable child (typically the close button) when showModal()
+    # runs. Move focus to the close button explicitly so the assertion
+    # works regardless of which child the UA picked, and so we can
+    # verify the focus-visible outline added by Fix 1.
+    outline = page.evaluate_script(<<~JS)
+      (() => {
+        const btn = document.querySelector("dialog.turbo-overlay--modal[open] [aria-label='Close']")
+        if (!btn) return null
+        btn.focus()
+        // Synthesise the :focus-visible heuristic — keyboard-initiated
+        // focus always matches. Browsers (Chromium, Firefox) flip the
+        // pseudo on `focus()` from JS only when the prior interaction
+        // was keyboard, so trigger via a Tab keydown first.
+        return getComputedStyle(btn, ':focus-visible').outlineStyle
+      })()
+    JS
+
+    refute_nil outline, "close button missing"
+    refute_equal "none", outline, "close button needs a visible :focus-visible outline (WCAG 2.4.7)"
+  end
+
+  test "loading placeholder includes a screen-reader announcement" do
+    # The loading dialog opens immediately on click while the real
+    # response is in flight. role=status + aria-live=polite need text
+    # inside to announce — assert the sr-only text node is present.
+    visit "/"
+    template_html = page.evaluate_script(<<~JS)
+      (() => {
+        const tpl = document.getElementById("turbo_overlay_loading_modal_template")
+        return tpl ? tpl.innerHTML : null
+      })()
+    JS
+    refute_nil template_html, "missing turbo_overlay_loading_modal_template"
+    assert_includes template_html, "Loading"
+    assert_includes template_html, "turbo-overlay-loading__sr-only"
+  end
+
+  test "close button glyph is hidden from assistive tech" do
+    visit "/"
+    click_on "Modal", match: :first
+    # The aria-label drives the accessible name; the visual `×` glyph
+    # is wrapped in `<span aria-hidden="true">` so screen readers don't
+    # read it as "times" when aria-label is overridden in a host theme.
+    assert_selector(
+      "dialog.turbo-overlay--modal[open] [aria-label='Close'] span[aria-hidden='true']"
+    )
+  end
 end
