@@ -21,6 +21,33 @@ sits above that modal, and a modal opened from inside a popover
 sits above the popover. Popovers still replace each other on the
 same layer via the stack controller's single-popover rule.
 
+### Popover inside a modal: `showModal()` instead of `showPopover()`
+
+Top-layer ordering puts the popover *visually* above the modal, but
+HTML's modal-dialog inertness algorithm blocks every non-descendant
+of the topmost modal from receiving input — including top-layer
+popovers added afterwards. The popover would render above the modal
+but clicks would pass through to the modal underneath.
+
+To work around this, the overlay controller checks for any open
+`dialog:modal` at connect time and uses `showModal()` for the
+popover when one is present, so the popover becomes the topmost
+modal itself. CSS makes the resulting `::backdrop` transparent so
+the popover still looks non-modal. Non-modal drawers (`backdrop:
+false`) are *not* auto-promoted — `dialog:modal` UA styles override
+the gem's drawer-position CSS and re-center the drawer, so the
+fallback is documented as a limitation instead.
+
+### Positioning normalization
+
+The popover and hint positioners override `right: auto; bottom: auto;
+margin: 0` *before* measuring the dialog rect. UA `[popover]` styles
+include `inset: 0; margin: auto`, and `dialog:modal` adds
+`width: auto`. Without the override, measurement reflects a
+UA-stretched or centered layout, and the auto-flip math computes
+against the wrong width; the dialog also visually drifts toward the
+center via the auto margins after we set `top`/`left`.
+
 ## Layout proc
 
 Including `TurboOverlay::Controller` installs:

@@ -133,6 +133,33 @@ Big iteration cycle ahead of the first public release. Highlights:
   the originating element is captured on click so the popover has an
   anchor when Turbo's submitter is null.
 - Stacked overlay close animation is now reliable across themes.
+- **Popover inside an open modal is interactive again.** HTML's
+  modal-dialog inertness algorithm blocks every non-descendant of the
+  topmost modal from receiving input — even top-layer popovers added
+  via `showPopover()` afterwards. Popovers opened from inside a modal
+  now use `showModal()` themselves (with a transparent `::backdrop`)
+  so they become the topmost modal and stay interactive.
+- **Popover and hint positioning no longer drifts toward the viewport
+  center.** UA `[popover]` styles include `inset: 0; margin: auto` —
+  setting only `top`/`left` left the leftover space to be distributed
+  via the auto margins, so the dialog rendered partway between the
+  trigger and the viewport edge. Now sets `right: auto; bottom: auto;
+  margin: 0` before measuring so the dialog stays anchored.
+- **Popover anchored to wrapping inline link uses the clicked line.**
+  `getBoundingClientRect()` on a multi-line `<a>` returns the union
+  of every line box. The anchor math now picks the line containing
+  the recorded click point.
+- **Popover follows the trigger while a parent overlay animates.**
+  Opening a popover while the drawer it's inside was mid-slide-in
+  used to anchor against the still-moving rect. The positioner now
+  re-runs each frame until the anchor stabilizes (~600ms cap).
+- **Non-modal drawer trigger inside another overlay no longer
+  dismisses the parent.** The link helper writes
+  `data-turbo-overlay-backdrop="false"` on triggers to signal the
+  fetch hook; the bootstrap5 modal chrome's wrapper marker shared
+  that exact attribute name, so a bubbled click on the trigger was
+  treated as a backdrop click. Chrome marker renamed to
+  `data-turbo-overlay-backdrop-zone`.
 
 ## 0.3.0
 

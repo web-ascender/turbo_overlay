@@ -74,3 +74,17 @@ from the host page while the drawer is open.
 | (default)                                           | ✓                 | ✓                        | —                 |
 | `data-turbo-overlay-backdrop-dismiss-value="false"` | ✓                 | —                        | —                 |
 | `drawer_link_to ..., backdrop: false`               | —                 | — (no backdrop to click) | ✓                 |
+
+### Non-modal drawers don't compose inside a modal
+
+`backdrop: false` only works as expected when the drawer is opened
+from the main page. Opening a non-modal drawer from inside another
+open modal/drawer is **not supported** — HTML's inertness algorithm
+blocks the page (and any non-top-layer dialog) from receiving input
+while the parent modal is open, so the "non-modal" semantic doesn't
+apply in that context. The drawer renders behind the parent and is
+inert.
+
+Popovers triggered from inside an open modal *do* work — the gem
+promotes them to a modal under the hood (with a transparent
+`::backdrop`) so they stack correctly.
