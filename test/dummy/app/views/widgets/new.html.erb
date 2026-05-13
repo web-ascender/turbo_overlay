@@ -1,0 +1,10 @@
+<% overlay_title "New Widget" %>
+
+<%= form_with url: widgets_path do |f| %>
+  <% if @error %>
+    <p data-test-error><%= @error %></p>
+  <% end %>
+  <%= f.label :name %>
+  <%= f.text_field :name, name: "widget[name]", value: @widget_form[:name] %>
+  <%= f.submit "Create" %>
+<% end %>

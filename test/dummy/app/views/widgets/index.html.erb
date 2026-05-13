@@ -4,9 +4,26 @@
   <% @widgets.each do |id, w| %>
     <li>
       <%= w[:name] %>
-      <%= modal_link_to   "Modal",   widget_path(id), id: "modal-link-#{id}" %>
-      <%= drawer_link_to  "Drawer",  widget_path(id), id: "drawer-link-#{id}" %>
-      <%= popover_link_to "Popover", widget_path(id), id: "popover-link-#{id}" %>
+      <%= modal_link_to   "Modal",       widget_path(id), id: "modal-link-#{id}" %>
+      <%= drawer_link_to  "Drawer",      widget_path(id), id: "drawer-link-#{id}" %>
+      <%= popover_link_to "Popover",     widget_path(id), id: "popover-link-#{id}" %>
+      <%# hint_link_to is a plain link decorated with hint data attrs;
+          the +hint variant template is what actually renders the body. %>
+      <%= hint_link_to    "Hint #{w[:name]}", widget_path(id) %>
     </li>
   <% end %>
 </ul>
+
+<%# Modal that suppresses the chrome's default × button via close: false. %>
+<%= modal_link_to  "Modal without close", widget_path("1"),
+                   close: false, id: "modal-without-close" %>
+
+<%# Drives the form re-render test. %>
+<%= modal_link_to  "New widget", new_widget_path, id: "modal-new-widget" %>
+
+<%# Drives the themed-confirm test. button_to wraps in a form so Turbo
+    routes the click through Turbo.config.forms.confirm. %>
+<%= button_to "Delete Sprocket",
+              widget_path("1"),
+              method: :delete,
+              data: { turbo_confirm: "Are you sure you want to delete Sprocket?" } %>

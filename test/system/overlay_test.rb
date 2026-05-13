@@ -127,4 +127,82 @@ class OverlayTest < ApplicationSystemTestCase
     assert_equal ["before-close:modal", "closed:modal"],
       page.evaluate_script("window._events")
   end
+
+  test "form submit with validation error re-renders the overlay frame in place" do
+    visit "/"
+    click_on "New widget"
+    assert_selector "dialog.turbo-overlay--modal[open]"
+
+    within "dialog.turbo-overlay--modal[open]" do
+      click_on "Create"   # blank name → 422 with error
+    end
+
+    # Overlay stays open (frame re-render, not stream append) and the
+    # error message is visible inside the same dialog. Exercises the
+    # `stack.has(id)` branch in overlay_controller's connect() — Turbo
+    # replaces the dialog node wholesale, so connect() has to re-open
+    # the new node.
+    assert_selector "dialog.turbo-overlay--modal[open]", count: 1
+    assert_selector "[data-test-error]", text: "Name is required"
+  end
+
+  test "hovering a hint-marked link shows the +hint variant after the show delay" do
+    visit "/"
+
+    # Hover the hint link for Flywheel — the +hint variant template
+    # exposes a `<strong data-test-hint-body>` we can assert on.
+    find("a", text: "Hint Flywheel").hover
+
+    # show_delay_ms defaults to 250ms; prefetch + render adds a bit
+    # more. Give it some headroom.
+    assert_selector "[data-test-hint-body]", text: "Flywheel", wait: 2
+  end
+
+  test "data-turbo-confirm renders the gem's themed modal instead of window.confirm" do
+    visit "/"
+
+    # window.confirm would block the script and Capybara would hang;
+    # if we see the themed modal, the confirm hook is intercepting.
+    click_on "Delete Sprocket"
+
+    assert_selector "dialog.turbo-overlay--modal[open]",
+      text: "Are you sure you want to delete Sprocket?"
+
+    within "dialog.turbo-overlay--modal[open]" do
+      click_on "Cancel"
+    end
+
+    assert_no_selector "dialog.turbo-overlay--modal[open]"
+  end
+
+  test "backdrop click dismisses the modal" do
+    visit "/"
+    click_on "Modal", match: :first
+    assert_selector "dialog.turbo-overlay--modal[open]"
+
+    # The ::backdrop pseudo isn't directly clickable in Cuprite, but
+    # native <dialog> reports backdrop clicks with event.target ===
+    # the dialog itself (children clicks have target = child). Click
+    # the dialog node at (0,0) — outside the centered content — and
+    # backdropClick treats it as a backdrop click.
+    page.execute_script(<<~JS)
+      const d = document.querySelector("dialog.turbo-overlay--modal[open]")
+      d.dispatchEvent(new MouseEvent("click", { bubbles: true }))
+    JS
+
+    assert_no_selector "dialog.turbo-overlay--modal[open]"
+  end
+
+  test "close: false suppresses the chrome's default close button" do
+    visit "/"
+    click_on "Modal without close"
+    assert_selector "dialog.turbo-overlay--modal[open]"
+
+    # Default chrome renders a `<button aria-label="Close">×</button>`.
+    # With close: false on the link helper, the X-Turbo-Overlay-Close
+    # header is set to "false", the controller's turbo_overlay_close?
+    # returns false, the chrome's `close_button` local is false, and
+    # the partial omits the button.
+    assert_no_selector "dialog.turbo-overlay--modal[open] [aria-label='Close']"
+  end
 end
