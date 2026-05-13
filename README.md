@@ -165,9 +165,8 @@ turbo_stream.overlay(:close, scope: :all, type: :modal)   # all modals
 turbo_stream.overlay(:close, id: "edit_user_42")          # specific id
 ```
 
-On validation failure the form re-renders inside its per-overlay
-turbo-frame — the overlay stays open and shows errors with no
-special handling.
+On validation failure the overlay stays open and re-renders the
+form with errors in place. No special handling required.
 
 ESC and clicking the backdrop dismiss the top overlay out of the
 box. Opt a specific overlay out with

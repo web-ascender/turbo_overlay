@@ -30,10 +30,9 @@ popover repositions itself as the anchor scrolls.
 ## Single-popover behavior
 
 Opening a second popover automatically dismisses any other open
-popover. Stacking follows the browser's top-layer "last shown wins"
-order: a popover opened from inside a modal sits above the modal,
-and a modal opened from inside a popover sits above the popover.
-Dismissing the upper overlay leaves the lower one in place.
+popover. A popover opened from inside a modal sits above the modal,
+and a modal opened from inside a popover sits above the popover —
+dismissing the upper overlay leaves the lower one in place.
 
 ## Links inside popovers
 
@@ -51,8 +50,8 @@ Popovers don't render a "×" by default. Opt back in per-view with
 
 ## Drawer per-link options
 
-For symmetry with popovers, `drawer_link_to` accepts two per-link
-kwargs that override the configured defaults:
+`drawer_link_to` accepts two per-link kwargs that override the
+configured defaults:
 
 ```erb
 <%# Override the configured drawer side just for this link %>

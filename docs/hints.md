@@ -22,7 +22,7 @@ action's regular template:
 ```
 
 The variant only renders on hintable requests (Turbo prefetch or
-explicit `:hint` fetch), so regular page renders don't pay for it.
+an explicit `:hint` fetch); regular page renders skip it.
 
 ## Compose with overlay link helpers
 
