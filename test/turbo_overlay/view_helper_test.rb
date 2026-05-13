@@ -390,6 +390,58 @@ class ViewHelperTest < Minitest::Test
     refute html_options[:data].key?(:turbo_overlay_close)
   end
 
+  # ---- advance ----
+
+  def test_modal_link_to_with_advance_true_emits_true_data_attribute
+    view = FakeView.new
+    view.modal_link_to("Open", "/things/1", advance: true)
+
+    _, _, html_options = view.link_to_args
+    assert_equal "true", html_options[:data][:turbo_overlay_advance]
+  end
+
+  def test_modal_link_to_with_advance_string_emits_that_string
+    view = FakeView.new
+    view.modal_link_to("Open", "/things/1", advance: "/custom/url")
+
+    _, _, html_options = view.link_to_args
+    assert_equal "/custom/url", html_options[:data][:turbo_overlay_advance]
+  end
+
+  def test_modal_link_to_with_advance_false_emits_false_data_attribute
+    view = FakeView.new
+    view.modal_link_to("Open", "/things/1", advance: false)
+
+    _, _, html_options = view.link_to_args
+    assert_equal "false", html_options[:data][:turbo_overlay_advance]
+  end
+
+  def test_modal_link_to_omits_advance_attribute_when_not_provided
+    view = FakeView.new
+    view.modal_link_to("Open", "/things/1")
+
+    _, _, html_options = view.link_to_args
+    refute html_options[:data].key?(:turbo_overlay_advance)
+  end
+
+  def test_drawer_link_to_with_advance_true_emits_true_data_attribute
+    view = FakeView.new
+    view.drawer_link_to("Open", "/things/1", advance: true)
+
+    _, _, html_options = view.link_to_args
+    assert_equal "true", html_options[:data][:turbo_overlay_advance]
+  end
+
+  def test_popover_link_to_silently_drops_advance_option
+    view = FakeView.new
+    view.popover_link_to("Open", "/things/1", advance: true)
+
+    _, _, html_options = view.link_to_args
+    refute html_options[:data].key?(:turbo_overlay_advance)
+    refute html_options.key?(:advance)
+    refute html_options.key?("advance")
+  end
+
   # ---- drawer_dismiss_link_to ----
 
   def test_drawer_dismiss_link_to_inside_drawer_adds_dismiss_action
@@ -410,6 +462,34 @@ class ViewHelperTest < Minitest::Test
     refute html_options.key?("data-turbo-drawer-dismiss")
   end
 
+  def test_modal_dismiss_link_to_inside_modal_suppresses_prefetch
+    view = FakeView.new(modal_request: true)
+    view.modal_dismiss_link_to("Cancel", "/back")
+
+    _, _, html_options = view.link_to_args
+    # Click is preventDefault'd by the Stimulus action, so Turbo
+    # never navigates to /back; the hover prefetch would be a wasted
+    # request — and worse, it routes through the overlay layout and
+    # returns a turbo-stream that replaces the modal's contents.
+    assert_equal "false", html_options["data-turbo-prefetch"]
+  end
+
+  def test_modal_dismiss_link_to_outside_modal_does_not_set_prefetch
+    view = FakeView.new(modal_request: false)
+    view.modal_dismiss_link_to("Cancel", "/back")
+
+    _, _, html_options = view.link_to_args
+    refute html_options.key?("data-turbo-prefetch")
+  end
+
+  def test_dismiss_link_respects_explicit_data_turbo_prefetch
+    view = FakeView.new(modal_request: true)
+    view.modal_dismiss_link_to("Cancel", "/back", "data-turbo-prefetch" => "true")
+
+    _, _, html_options = view.link_to_args
+    assert_equal "true", html_options["data-turbo-prefetch"]
+  end
+
   # ---- overlay_stack_tag ----
 
   def test_overlay_stack_tag_emits_stack_container
@@ -424,6 +504,26 @@ class ViewHelperTest < Minitest::Test
     view = FakeView.new
     output = view.overlay_stack_tag
     assert_includes output, %(id="my_stack")
+  end
+
+  def test_overlay_stack_tag_emits_advance_defaults_for_modal_and_drawer
+    view = FakeView.new
+    output = view.overlay_stack_tag
+    assert_includes output, %(data-turbo-overlay-advance-modal="false")
+    assert_includes output, %(data-turbo-overlay-advance-drawer="false")
+    refute_includes output, "turbo-overlay-advance-popover"
+    refute_includes output, "turbo-overlay-advance-hint"
+  end
+
+  def test_overlay_stack_tag_reflects_configured_advance_defaults
+    TurboOverlay.configure do |c|
+      c.modal  { |m| m.advance = true }
+      c.drawer { |d| d.advance = true }
+    end
+    view = FakeView.new
+    output = view.overlay_stack_tag
+    assert_includes output, %(data-turbo-overlay-advance-modal="true")
+    assert_includes output, %(data-turbo-overlay-advance-drawer="true")
   end
 
   def test_overlay_stack_tag_omits_confirm_templates_when_partials_missing

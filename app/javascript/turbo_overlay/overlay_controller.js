@@ -1,5 +1,10 @@
 import { Controller } from "@hotwired/stimulus"
 import { computePopoverPosition } from "turbo_overlay/popover_position"
+import {
+  getAdvanceUrl, clearAdvanceUrl,
+  markPushed, isPushed, clearPushed, livePushedCount,
+  pushOverlayState, reverseHistoryForClose
+} from "turbo_overlay/history"
 
 // Per-overlay controller for turbo_overlay. Drives a native
 // <dialog> regardless of theme — themes contribute markup and CSS
@@ -94,6 +99,7 @@ export default class extends Controller {
     }
 
     this._dispatch("shown")
+    this._maybeAdvanceHistory()
   }
 
   disconnect() {
@@ -336,7 +342,9 @@ export default class extends Controller {
   // data-action="click->turbo-overlay#close"
   close(event) {
     if (event) event.preventDefault()
+    const snapshot = this.stack && this.stack.entries ? this.stack.entries.slice() : []
     if (this.stack) this.stack.unregister(this.idValue)
+    this._syncHistoryOnClose(snapshot)
     this._animatedClose()
   }
 
@@ -348,7 +356,9 @@ export default class extends Controller {
       event.preventDefault()
       event.stopPropagation()
     }
+    const snapshot = this.stack && this.stack.entries ? this.stack.entries.slice() : []
     if (this.stack) this.stack.unregister(this.idValue)
+    this._syncHistoryOnClose(snapshot)
     this._animatedClose()
   }
 
@@ -452,6 +462,46 @@ export default class extends Controller {
     const stackEl = document.querySelector("[data-controller~='turbo-overlay-stack']")
     if (!stackEl || !this.application) return null
     return this.application.getControllerForElementAndIdentifier(stackEl, "turbo-overlay-stack")
+  }
+
+  // URL advance: push the link's target (or a custom URL) into the
+  // history bar when a modal or drawer first opens. Popovers and
+  // hints never advance — they're ephemeral. The pushed entry is
+  // tracked by overlay id in a module-level Map so the bookkeeping
+  // survives idiomorph re-renders and any Stimulus reconnects.
+  _maybeAdvanceHistory() {
+    if (this.typeValue !== "modal" && this.typeValue !== "drawer") return
+    const url = getAdvanceUrl(this.idValue)
+    if (!url) return
+    try {
+      pushOverlayState(this.idValue, this.typeValue, url)
+      markPushed(this.idValue, url, this.typeValue)
+    } catch (_) {
+      // pushState can throw on cross-origin URLs; treat as a no-op.
+    }
+    clearAdvanceUrl(this.idValue)
+  }
+
+  // Reverse the history entry we pushed on open when this close
+  // actually removes the top-most pushed overlay from the stack.
+  //   - _closedByBack: this close was triggered by a popstate; the
+  //     browser already moved the history pointer, so we must not
+  //     also history.back() (that would skip a real prior entry).
+  //   - livePushedCount comparison: handles mid-stack closes
+  //     correctly. The mid-stack overlay's `pushed` record was below
+  //     the top's in history, so going back wouldn't recover its
+  //     URL; only the count drop matters.
+  _syncHistoryOnClose(stackBefore) {
+    const id = this.idValue
+    if (!isPushed(id)) return
+    if (this._closedByBack) {
+      clearPushed(id)
+      return
+    }
+    const before = livePushedCount(stackBefore)
+    clearPushed(id)
+    const after = livePushedCount(this.stack && this.stack.entries ? this.stack.entries : [])
+    if (after < before) reverseHistoryForClose()
   }
 
   // Dispatch a lifecycle event on the dialog so listeners can attach

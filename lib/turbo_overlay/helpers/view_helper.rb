@@ -188,7 +188,9 @@ module TurboOverlay
           controller: "turbo-overlay-stack",
           "turbo-overlay-confirm-style": confirm_style,
           "turbo-overlay-hint-show-delay": hint_cfg.show_delay_ms,
-          "turbo-overlay-hint-hide-delay": hint_cfg.hide_delay_ms
+          "turbo-overlay-hint-hide-delay": hint_cfg.hide_delay_ms,
+          "turbo-overlay-advance-modal":  TurboOverlay.configuration.modal.advance.to_s,
+          "turbo-overlay-advance-drawer": TurboOverlay.configuration.drawer.advance.to_s
         }
 
         stack = content_tag(:div, "".html_safe,
@@ -418,6 +420,12 @@ module TurboOverlay
         if in_overlay
           html_options["data-action"] ||= "click->turbo-overlay#close:prevent"
           html_options["data-turbo-#{type}-dismiss"] = "true"
+          # Click is preventDefault'd by the Stimulus action above —
+          # the link's href is decorative (no-JS fallback). Suppress
+          # Turbo's hover prefetch so we don't fire a wasted request
+          # for a URL the user will never actually navigate to.
+          html_options["data-turbo-prefetch"] = "false" unless html_options.key?("data-turbo-prefetch") ||
+            (html_options[:data].is_a?(Hash) && html_options[:data].key?(:turbo_prefetch))
         end
 
         if block_given?
@@ -445,6 +453,9 @@ module TurboOverlay
         hint_url     = html_options.delete(:hint_url)   || html_options.delete("hint_url")
         show_delay   = html_options.delete(:show_delay) || html_options.delete("show_delay")
         hide_delay   = html_options.delete(:hide_delay) || html_options.delete("hide_delay")
+        has_advance  = html_options.key?(:advance) || html_options.key?("advance")
+        advance_val  = html_options.delete(:advance)
+        advance_val  = html_options.delete("advance") if advance_val.nil? && has_advance
 
         data = (html_options[:data] || {}).dup
         data[:turbo_stream] = true unless data.key?(:turbo_stream) || html_options.key?("data-turbo-stream")
@@ -470,6 +481,19 @@ module TurboOverlay
         end
         if hide_delay && !data.key?(:turbo_overlay_hint_hide_delay) && !html_options.key?("data-turbo-overlay-hint-hide-delay")
           data[:turbo_overlay_hint_hide_delay] = hide_delay.to_s
+        end
+        # URL advance — only modal and drawer participate. Popover and
+        # hint configs deliberately don't expose `advance`, and stray
+        # `:advance` keys on those link helpers are dropped silently.
+        if has_advance && (type == :modal || type == :drawer) &&
+           !data.key?(:turbo_overlay_advance) && !html_options.key?("data-turbo-overlay-advance")
+          case advance_val
+          when true   then data[:turbo_overlay_advance] = "true"
+          when false  then data[:turbo_overlay_advance] = "false"
+          when String then data[:turbo_overlay_advance] = advance_val
+          else
+            data[:turbo_overlay_advance] = advance_val.to_s if advance_val.respond_to?(:to_str)
+          end
         end
         # Break out of any enclosing per-overlay turbo-frame so a click
         # on a modal/drawer/popover link from inside an open overlay

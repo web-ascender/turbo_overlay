@@ -21,6 +21,16 @@
 <%# Drives the form re-render test. %>
 <%= modal_link_to  "New widget", new_widget_path, id: "modal-new-widget" %>
 
+<%# Drives URL-advance system tests. advance: true pushes the link's
+    href; advance: "/custom" pushes a custom URL; advance: false opts
+    out (the absence of any default flips this back to no-op anyway). %>
+<%= modal_link_to  "Modal advance",        widget_path("1"),
+                   advance: true,           id: "modal-advance" %>
+<%= modal_link_to  "Modal advance custom", widget_path("1"),
+                   advance: "/widgets/1/custom", id: "modal-advance-custom" %>
+<%= drawer_link_to "Drawer advance",       widget_path("1"),
+                   advance: true,           id: "drawer-advance" %>
+
 <%# Drives the popover form re-render test — asserts the popover stays
     anchored to its trigger across validation-failure morph. %>
 <%= popover_link_to "New widget popover", new_widget_path,

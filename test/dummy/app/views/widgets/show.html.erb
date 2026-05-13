@@ -13,6 +13,12 @@
     <%= drawer_link_to "Drawer non-modal", widget_path("2"),
                        position: :right, backdrop: false,
                        id: "drawer-non-modal-from-drawer" %>
+
+    <%# Drives stacked URL-advance tests: opening this from inside an
+        advance modal should push a second history entry; two back
+        presses close them in reverse order. %>
+    <%= modal_link_to "Open Flywheel advance", widget_path("2"),
+                      advance: true, id: "modal-advance-inner" %>
   <% end %>
 
   <%# Server-initiated close: POST returns a turbo_stream that closes

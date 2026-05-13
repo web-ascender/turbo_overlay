@@ -11,6 +11,14 @@ TurboOverlay.configure do |config|
 
     # Layout used to render modal responses.
     # m.layout_name = "turbo_modal"
+
+    # Push the link's target URL into the browser history bar when a
+    # modal opens. Browser-back closes the top overlay instead of
+    # navigating away. Default off. Per-link override:
+    #   `modal_link_to "Edit", path, advance: true`
+    # or a custom URL string, or `advance: false` to opt out when this
+    # type default is on. Popovers and hints never advance.
+    # m.advance = false
   end
 
   config.drawer do |d|
@@ -19,6 +27,9 @@ TurboOverlay.configure do |config|
     # d.variant     = :drawer
     # d.layout_name = "turbo_drawer"
     # d.position    = :right
+
+    # Same URL-advance semantics as the modal config. Default off.
+    # d.advance = false
   end
 
   config.popover do |p|

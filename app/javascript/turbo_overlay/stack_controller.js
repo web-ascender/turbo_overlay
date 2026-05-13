@@ -1,5 +1,6 @@
 import { Controller } from "@hotwired/stimulus"
 import { getPopoverTrigger, clearPopoverTrigger } from "turbo_overlay/setup"
+import { setStackController } from "turbo_overlay/history"
 
 // Per-page stack registry. Mounted once on the host page via
 // `<%= overlay_stack_tag %>` (DOM id `turbo_overlay_stack`). Tracks the
@@ -18,11 +19,14 @@ export default class extends Controller {
 
     this._closeHandler = (event) => this.handleCloseEvent(event)
     window.addEventListener("turbo-overlay:close", this._closeHandler)
+
+    setStackController(this)
   }
 
   disconnect() {
     window.removeEventListener("turbo-overlay:close", this._closeHandler)
     this.entries = []
+    setStackController(null)
   }
 
   register(entry) {

@@ -172,6 +172,36 @@ ESC and clicking the backdrop dismiss the top overlay out of the
 box. Opt a specific overlay out with
 `data-turbo-overlay-backdrop-dismiss-value="false"`.
 
+### URL advance
+
+Pass `advance: true` on a modal or drawer link to push the link's
+target URL into the browser history bar when the overlay opens.
+Browser-back closes the top overlay instead of navigating away.
+Default off.
+
+```erb
+<%= modal_link_to  "Edit",  edit_user_path(@user), advance: true %>
+<%= drawer_link_to "Filter", filters_path,         advance: "/users?filtering" %>
+```
+
+Per-link `advance:` accepts `true` (push `link.href`), a String (push
+a custom URL), or `false` (opt out when a type default is on). Set
+the type default in the initializer:
+
+```ruby
+TurboOverlay.configure do |c|
+  c.modal  { |m| m.advance = true }
+  c.drawer { |d| d.advance = true }
+end
+```
+
+Popovers and hints never advance — they're ephemeral and shouldn't
+churn browser history.
+
+Note: the pushed URL is not guaranteed to re-open the overlay on a
+fresh visit; how the app routes that URL (full page, redirect, or a
+controller that itself opens the overlay) is the host app's call.
+
 ### Loading state, themed confirms, and hover hints
 
 - [docs/loading-and-confirm.md](docs/loading-and-confirm.md) —

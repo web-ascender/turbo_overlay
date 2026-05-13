@@ -9,15 +9,30 @@ module TurboOverlay
     end
   end
 
+  # Modal config. Adds `advance` (URL advance / history.pushState on
+  # open; browser-back closes the top overlay). Default off.
+  # Per-link override via `advance: true | "/custom" | false` on
+  # `modal_link_to`.
+  class ModalConfig < OverlayTypeConfig
+    attr_accessor :advance
+
+    def initialize(advance: false, **kwargs)
+      super(**kwargs)
+      @advance = advance
+    end
+  end
+
   # Drawer config extends OverlayTypeConfig with a default position
   # (`:left`, `:right`, `:top`, `:bottom`) used by shipped layouts.
   # Per-instance position can be overridden by editing the layout.
+  # Also exposes `advance` (same semantics as ModalConfig).
   class DrawerConfig < OverlayTypeConfig
-    attr_accessor :position
+    attr_accessor :position, :advance
 
-    def initialize(position:, **kwargs)
+    def initialize(position:, advance: false, **kwargs)
       super(**kwargs)
       @position = position
+      @advance  = advance
     end
   end
 
@@ -89,7 +104,7 @@ module TurboOverlay
     def initialize
       @stack_id = "turbo_overlay_stack"
 
-      @modal = OverlayTypeConfig.new(variant: :modal)
+      @modal = ModalConfig.new(variant: :modal)
 
       @drawer = DrawerConfig.new(
         variant:  :drawer,

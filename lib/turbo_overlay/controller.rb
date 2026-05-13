@@ -218,9 +218,16 @@ module TurboOverlay
     end
 
     # True when this is a form/link response targeting an existing
-    # overlay's turbo-frame (form re-render in place).
+    # overlay's turbo-frame (form re-render in place). Mirrors the
+    # same prefetch guard as `_resolve_overlay_type`: a hover prefetch
+    # carries the enclosing frame's id in `Turbo-Frame` but is NOT a
+    # re-render — treating it as one would flip the response
+    # Content-Type to `text/vnd.turbo-stream.html` (via
+    # `_turbo_overlay_set_stream_content_type`) for a body that's a
+    # plain `<turbo-frame>`, an incoherent mismatch.
     def turbo_overlay_frame_re_render?
       return false unless respond_to?(:request) && request
+      return false if overlay_prefetch_request?
       request.headers["Turbo-Frame"].to_s.start_with?(OVERLAY_FRAME_PREFIX)
     end
 
@@ -234,6 +241,17 @@ module TurboOverlay
       return :drawer  if header == "drawer"
       return :popover if header == "popover"
       return :hint    if header == "hint"
+
+      # Turbo's hover prefetch carries the enclosing frame's id in the
+      # `Turbo-Frame` header. Falling into the frame-parse branch on a
+      # prefetch would route the prefetched URL through the overlay
+      # layout and return a frame-replace turbo-stream — which Turbo
+      # applies on receipt, replacing the open overlay's contents with
+      # whatever the prefetched URL renders. Skip the fallback so
+      # prefetches render as normal pages and Turbo just caches them.
+      # Explicit overlay opens (`X-Turbo-Overlay` header set by the
+      # gem's JS) are unaffected — those are matched above.
+      return nil if overlay_prefetch_request?
 
       frame = request.headers["Turbo-Frame"].to_s
       if frame.start_with?(OVERLAY_FRAME_PREFIX)

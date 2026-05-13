@@ -25,18 +25,24 @@ class ConfigurationTest < Minitest::Test
   def test_default_modal_values
     modal = TurboOverlay.configuration.modal
     assert_equal :modal, modal.variant
+    assert_equal false,  modal.advance
   end
 
   def test_configure_modal_with_block
     TurboOverlay.configure do |c|
-      c.modal { |m| m.variant = :custom_modal }
+      c.modal do |m|
+        m.variant = :custom_modal
+        m.advance = true
+      end
     end
 
     assert_equal :custom_modal, TurboOverlay.configuration.modal.variant
+    assert_equal true,          TurboOverlay.configuration.modal.advance
   end
 
-  def test_modal_returns_config_when_no_block
-    assert_instance_of TurboOverlay::OverlayTypeConfig, TurboOverlay.configuration.modal
+  def test_modal_returns_modal_config_subclass
+    assert_kind_of TurboOverlay::ModalConfig,       TurboOverlay.configuration.modal
+    assert_kind_of TurboOverlay::OverlayTypeConfig, TurboOverlay.configuration.modal
   end
 
   # ---- drawer ----
@@ -45,16 +51,19 @@ class ConfigurationTest < Minitest::Test
     drawer = TurboOverlay.configuration.drawer
     assert_equal :drawer, drawer.variant
     assert_equal :right,  drawer.position
+    assert_equal false,   drawer.advance
   end
 
   def test_configure_drawer_with_block
     TurboOverlay.configure do |c|
       c.drawer do |d|
         d.position = :left
+        d.advance  = true
       end
     end
 
     assert_equal :left, TurboOverlay.configuration.drawer.position
+    assert_equal true,  TurboOverlay.configuration.drawer.advance
   end
 
   def test_drawer_returns_drawer_config_subclass
@@ -93,6 +102,11 @@ class ConfigurationTest < Minitest::Test
   def test_popover_returns_popover_config_subclass
     assert_kind_of TurboOverlay::PopoverConfig,     TurboOverlay.configuration.popover
     assert_kind_of TurboOverlay::OverlayTypeConfig, TurboOverlay.configuration.popover
+  end
+
+  def test_popover_does_not_expose_advance
+    refute_respond_to TurboOverlay.configuration.popover, :advance
+    refute_respond_to TurboOverlay.configuration.popover, :advance=
   end
 
   # ---- confirm ----
@@ -136,6 +150,11 @@ class ConfigurationTest < Minitest::Test
   def test_hint_returns_hint_config_subclass
     assert_kind_of TurboOverlay::HintConfig,        TurboOverlay.configuration.hint
     assert_kind_of TurboOverlay::OverlayTypeConfig, TurboOverlay.configuration.hint
+  end
+
+  def test_hint_does_not_expose_advance
+    refute_respond_to TurboOverlay.configuration.hint, :advance
+    refute_respond_to TurboOverlay.configuration.hint, :advance=
   end
 
   # ---- reset ----

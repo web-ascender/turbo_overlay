@@ -137,6 +137,25 @@ class ControllerTest < Minitest::Test
     assert_equal :modal, @controller.turbo_overlay_type
   end
 
+  # Turbo's hover prefetch sends the enclosing frame's id in the
+  # `Turbo-Frame` header. Without this guard, the prefetched URL
+  # would render through the overlay layout and the resulting
+  # turbo-stream would replace the open overlay's contents on
+  # receipt. Prefetches must route as normal pages.
+  def test_prefetch_skips_turbo_frame_fallback
+    with_headers("X-Sec-Purpose" => "prefetch",
+                 "Turbo-Frame" => "turbo_overlay_modal_abc123")
+    assert_nil @controller.turbo_overlay_type
+  end
+
+  # An explicit `X-Turbo-Overlay` header still resolves on prefetch
+  # — those are the gem's own JS-initiated hint/overlay fetches.
+  def test_prefetch_still_resolves_explicit_overlay_header
+    with_headers("X-Sec-Purpose" => "prefetch",
+                 "X-Turbo-Overlay" => "hint")
+    assert_equal :hint, @controller.turbo_overlay_type
+  end
+
   # ---- overlay id resolution ----
 
   def test_overlay_id_from_x_turbo_overlay_id_header

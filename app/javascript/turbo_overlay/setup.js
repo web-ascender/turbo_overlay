@@ -1,4 +1,8 @@
 import { computePopoverPosition } from "turbo_overlay/popover_position"
+import {
+  setAdvanceUrl, clearAdvanceUrl, resetHistoryState, registerPopstateHandler,
+  expectedPopstateCount, hasPushedOverlayOnStack
+} from "turbo_overlay/history"
 
 // Global wiring for turbo_overlay.
 //
@@ -34,6 +38,14 @@ const dismissedLoadingIds = new Set()
 // and on morph-in.
 const inflightAborts = new Map()
 
+// Tracks whether `turbo:before-cache` is firing inside a real visit
+// (link click, form submit, Turbo.visit, popstate that carries
+// Turbo's restoration state) or inside Turbo Drive's
+// `historyPoppedWithEmptyState` path (popstate over an entry that
+// lacks `state.turbo` — e.g. one the gem pushed for an advance
+// overlay). Only the visit path should run `tearDownAllOverlays`.
+let _realVisitInProgress = false
+
 export function getPopoverTrigger(id) {
   return popoverTriggers.get(id) || null
 }
@@ -50,6 +62,33 @@ function cssEscape(value) {
   return (window.CSS && typeof window.CSS.escape === "function")
     ? window.CSS.escape(value)
     : String(value).replace(/[^a-zA-Z0-9_-]/g, "\\$&")
+}
+
+// Resolve the URL the gem should push for an advance-eligible trigger.
+// Modal/drawer triggers participate; popovers and hints never do.
+//
+// Resolution order:
+//   1. Type is "popover"/"hint"           → null (hard rule).
+//   2. data-turbo-overlay-advance="false" → null (explicit opt-out).
+//   3. data-turbo-overlay-advance="true"  → link.href.
+//   4. data-turbo-overlay-advance="/foo"  → "/foo".
+//   5. Attribute absent → consult the stack's per-type default
+//      attribute (data-turbo-overlay-advance-modal /
+//      -advance-drawer): "true" → link.href; anything else → null.
+function resolveAdvanceUrl(link) {
+  const type = link && link.dataset && link.dataset.turboOverlay
+  if (type !== "modal" && type !== "drawer") return null
+
+  const explicit = link.dataset.turboOverlayAdvance
+  if (explicit === "false") return null
+  if (explicit === "true")  return link.href || null
+  if (typeof explicit === "string" && explicit.length > 0) return explicit
+
+  const stack = document.querySelector("[data-controller~='turbo-overlay-stack']")
+  if (!stack) return null
+  const fromStack = stack.dataset[`turboOverlayAdvance${type === "modal" ? "Modal" : "Drawer"}`]
+  if (fromStack === "true") return link.href || null
+  return null
 }
 
 function findLoadingFrame(id) {
@@ -111,6 +150,7 @@ function tearDownAllOverlays() {
   inflightAborts.clear()
   dismissedLoadingIds.clear()
   popoverTriggers.clear()
+  resetHistoryState()
 }
 
 // Tear down a same-id overlay frame still in the DOM so a re-click on
@@ -409,7 +449,10 @@ function registerLoadingHook() {
 
   document.addEventListener("turbo:fetch-request-error", (event) => {
     const id = _readOverlayIdFromFetchEvent(event)
-    if (id) removeLoadingOverlay(id)
+    if (id) {
+      removeLoadingOverlay(id)
+      clearAdvanceUrl(id)
+    }
   })
 
   document.addEventListener("turbo:before-fetch-response", (event) => {
@@ -418,14 +461,84 @@ function registerLoadingHook() {
     const response = event.detail && event.detail.fetchResponse
     if (response && response.succeeded) return
     removeLoadingOverlay(id)
+    clearAdvanceUrl(id)
   })
 
-  document.addEventListener("turbo:visit", () => {
+  // `turbo:before-visit` fires only for proposed visits (link clicks,
+  // form submits, programmatic `Turbo.visit`). Popstate-triggered
+  // restoration visits go through `Navigator#startVisit` directly and
+  // skip `before-visit` entirely. Use it to set the "real visit"
+  // flag, which `before-cache` reads to decide whether to tear down.
+  document.addEventListener("turbo:before-visit", () => {
+    _realVisitInProgress = true
+  })
+
+  // `turbo:visit` fires for every visit (including restores). Handle
+  // both responsibilities in a single listener so they run in the
+  // right order against shared state:
+  //
+  //   1. Detect a restore visit triggered by Turbo Drive's popstate
+  //      handler over an advance-pushed overlay (either one the gem
+  //      just rolled back via `history.back()` on close, or a user
+  //      browser-back over the gem's pushed URL) and cancel it.
+  //      Otherwise Turbo loads the cached snapshot for the popped
+  //      URL — replacing the page underneath and tearing down every
+  //      open overlay in the process. Visit cancellation aborts the
+  //      queued requestAnimationFrame inside `Visit#render` before
+  //      it fires `cacheSnapshot()` → `before-cache`, so no teardown
+  //      side effects.
+  //
+  //   2. For non-overlay visits, run the existing cleanup
+  //      (`clearAllLoadingOverlays`, `popoverTriggers.clear`,
+  //      `resetHistoryState`) AND mark the visit as real so
+  //      `before-cache` runs the teardown.
+  //
+  // The cancel branch must come first: `resetHistoryState` clears
+  // `pushedEntries`, which `hasPushedOverlayOnStack` reads, so
+  // running it before the check would always observe an empty Map.
+  document.addEventListener("turbo:visit", (event) => {
+    const action = event.detail && event.detail.action
+
+    if (action === "restore" &&
+        (expectedPopstateCount() > 0 || hasPushedOverlayOnStack())) {
+      // Turbo exposes the navigator at `window.Turbo.navigator`
+      // (flat, not under session). `currentVisit` is set inside
+      // `Navigator#startVisit` before `turbo:visit` dispatches.
+      const visit = window.Turbo && window.Turbo.navigator && window.Turbo.navigator.currentVisit
+      if (visit && typeof visit.cancel === "function") {
+        try { visit.cancel() } catch (_) { /* ignore */ }
+      }
+      return
+    }
+
     clearAllLoadingOverlays()
     popoverTriggers.clear()
+    resetHistoryState()
+    _realVisitInProgress = true
   })
 
+  // `turbo:before-cache` fires in two distinct paths:
+  //
+  //   1. A real Turbo visit (link click, form submit, programmatic
+  //      `Turbo.visit`, or a Turbo Drive restoration). The visit
+  //      caches the current snapshot before navigating away — we
+  //      want to tear down here so the cached snapshot doesn't
+  //      contain stale `<dialog open>` elements.
+  //
+  //   2. Turbo Drive's `historyPoppedWithEmptyState` path. When a
+  //      popstate fires for an entry that lacks `state.turbo` (e.g.
+  //      one the gem pushed for an advance overlay), Turbo's
+  //      `Session#historyPoppedWithEmptyState` calls
+  //      `view.cacheSnapshot()` synchronously — which fires
+  //      `before-cache` but does NOT start a visit. Tearing down here
+  //      would close every open overlay on every overlay-related
+  //      popstate.
+  //
+  // `_realVisitInProgress` is set above for path (1). Skipping the
+  // teardown when the flag is false preserves overlays for path (2).
   document.addEventListener("turbo:before-cache", () => {
+    if (!_realVisitInProgress) return
+    _realVisitInProgress = false
     tearDownAllOverlays()
   })
 }
@@ -472,6 +585,9 @@ function registerFetchHook() {
       link.__turboOverlayClickPoint = { x: event.clientX, y: event.clientY }
       popoverTriggers.set(link.dataset.turboOverlayId, link)
     }
+
+    const adv = resolveAdvanceUrl(link)
+    if (adv) setAdvanceUrl(link.dataset.turboOverlayId, adv)
 
     pendingTrigger = link
   }, true)
@@ -738,3 +854,4 @@ registerStreamAction()
 registerFetchHook()
 registerLoadingHook()
 registerMorphPreservationHook()
+registerPopstateHandler()

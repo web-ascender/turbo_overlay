@@ -3,26 +3,7 @@
 Candidate features, ordered roughly by impact. None are committed —
 each needs a design pass before implementation.
 
-## 1. URL advance / shareable overlay URLs
-
-Update the URL bar when an overlay opens and let browser-back close it.
-
-- `advance: true` on a link → push the link's target URL
-- `advance: "/foo/bar"` → push a custom URL
-- Default off (configurable per overlay type)
-- Browser back closes the top overlay and replays the previous history
-  entry, *not* the page beneath
-
-Open questions for stacking:
-- Does each stacked layer push a history entry, or only the bottom?
-  Leaning top-overlay-only — multiple pushes per user action turn the
-  back button into a stutter-step.
-- How does this interact with `turbo_stream.overlay(:close,
-  scope: :all)`? One `history.go(-n)`, or `replaceState` to the base
-  URL?
-- Popovers and hints almost certainly opt out — they're ephemeral.
-
-## 2. Click-outside allowlist for body-appended widgets
+## 1. Click-outside allowlist for body-appended widgets
 
 Whitelist of CSS selectors whose clicks shouldn't dismiss the overlay.
 Solves flatpickr, Select2, Tippy, Tom Select, and every other widget
@@ -36,12 +17,12 @@ UTMR's defaults list is a useful starting point for the docs.
 
 ## 3. Mousedown-origin dismiss check
 
-Even without #2, fix the "drag a text selection out of the dialog and
+Even without #1, fix the "drag a text selection out of the dialog and
 release on the backdrop" bug. Track which element `mousedown` landed
 on; if it was inside the dialog content, suppress the subsequent
 backdrop-click dismissal.
 
-Small, orthogonal to #2, and fixes a class of false dismissals that
+Small, orthogonal to #1, and fixes a class of false dismissals that
 the allowlist can't catch.
 
 ## 4. Smooth same-page redirect / morph-behind

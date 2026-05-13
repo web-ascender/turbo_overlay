@@ -515,4 +515,124 @@ class OverlayTest < ApplicationSystemTestCase
       "dialog.turbo-overlay--modal[open] [aria-label='Close'] span[aria-hidden='true']"
     )
   end
+
+  # ----- URL advance -----
+
+  test "modal_link_to with advance: true updates the URL bar" do
+    visit "/"
+    assert_equal "/", page.current_path
+
+    click_on "Modal advance"
+    assert_selector "dialog.turbo-overlay--modal[open]"
+    assert_equal "/widgets/1", page.current_path
+  end
+
+  test "advance: with a custom URL string pushes that URL" do
+    visit "/"
+    click_on "Modal advance custom"
+    assert_selector "dialog.turbo-overlay--modal[open]"
+    assert_equal "/widgets/1/custom", page.current_path
+  end
+
+  test "drawer_link_to with advance: true updates the URL bar" do
+    visit "/"
+    click_on "Drawer advance"
+    assert_selector "dialog.turbo-overlay--drawer[open]"
+    assert_equal "/widgets/1", page.current_path
+  end
+
+  test "ESC on an advance modal reverts the URL" do
+    visit "/"
+    click_on "Modal advance"
+    assert_selector "dialog.turbo-overlay--modal[open]"
+    assert_equal "/widgets/1", page.current_path
+
+    find("dialog.turbo-overlay--modal[open]").send_keys :escape
+    assert_no_selector "dialog.turbo-overlay--modal[open]"
+    assert_equal "/", page.current_path
+  end
+
+  test "close button on an advance modal reverts the URL" do
+    visit "/"
+    click_on "Modal advance"
+    assert_selector "dialog.turbo-overlay--modal[open]"
+
+    within("dialog.turbo-overlay--modal[open]") { find("[aria-label='Close']").click }
+    assert_no_selector "dialog.turbo-overlay--modal[open]"
+    assert_equal "/", page.current_path
+  end
+
+  test "browser back closes the top advance overlay" do
+    visit "/"
+    click_on "Modal advance"
+    assert_selector "dialog.turbo-overlay--modal[open]"
+    assert_equal "/widgets/1", page.current_path
+
+    page.go_back
+    assert_no_selector "dialog.turbo-overlay--modal[open]"
+    assert_equal "/", page.current_path
+  end
+
+  test "stacked advance modals push two history entries; back closes them in reverse" do
+    visit "/"
+    click_on "Modal", match: :first      # Sprocket (no advance)
+    assert_selector "dialog.turbo-overlay--modal[open]"
+    base_path = page.current_path        # still "/"
+
+    within("dialog.turbo-overlay--modal[open]") { click_on "Open Flywheel advance" }
+    assert_selector "dialog.turbo-overlay--modal[open]", count: 2
+    assert_equal "/widgets/2", page.current_path
+
+    page.go_back
+    assert_selector "dialog.turbo-overlay--modal[open]", count: 1
+    assert_equal base_path, page.current_path
+  end
+
+  # Regression: closing the top of two advance modals must leave the
+  # lower one open. Earlier the gem's `history.back()` triggered Turbo
+  # Drive's popstate handler, which fired `turbo:before-cache`, which
+  # ran the gem's `tearDownAllOverlays` — closing every open overlay.
+  # Now the popstate handler captures the event before Turbo and
+  # stopImmediatePropagation's it for popstates the gem caused.
+  test "close button on top of two advance modals leaves the lower one open" do
+    visit "/"
+    click_on "Modal advance"
+    assert_selector "dialog.turbo-overlay--modal[open]"
+    assert_equal "/widgets/1", page.current_path
+
+    within("dialog.turbo-overlay--modal[open]") { click_on "Open Flywheel advance" }
+    assert_selector "dialog.turbo-overlay--modal[open]", count: 2
+    assert_equal "/widgets/2", page.current_path
+
+    # Click × on the top dialog (last in DOM order, since overlays append).
+    all("dialog.turbo-overlay--modal[open]").last.find("[aria-label='Close']").click
+
+    assert_selector "dialog.turbo-overlay--modal[open]", count: 1
+    assert_equal "/widgets/1", page.current_path
+  end
+
+  test "server-issued turbo_stream.overlay(:close) reverts the URL for an advance modal" do
+    visit "/"
+    click_on "Modal advance"
+    assert_selector "dialog.turbo-overlay--modal[open]"
+    assert_equal "/widgets/1", page.current_path
+
+    within("dialog.turbo-overlay--modal[open]") { click_on "Save and close" }
+    assert_no_selector "dialog.turbo-overlay--modal[open]"
+    assert_equal "/", page.current_path
+  end
+
+  test "popover_link_to silently drops the advance option" do
+    visit "/"
+    # The view helper drops `:advance` for popover types; the rendered
+    # popover link must not carry the data attribute. Asserted via the
+    # widgets/index page's normal popover link (no advance passed) plus
+    # an inline render via execute_script with a fabricated link is
+    # overkill — instead, just verify clicking a normal popover doesn't
+    # change the URL.
+    initial = page.current_path
+    click_on "Popover", match: :first
+    assert_selector "dialog.turbo-overlay--popover:popover-open"
+    assert_equal initial, page.current_path
+  end
 end

@@ -131,6 +131,57 @@ When a form inside an overlay submits:
 | `X-Turbo-Overlay-Close`      | `false` to suppress the chrome's close button           |
 | `X-Sec-Purpose: prefetch`    | Turbo's hover prefetch — the W3C `Sec-*` prefix is forbidden for JS-initiated fetch, so Turbo prepends `X-`. |
 
+## URL advance
+
+Opt-in via `advance: true` on `modal_link_to` / `drawer_link_to`, or
+via the per-type config default `c.modal.advance = true` /
+`c.drawer.advance = true`. Popovers and hints never advance (no
+config knob, no per-link option, hard-skipped in JS by overlay
+type).
+
+State lives in `app/javascript/turbo_overlay/history.js`, keyed by
+overlay id (not controller instance) so the bookkeeping survives
+idiomorph re-renders and Stimulus reconnects:
+
+- `advanceUrls` — URLs resolved at click time, before the fetch goes
+  out; consumed when the dialog's `shown` event fires.
+- `pushedEntries` — overlays we've called `history.pushState` for.
+- `expectedPopstates` — counter of popstates we caused ourselves via
+  `history.back()` and must swallow before treating one as user input.
+
+Flow:
+
+1. Click handler in `setup.js` resolves the advance URL from
+   `data-turbo-overlay-advance` (or the per-type stack-default
+   attribute) for modal/drawer triggers; popover/hint clicks are
+   short-circuited. Result goes into `advanceUrls`.
+2. On `turbo-overlay:shown` (initial open of a modal or drawer), the
+   per-dialog controller calls `history.pushState` and records the
+   id in `pushedEntries`.
+3. The window-level `popstate` handler (registered once) decrements
+   `expectedPopstates` when applicable; otherwise walks the live
+   stack from the top and closes the first overlay whose id is in
+   `pushedEntries`. The matching controller's `_closedByBack` flag
+   suppresses a subsequent `history.back()` on close.
+4. On user close (×, ESC, server `turbo_stream.overlay(:close)`), the
+   controller snapshots the stack, unregisters, then compares
+   `livePushedCount` before vs after. If the close reduced the count,
+   it calls `history.back()` (incrementing `expectedPopstates` so the
+   resulting popstate doesn't loop back into a second close).
+
+Limitations:
+
+- The pushed URL is not guaranteed to re-open the overlay on a fresh
+  visit. The gem can't know how the host app routes that URL — the
+  page may render as a full document or 404. Apps that want true
+  re-entry add a route that opens the overlay on load.
+- Closing a non-top overlay via `turbo_stream.overlay(:close, id: …)`
+  while it had `advance: true` reverts the URL once (the live-count
+  decrement still fires), but the URL it reverts to is whatever
+  overlay was below — not the URL that was current when the closed
+  overlay opened. Acceptable in practice; documented here for
+  surprise minimization.
+
 ## Chrome partials and body-only partials
 
 Chrome partials (`_modal`, `_drawer`, `_popover`, `_hint`) are

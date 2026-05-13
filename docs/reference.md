@@ -9,11 +9,13 @@ TurboOverlay.configure do |config|
 
   config.modal do |m|
     m.variant = :modal             # Rails request variant
+    m.advance = false              # push history on open (URL advance)
   end
 
   config.drawer do |d|
     d.variant  = :drawer
     d.position = :right            # :left, :right, :top, :bottom
+    d.advance  = false             # push history on open (URL advance)
   end
 
   config.popover do |p|
@@ -55,9 +57,9 @@ in `respond_to` work as expected — see
 | `turbo_overlay_offset`                  | Per-link popover pixel offset, or `nil`                                |
 | `turbo_overlay_backdrop?`               | `false` only when the link opened with `backdrop: false`; else `true`  |
 | `turbo_overlay_close?`                  | `false` only when the link opened with `close: false`; else `true`     |
-| `modal_link_to(name, path, overlay_id:, close:, hint:, hint_url:, show_delay:, hide_delay:)` | `link_to` that opens the target as a stacked modal |
-| `drawer_link_to(name, path, overlay_id:, position:, backdrop:, close:, hint:, hint_url:, show_delay:, hide_delay:)` | stacked drawer |
-| `popover_link_to(name, path, overlay_id:, position:, align:, offset:, close:, hint:, hint_url:, show_delay:, hide_delay:)` | anchored popover |
+| `modal_link_to(name, path, overlay_id:, close:, advance:, hint:, hint_url:, show_delay:, hide_delay:)` | `link_to` that opens the target as a stacked modal |
+| `drawer_link_to(name, path, overlay_id:, position:, backdrop:, close:, advance:, hint:, hint_url:, show_delay:, hide_delay:)` | stacked drawer |
+| `popover_link_to(name, path, overlay_id:, position:, align:, offset:, close:, hint:, hint_url:, show_delay:, hide_delay:)` | anchored popover (no `advance:` — popovers never push history) |
 | `hint_link_to(name, path, hint_url:, show_delay:, hide_delay:)` | plain `link_to` decorated with hint data attributes |
 | `modal_dismiss_link_to(...)`            | dismiss link inside a modal                                            |
 | `drawer_dismiss_link_to(...)`           | dismiss link inside a drawer                                           |

@@ -38,6 +38,39 @@ Big iteration cycle ahead of the first public release. Highlights:
   the helper are now `"turbo_overlay/modal"`, `"turbo_overlay/drawer"`,
   `"turbo_overlay/popover"`, `"turbo_overlay/hint"`.
 
+### Fixed
+- **Hover prefetch of in-overlay links no longer replaces the open
+  overlay.** Turbo's hover prefetch sends the enclosing frame's id
+  in the `Turbo-Frame` header. The controller concern was falling
+  into its in-overlay form-re-render branch on that header, routing
+  the prefetched URL through the overlay layout and returning a
+  turbo-stream that morphed the open overlay's contents on receipt.
+  The concern now skips the Turbo-Frame fallback when
+  `X-Sec-Purpose: prefetch` is set — explicit overlay opens
+  (`X-Turbo-Overlay` header) are unaffected. The same guard runs in
+  `turbo_overlay_frame_re_render?` so the response Content-Type
+  stays consistent with the body. As a complementary bandwidth save,
+  dismiss links (`modal_dismiss_link_to` etc.) rendered inside an
+  overlay now set `data-turbo-prefetch="false"` since their click
+  is preventDefault'd by the Stimulus action.
+- **Closing the top of a stacked advance overlay no longer tears
+  down the whole stack.** Two compounded bugs:
+  (a) The gem's `turbo:before-cache` handler ran
+  `tearDownAllOverlays` for every cache snapshot — including the
+  one Turbo Drive's `historyPoppedWithEmptyState` triggers
+  synchronously on every popstate without a visit. Now gated on a
+  `_realVisitInProgress` flag set in `turbo:before-visit` so only
+  real visits clear overlays.
+  (b) For popstates where the popped entry carries Turbo's own
+  restoration state (e.g. backing out of an advance overlay to a
+  Turbo-loaded page), Turbo proposes a restore visit that would
+  load the cached snapshot and replace the page. The gem now
+  cancels that restore visit from `turbo:visit` (action="restore")
+  when an advance overlay is involved — leaving the overlay close
+  to the popstate handler. Visit cancellation aborts the queued
+  render before `cacheSnapshot()` runs, so no `before-cache` side
+  effects either.
+
 ### Removed
 - `modal/drawer/popover/hint.layout_name` configuration and the
   matching `modal_layout_name` / `drawer_layout_name` /
@@ -48,6 +81,15 @@ Big iteration cycle ahead of the first public release. Highlights:
   precedence wins over the gem's copy).
 
 ### Added
+- **URL advance for modals and drawers.** Pass `advance: true` on
+  `modal_link_to` / `drawer_link_to` (or set
+  `c.modal.advance = true` / `c.drawer.advance = true` in the
+  initializer) to push a history entry when the overlay opens.
+  Browser-back closes the top overlay instead of navigating away
+  from the page beneath. Per-link override accepts `true` (push the
+  link's href), a String (push a custom URL), or `false` (opt out
+  when the type default is on). Popovers and hints never advance —
+  they're ephemeral and shouldn't churn browser history.
 - **Popover overlay type.** `popover_link_to "Edit", path` opens its
   target as a non-modal `<dialog>` anchored to the clicked link.
   Per-link `position:`, `align:`, `offset:`; auto-flips on viewport
