@@ -3,7 +3,7 @@
 <% align       = turbo_overlay_align    || TurboOverlay.configuration.popover.align %>
 <% offset      = turbo_overlay_offset   || TurboOverlay.configuration.popover.offset %>
 <% close_button = local_assigns.fetch(:close) { defined?(@_overlay_close) && @_overlay_close != false } %>
-<dialog class="<%= token_list("turbo-overlay", "turbo-overlay--popover", "turbo-overlay--no-backdrop", "popover", "turbo-overlay--loading": loading) %>"
+<dialog class="<%= class_names("turbo-overlay", "turbo-overlay--popover", "turbo-overlay--no-backdrop", "popover", "turbo-overlay--loading": loading) %>"
         style="display:block; position:fixed; max-width:22rem; margin:0; padding:0;"
         <% if loading %>
         role="status"

@@ -8,7 +8,7 @@
 }.fetch(position) %>
 <% backdrop    = turbo_overlay_backdrop? %>
 <% close_button = local_assigns.fetch(:close) { overlay_close? } %>
-<dialog class="<%= token_list("turbo-overlay", "turbo-overlay--drawer", "turbo-overlay--drawer-#{position}", "fixed m-0 p-0 bg-white text-gray-900 shadow-2xl backdrop:bg-black/50 dark:bg-gray-900 dark:text-gray-100 dark:ring-1 dark:ring-white/10", position_classes, "turbo-overlay--loading": loading, "turbo-overlay--no-backdrop": !backdrop) %>"
+<dialog class="<%= class_names("turbo-overlay", "turbo-overlay--drawer", "turbo-overlay--drawer-#{position}", "fixed m-0 p-0 bg-white text-gray-900 shadow-2xl backdrop:bg-black/50 dark:bg-gray-900 dark:text-gray-100 dark:ring-1 dark:ring-white/10", position_classes, "turbo-overlay--loading": loading, "turbo-overlay--no-backdrop": !backdrop) %>"
         <% if loading %>
         role="status"
         aria-live="polite"

@@ -1,5 +1,5 @@
 <% loading = local_assigns.fetch(:loading, false) %>
-<div class="<%= token_list("turbo-overlay-hint", "popover position-fixed d-block shadow-sm", "turbo-overlay--loading": loading) %>"
+<div class="<%= class_names("turbo-overlay-hint", "popover position-fixed d-block shadow-sm", "turbo-overlay--loading": loading) %>"
      style="max-width: 20rem;"
      <% if loading %>role="status" aria-live="polite" aria-label="Loading"<% else %>role="tooltip"<% end %>>
   <div class="popover-body">

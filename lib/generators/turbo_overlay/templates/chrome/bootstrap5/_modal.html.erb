@@ -1,6 +1,6 @@
 <% loading      = local_assigns.fetch(:loading, false) %>
 <% close_button = local_assigns.fetch(:close) { overlay_close? } %>
-<dialog class="<%= token_list("turbo-overlay", "turbo-overlay--modal", "turbo-overlay-scaffold", "turbo-overlay--loading": loading) %>"
+<dialog class="<%= class_names("turbo-overlay", "turbo-overlay--modal", "turbo-overlay-scaffold", "turbo-overlay--loading": loading) %>"
         <% if loading %>
         role="status"
         aria-live="polite"
