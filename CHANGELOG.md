@@ -2,80 +2,113 @@
 
 ## Unreleased
 
-### Changed
-- **Install footprint shrunk: one `_loading.html.erb` + one `_confirm.html.erb` per theme** instead of six variant files. The gem now ships a single shared loading partial as its fallback (collapsing the four `_loading.html+<variant>.erb` variants), and the install generator emits one confirm partial per theme (collapsing the modal/popover pair). The same body renders into every chrome — gem CSS handles per-context sizing (drawer fills, hint collapses to tooltip size). Apps that want chrome-specific bodies still drop in `_loading.html+<variant>.erb` or `_confirm.html+<variant>.erb` and the variant lookup prefers it over the shared file. Lowers maintenance overhead (one themed body to update per theme instead of six) and makes a fresh install less overwhelming.
-
-### Fixed
-- **Form re-render keeps the overlay open.** A form submission inside an open overlay that responds with a validation error (`render :something, status: :unprocessable_entity`) goes through Turbo's frame-replacement path — Turbo swaps the entire `<dialog>` node with the new server-rendered version. The new dialog has no `open` attribute and is detached from the top layer; the overlay was visibly disappearing on validation failure. The `stack.has(id)` branch in `overlay_controller#connect` (which already detected this as a "frame re-render") now re-opens the new dialog in the same mode (`showModal` for backdrop=true, `show` for backdrop=false) so the overlay stays visible. The placeholder-morph path is unaffected — `setup.js#morphDialogInPlace` preserves the dialog node, so its `open` state survives.
-- **Back/forward navigation no longer restores broken-state overlays.** When the user navigated from a page with an open modal/drawer/popover (or an in-flight loading placeholder) and then hit back, Turbo's page-cache restore brought the `<dialog open>` back into the DOM — but `showModal()`'s top-layer membership is per-document and is lost across navigations. The restored dialog rendered inline with no backdrop, no focus trap, and an ESC key that no longer fired native `cancel`. The stack controller now listens for `turbo:before-cache` and tears down every `turbo-frame.turbo-overlay-frame` (live and loading), closes any open dialogs, aborts in-flight overlay fetches, and clears the popover-trigger registry — so the cached snapshot has no overlay state to restore. `turbo:visit` also clears the popover-trigger registry as a belt-and-suspenders for visits that skipped before-cache.
-- **Popover-style confirm now works for `link_to … data-turbo-method` triggers.** Turbo's link-method path synthesizes a hidden form and submits it without a submitter argument, so the `Turbo.config.forms.confirm` hook received `submitter = null` and the gem silently demoted popover-style to modal. The confirm registration now captures the originating `[data-turbo-confirm]` element on click (capture phase, freshness-bounded) and uses it as the popover anchor when Turbo loses the submitter. Real form-button submissions are unaffected — Turbo's submitter still wins when present.
+Big iteration cycle ahead of the first public release. Highlights:
 
 ### Added
-- **Overlay lifecycle events.** Four new custom events let apps wire autofocus, analytics, and cleanup without monkey-patching the controller:
-  - `turbo-overlay:shown` (dialog, bubbles) — fires once per open after the controller wires up and the dialog is interactive. Covers both direct-open and placeholder-morph cases; never fires on the frame re-render path.
-  - `turbo-overlay:before-close` (dialog, bubbles) — fires at the top of the close path while the dialog is still visible. Not cancellable (programmatic closes from the stack — e.g. closing prior popovers — shouldn't be abortable).
-  - `turbo-overlay:closed` (dialog, bubbles) — fires after the close animation and `dialog.close()`, before the frame is removed. Dialog is still in the DOM at dispatch time so bubbled listeners can read its attributes.
-  - `turbo-overlay:hint-shown` (document) — fires when a real hint node appears (not the pending placeholder).
-
-  All carry `{ id, type }` in detail (or `{ url }` for hint events). The three overlay events bubble from the dialog so listeners can attach per-overlay or globally on document.
-- **`+hint` variant template auto-renders as the hint body.** `overlay_stack_tag` looks for the current action's `+hint` variant (e.g. `show.html+hint.erb`) on hintable requests and renders it as the hint body. Drop the hint content in one file and it serves both the prefetch path (via this auto-render) and the explicit `hint_url:` path (via Rails' standard variant resolution). Gated on `overlay_hintable_request?` so regular page renders don't pay the template-render cost. Detection is strict: `lookup_context.find_all(..., variants: [:hint])` plus an identifier-level `+hint.` check, so Rails' variant fallback to the no-variant template doesn't accidentally render the entire page as the hint. Adds `overlay_prefetch_request?` and `overlay_hintable_request?` controller predicates.
-- **Loading state for overlay clicks.** A `modal_link_to` / `drawer_link_to` / `popover_link_to` click now drops a placeholder dialog into the stack as soon as the request flies, so the user sees immediate feedback even on slow controllers. The placeholder inherits the link's options (`backdrop:`, drawer `position:`, popover `position:` / `align:` / `offset:`, `close:`) so the loader reads visually the same as the eventual chrome. When the server-rendered overlay arrives in its turbo-stream, Turbo's `before-stream-render` event removes the placeholder; the same cleanup fires on fetch errors and on `turbo:visit`. Cloned at click time from `<template id="turbo_overlay_loading_<modal|drawer|popover|hint>_template">` emitted by `overlay_stack_tag`, so loading visuals are fully ERB-customizable.
-- **Pending hints with `_loading.html+hint.erb`.** While a hover prefetch is in flight, the gem now paints a pending hint placeholder after `show_delay_ms` instead of staying invisible. When the response lands, the placeholder swaps in-place to the real hint with no flicker; if the response carries no hint template, it dismisses silently. Fixes the prior race where slow responses past `show_delay_ms` would never show a hint until a second hover hit the cache.
-- **`_loading.html+<variant>.erb` chrome partials** for `modal`, `drawer`, `popover`, and `hint`, shipped per theme. Like `_confirm.html+modal.erb`, these are body-only partials that the gem wraps in the matching chrome at template-emission time, so the host app doesn't repeat `<%= render "turbo_overlay/modal" do %>` boilerplate.
-- **Hint fallback when Turbo prefetch is disabled.** Sites that set `<meta name="turbo-prefetch" content="false">` or `data-turbo-prefetch="false"` on a link (or ancestor) previously had no working hints — Turbo never fired a prefetch and the gem had nothing to listen for. The hint module now detects these opt-outs and fetches the URL itself with the same shape Turbo would have used, so `hint_link_to` works on prefetch-disabled sites without requiring `hint_url:`.
-- **Negative cache for "no-hint" responses.** When a prefetch (or manual hint fetch) returns a response without a `<template id="turbo-overlay-hint">` — or when the fetch errors out — the URL is cached as `NO_HINT`. Subsequent hovers short-circuit at the show-delay tick: no pending placeholder is painted, no fetch is repeated. The negative cache clears on `turbo:visit` so navigation gives the gem a fresh shot at discovering a hint.
-- **Hover hints with Turbo prefetch coordination.** A new `hint_link_to "User", user_path(@user)` (or `hint: true` / `hint_url:` on any existing overlay link helper / plain `link_to`) shows a small preview popover after the user hovers ~250ms. Hint content comes from a `+hint` variant template (`show.html+hint.erb`) that `overlay_stack_tag` auto-emits as `<template id="turbo-overlay-hint">` on hintable requests. Turbo prefetches the page on hover, the gem listens for `turbo:before-fetch-response`, extracts the template, and shows it. **Single fetch, two purposes** — the prefetch warms the navigation AND seeds the hint. For overlay links Turbo refuses to prefetch (`data-turbo-stream`, `data-turbo-confirm`, non-GET), pass `hint_url:` and the gem fetches a leaner alternate URL with `:hint` request variant on hover. Redirects are handled (cache keyed under both request + response URL). Inert on touch devices (`(hover: none)`). Configurable via `config.hint` — `show_delay_ms`, `hide_delay_ms`. Theme chrome partials shipped for every theme; install + eject generators wire them up.
-- **Popover overlay type.** New `popover_link_to "Edit", path` opens its target as a non-modal `<dialog>` anchored to the clicked link, with auto-flip when near a viewport edge. `position:` (`:top` / `:bottom` / `:left` / `:right`), `align:` (`:start` / `:center` / `:end`), and `offset:` (pixels) tune the placement; defaults are configurable via `config.popover`. ESC and click-outside dismiss. Opening a second popover automatically dismisses the previous one — modals and drawers still stack on top. Includes a `popover_request?` controller/view predicate, `popover_dismiss_link_to`, `popover_layout_name`, the `:popover` request variant, `turbo_stream.overlay(:close, type: :popover)`, and chrome partials for every shipped theme.
-- **Popover-style `data-turbo-confirm`.** Set `config.confirm.style = :popover` (or `data-turbo-confirm-style="popover"` on a per-link basis) and confirm prompts render anchored to the clicked submitter instead of a centered modal. Particularly nice for destructive actions next to a row's delete button. Default remains `:modal` — no behavior change unless opted in. The gem now ships paired `_confirm.html+modal.erb` and `_confirm.html+popover.erb` partials per theme; `overlay_stack_tag` emits one `<template>` per variant that's present in the host app, so apps that only install one style get only that style. If neither template is present, the hook falls back to the browser-native `confirm()`.
-- **Default close button in modal/drawer chrome.** The chrome partials now render a close ("×") button regardless of whether `overlay_title` is set — floating in the top-right when there's no header, otherwise inside it. Suppress per overlay with `<% overlay_close false %>` in the view, `close: false` on the link helper, or a `close: false` local when rendering the partial directly (used internally by `_confirm.html.erb`). Adds `turbo_overlay_close?` helper and the `X-Turbo-Overlay-Close` header pipeline (mirrors `backdrop:`).
-- **`backdrop: false` on `drawer_link_to`.** Opens the drawer non-modally (`dialog.show()` instead of `showModal()`). No backdrop, page stays scrollable and selectable, click outside is ignored. ESC still closes (synthesized via a keydown listener, since native `<dialog>` doesn't fire `cancel` in non-modal mode). Useful for inspector-style drawers where the user needs to read or copy from the host page.
-- **`position:` on `drawer_link_to`.** Per-link override (`:left`, `:right`, `:top`, `:bottom`) for the configured `drawer.position` default.
-- **Themed confirm dialogs.** Pass `{ confirm: true }` to `register(application, …)` and `data-turbo-confirm` on links/forms goes through the gem's themed modal instead of the browser-native `confirm()`. Body is cloned from a `<template>` rendered once into the page by `overlay_stack_tag`; falls back to `window.confirm` if the template is absent.
-- **App-owned chrome partials.** Install drops `_modal.html.erb`, `_drawer.html.erb`, and `_confirm.html.erb` into `app/views/turbo_overlay/`. They're yours to edit — change classes, restyle, swap markup. Theme content scanners (Tailwind etc.) pick them up here automatically.
-- **Bootstrap 3 drawer support.** Previously skipped (no native offcanvas primitive); now provided as a vanilla dialog styled with BS3 panel classes.
+- **Popover overlay type.** `popover_link_to "Edit", path` opens its
+  target as a non-modal `<dialog>` anchored to the clicked link.
+  Per-link `position:`, `align:`, `offset:`; auto-flips on viewport
+  overflow; ESC and click-outside dismiss. Opening a second popover
+  dismisses the previous one — modals and drawers still stack on top.
+- **Hover hints.** `hint_link_to "User", user_path(@user)` (or
+  `hint: true` / `hint_url:` on any overlay link helper) shows a
+  preview popover after ~250ms hover. Content comes from a `+hint`
+  variant template (`show.html+hint.erb`) that `overlay_stack_tag`
+  auto-emits on hintable requests. Piggy-backs on Turbo's hover
+  prefetch — one fetch warms navigation and seeds the hint. Falls
+  back to its own `fetch()` on prefetch-disabled sites; negative-caches
+  no-hint responses; ships a pending placeholder for slow controllers.
+- **Loading state for overlay clicks.** Every modal/drawer/popover/hint
+  click drops a placeholder dialog matching the eventual chrome,
+  morphed in-place when the real response lands. ESC/backdrop-click
+  on a placeholder cancels the in-flight fetch via `AbortController`.
+- **Themed `data-turbo-confirm`.** `register(application, { confirm: true })`
+  routes confirm prompts through the gem's themed dialog. Pick modal
+  or popover style globally (`config.confirm.style`) or per-link
+  (`data-turbo-confirm-style`). Falls back to `window.confirm` when
+  the template is absent.
+- **Overlay lifecycle JS events:** `turbo-overlay:shown`,
+  `turbo-overlay:before-close`, `turbo-overlay:closed`,
+  `turbo-overlay:hint-shown`, `turbo-overlay:hint-ready`. All bubble
+  from the dialog (or document, for hint events) so apps can wire
+  autofocus, analytics, and cleanup without monkey-patching.
+- **Drawer per-link options.** `position:` (`:left`/`:right`/`:top`/`:bottom`)
+  overrides the configured default. `backdrop: false` opens the drawer
+  non-modally so the host page stays interactive.
+- **Default close button** in modal/drawer chrome — floating top-right
+  when no header, inside the header when `overlay_title` is set.
+  Suppress with `<% overlay_close false %>`, `close: false` on the
+  link, or a `close: false` partial local.
+- **App-owned chrome partials.** Install drops `_modal.html.erb`,
+  `_drawer.html.erb`, `_popover.html.erb`, `_hint.html.erb`, and
+  body-only `_confirm.html.erb` + `_loading.html.erb` into
+  `app/views/turbo_overlay/`. Tailwind content scanners pick them up
+  automatically.
+- **Bootstrap 3 drawer support** as a vanilla dialog styled with BS3
+  panel classes.
 - **Dark-mode classes on the Tailwind theme.**
-- `turbo_overlay_position` and `turbo_overlay_backdrop?` controller / view helpers, exposing the per-link overrides to overlay layouts.
 
 ### Changed
-- **Renamed `close_button:` link option to `close:`.** Aligns with the four other names for the same concept (`overlay_close` helper, `overlay_close?` predicate, `data-turbo-overlay-close` attribute, `X-Turbo-Overlay-Close` header). Applies to every overlay link helper and to chrome partial locals (`render "turbo_overlay/modal", close: false`).
-- **Renamed hint predicates to the `overlay_` namespace.** `turbo_overlay_prefetch_request?` → `overlay_prefetch_request?` and `turbo_overlay_hintable_request?` → `overlay_hintable_request?`. Matches the `modal_request?` / `overlay_request?` peer naming.
-- **Hoisted global JS wiring out of `stack_controller.js` into `setup.js`.** The four `register*()` functions (stream action, fetch hook, loading hook, themed confirm) and three module-scope registries (popover trigger, dismissed loading ids, in-flight aborts) now live in a self-bootstrapping `setup.js`. The stack controller is now just the per-page entry registry. `setup.js` self-bootstraps on import; gem entry point unchanged.
-- **Demoted the hover-hint Stimulus controller to a module.** It never touched `this.element` — every listener was document-level. Now lives in `app/javascript/turbo_overlay/hint.js` as a self-bootstrapping module; `data-controller` on the stack tag no longer carries `turbo-overlay-hint`. Stack tag data attributes carry the same delay values; the `-value` Stimulus suffix is dropped (`data-turbo-overlay-hint-show-delay` etc.).
-- **Controller concern is the single source of overlay request state.** Removed `ViewHelper#_detect_overlay_type` and the duplicated `respond_to?` fallback ceremony on the ten view-side predicate/accessor methods (`modal_request?`, `turbo_overlay_id`, etc.). The concern's `helper_method` already exposes them; the view-side definitions were redundant and the half-implemented fallback (only parsing `type`) had drift potential. The install generator wires the concern by default.
-- **Plain-theme chrome partials sourced from gem fallbacks at install.** Eight `plain/` template files that duplicated `app/views/turbo_overlay/_*.erb` are gone; the install generator reads from the gem fallbacks for the plain theme. Themed installs (tailwind, bootstrap5, bootstrap3) keep sourcing from their per-theme template dirs. Confirm partials (no gem-side fallback) still live in each theme.
-- **Hint placeholder loading class uses the BEM `--` modifier.** All four `_hint.html.erb` partials had `turbo-overlay-loading` (single dash) where every modal/drawer/popover partial uses `turbo-overlay--loading`. Renamed for consistency; no behavior change today since hint placeholders don't pass through the controller path that reads the class, but future "any-overlay-loading" CSS rules will now match.
-- **Renamed `current_overlay_*` helpers to `turbo_overlay_*`.** Vendor-prefixes the per-request accessors so they don't collide with host-app `current_*` conventions (which carry Rails session-scope semantics — `current_user`, `current_account`). Affects: `current_overlay_id`, `current_overlay_type`, `current_overlay_position`, `current_overlay_align`, `current_overlay_offset`, `current_overlay_backdrop?`, `current_overlay_close?`, and `current_overlay_frame_id`. Hard rename, no aliases. Action helpers (`modal_link_to`, etc.), content helpers (`overlay_title`, `overlay_footer`), and the stack tag (`overlay_stack_tag`) keep their existing names — they follow Rails action/content conventions and "overlay" is gem-owned domain terminology.
-- **Chrome wrapping moved into `overlay_stack_tag`.** Variant partials for confirm and loading (`_confirm.html+modal.erb`, `_loading.html+modal.erb`, etc.) are now body-only — no `<%= render "turbo_overlay/modal" do %>` boilerplate. `overlay_stack_tag` calls `render(partial: "turbo_overlay/confirm", layout: "turbo_overlay/<variant>", variants: [...], locals: ...)` so the chrome partial wraps the body at template-emission time. Chrome partials gained a `loading:` local that suppresses the Stimulus controller, close button, and overlay title/footer slots, and swaps `aria-labelledby` for `role="status" aria-live="polite" aria-label="Loading"`. Class lists across all chrome partials migrated to Rails' `token_list` helper for readability.
-- **`_confirm.html.erb` shared fallback** alongside the existing `_confirm.html+modal.erb` / `_confirm.html+popover.erb` variants. Same for `_loading.html.erb`. Apps that want a single confirm/loading body across chromes ship one file; per-chrome overrides still win when present.
-- **Eager client-side overlay ids.** The stack controller now mints an `ov-<rand>` overlay id at click time for all overlay link types (previously popover-only) so the loading placeholder can be tagged with the same id the server will use to render the real frame.
-- **Single native `<dialog>` JS controller for every theme.** Bootstrap themes keep their visual classes (`.modal-dialog`, `.modal-content`, `.offcanvas-*`) but no longer require `window.bootstrap` or jQuery — the `<dialog>` element drives open/close, stacking, and focus management. One shared `overlay_controller.js` ships for everyone.
-- **Animations on by default.** Modals fade/scale; drawers slide from their configured edge; backdrops fade. All honor `prefers-reduced-motion: reduce`. Close path adds a `turbo-overlay-closing` class, awaits `animationend` (with a 400ms safety timeout), then removes the dialog's turbo-frame.
-- **CSS now ships as a real stylesheet asset.** Earlier in this cycle the styles moved out of the per-response payload into a `turbo_overlay_styles` view helper; that helper is gone — install now wires a `stylesheet_link_tag "turbo_overlay"` (propshaft), `*= require turbo_overlay` (sprockets), or prints the equivalent snippet for jsbundling/cssbundling apps.
-- **Stimulus controllers shipped from the gem with importmap auto-pin.** Importmap apps get the `turbo_overlay` module pinned automatically; install appends `import { register } from "turbo_overlay"; register(application, { confirm: true })` to the host app's Stimulus entry. Bundler apps reference the gem's `app/javascript` directly or `eject` to copy locally.
-- **Backdrop click dismisses by default.** Press ESC *or* click the dimmed area outside the dialog and the top overlay closes. Opt a specific overlay out with `data-turbo-overlay-backdrop-dismiss-value="false"`.
-- **Stacked overlay links target `_top`.** A `modal_link_to` / `drawer_link_to` clicked from inside an open overlay now opens a new (stacked) overlay instead of replacing the current frame's contents.
-- **Click-capture skips cmd/ctrl/shift/middle clicks** so cmd+click on an overlay link opens a new tab instead of leaking the `X-Turbo-Overlay` header onto an unrelated fetch.
-- Plain modal caps its height and scrolls its body on overflow so long content doesn't push the dialog off-screen.
+- **Single native `<dialog>` JS controller for every theme.** Bootstrap
+  themes keep their visual classes but no longer require
+  `window.bootstrap` or jQuery — the `<dialog>` element drives
+  open/close, stacking, and focus management.
+- **Animations on by default.** Modals fade/scale, drawers slide from
+  their configured edge, backdrops fade. All honor
+  `prefers-reduced-motion: reduce`.
+- **CSS ships as a real stylesheet asset** (propshaft / sprockets /
+  bundler-friendly) — the interim `turbo_overlay_styles` view helper
+  is gone.
+- **Stimulus controllers shipped from the gem with importmap auto-pin.**
+  Bundler apps reference the gem's `app/javascript` directly or use
+  `bin/rails g turbo_overlay:eject --js` to copy locally.
+- **Backdrop click dismisses by default.** Opt out with
+  `data-turbo-overlay-backdrop-dismiss-value="false"`.
+- **Stacked overlay links target `_top`** so modal/drawer links inside
+  an open overlay stack a new one instead of replacing the current
+  frame.
+- **Helpers renamed for namespacing.** `current_overlay_*` →
+  `turbo_overlay_*`; `close_button:` → `close:` on link helpers;
+  hint predicates moved to the `overlay_` namespace. Hard renames, no
+  aliases.
+- **Install footprint shrunk** to one `_loading.html.erb` and one
+  `_confirm.html.erb` per theme; chrome-specific overrides via
+  `_loading.html+<variant>.erb` / `_confirm.html+<variant>.erb` still
+  win when present.
+- **Chrome wrapping moved into `overlay_stack_tag`.** Confirm/loading
+  partials are body-only; the chrome wraps them at template-emission
+  time. Adds a `loading:` local to chrome partials that drops the
+  Stimulus controller wiring, close button, and title/footer slots,
+  and switches ARIA to `role="status"`.
 
 ### Removed
-- **`turbo_overlay_hint do … end` inline capture helper.** The gem shipped two ways to provide hint content (the inline `do … end` block and a `+hint` variant template); the variant template is now the canonical and only path. Drop a `show.html+hint.erb` next to `show.html.erb` and `overlay_stack_tag` auto-emits its content for hintable requests.
-- **Four config knobs without real consumers:** `OverlayTypeConfig#frame_id` (zero readers, pre-stacking artifact), `OverlayTypeConfig#stimulus_identifier` (one inlinable use site that was always `"turbo-overlay"`), `HintConfig#enabled` (the hint module is inert without `data-turbo-overlay-hint` markers anyway), `HintConfig#template_id` (plumbing-only id, no realistic user). `OverlayTypeConfig` is now just `variant` + `layout_name`; `HintConfig` adds `show_delay_ms` + `hide_delay_ms`.
 - `window.bootstrap` and jQuery requirements for the Bootstrap themes.
-- Per-theme overlay controllers (`{theme}_overlay_controller.js`).
+- Per-theme overlay controllers (one shared `overlay_controller.js`).
 - Inline `<style>` blocks from every shipped overlay layout.
-- The interim `turbo_overlay_styles` view helper (superseded by the stylesheet asset).
+- Inline `turbo_overlay_hint do … end` capture helper — the `+hint`
+  variant template is the canonical and only path now.
+- Config knobs without real consumers: `OverlayTypeConfig#frame_id`,
+  `#stimulus_identifier`, `HintConfig#enabled`, `#template_id`.
 
 ### Fixed
-- **Bootstrap5 modal renders with the themed background.** The shipped `_modal.html+modal.erb` (and its install copy) wrapped `.modal-dialog` in `<dialog>` directly, but Bootstrap scopes `--bs-modal-bg` (and the other `--bs-modal-*` variables `.modal-content` reads) to the `.modal` selector. With no `.modal` ancestor, the modal painted with a transparent background. Wrapped `.modal-dialog` in `<div class="modal d-block position-static">` so the variables cascade; `d-block` overrides Bootstrap's `display: none` and `position-static` neutralizes its `position: fixed` so the native `<dialog>`'s top-layer placement still drives positioning. Also added `modal-dialog-centered` since the dialog now fills the viewport.
-- **Slow overlay loads no longer double-animate.** The loading placeholder is now wrapped in a `<turbo-frame>` matching the eventual server frame id. When the response arrives, `before-stream-render` morphs the new dialog's attributes and children onto the placeholder dialog in place — same DOM node, `[open]` never drops, the open animation only ever plays once (when the placeholder first appeared). Previously the placeholder closed and the live dialog opened as separate nodes, leaving a one-frame gap plus a redundant slide/fade-in.
-- **Dismissing a loading overlay cancels the request.** ESC or backdrop-click on a placeholder now calls `aborter.abort()` on an `AbortController` injected into Turbo's `fetchOptions.signal`, so the in-flight fetch is actually cancelled instead of letting the response complete and pop the overlay back open. `dismissedLoadingIds` is kept as a safety net for the (theoretical) race where the response is already mid-stream-render when abort fires, and is cleared at the start of every fresh request for the same id (overlay ids are sticky on the link element, so re-clicking a dismissed link must not get its response dropped).
-- **Auto-hint variant detection no longer falls back to the base template.** `lookup_context.exists?(path, ..., variants: [:hint])` returns `true` whenever any template matches the base path — variant is treated as a preference, not a requirement. The auto-render path was therefore firing for every action with a regular view, rendering the entire `show.html.erb` as the hint body. Switched to `lookup_context.find_all(..., variants: [:hint])` + an identifier-level `+hint.` check so the auto-render only fires when an actual `+hint` sibling file exists on disk.
-- **Prefetch detection uses `X-Sec-Purpose`, not `Sec-Purpose`.** Turbo can't set `Sec-Purpose` because `Sec-*` is on the Fetch spec's Forbidden Header list for JS-initiated requests, so Turbo prepends `X-`. The gem's prefetch detection was checking the W3C-standard name Turbo doesn't (and can't) send, so every hover prefetch was treated as a regular request: the `+hint` variant didn't render, the template never made it into the prefetch response, and the JS dismissed the pending placeholder after caching `NO_HINT`.
-- **Safety-net cap on pending hint placeholder.** If neither `hint-ready` nor `fetch-request-error` arrives within 10s (Turbo silently cancelling a queued prefetch, an indefinitely-hung server), the placeholder auto-dismisses and the URL is cached as `NO_HINT` so the next hover doesn't strand a new spinner.
-- **Pending hint no longer disappears mid-flight.** A vestigial 750ms timeout was tearing down the pending placeholder before slow controllers could respond. Removed — the placeholder now stays until the response arrives, the user hovers away, or the page navigates.
-- **Pending hint dismisses on no-template / errored responses.** Previously a race could strand the spinner forever when the prefetch landed before `show_delay_ms` and the response had no `<template id>`. Negative caching closes the race: the no-hint outcome is cached before the show timer fires.
-- **`turbo:fetch-request-error` cleanup.** Network failures on hint prefetches now dismiss the pending placeholder and cache `NO_HINT` so subsequent hovers don't strand a new spinner.
-- Modal/drawer link clicks no longer trigger full-page navigation when the gem's JS hook is loaded late.
+- **Form re-render keeps the overlay open** when a submission inside
+  an open overlay responds `:unprocessable_entity` — the new dialog
+  is re-opened in the same mode after Turbo's frame replacement.
+- **Back/forward navigation no longer restores broken-state overlays.**
+  `turbo:before-cache` tears down every overlay frame and aborts
+  in-flight fetches so the cached snapshot has no overlay state to
+  restore.
+- **Bootstrap5 modal renders with the themed background** — `.modal-dialog`
+  is now wrapped in `.modal.d-block.position-static` so Bootstrap's
+  `--bs-modal-*` variables cascade.
+- **Hint detection fixes:** `+hint` variant auto-render only fires
+  when a real `+hint` sibling file exists on disk; prefetch detection
+  uses `X-Sec-Purpose` (the prefix Turbo can actually set); pending
+  placeholder dismisses on no-template / errored responses with
+  negative caching to prevent stuck spinners.
+- **Popover-style confirm works for `link_to … data-turbo-method`** —
+  the originating element is captured on click so the popover has an
+  anchor when Turbo's submitter is null.
 - Stacked overlay close animation is now reliable across themes.
 
 ## 0.3.0
