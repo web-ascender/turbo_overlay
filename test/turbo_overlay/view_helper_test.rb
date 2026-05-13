@@ -177,6 +177,14 @@ class ViewHelperTest < Minitest::Test
       nil
     end
 
+    def overlay_request?
+      !turbo_overlay_type.nil?
+    end
+
+    def capture(&block)
+      block.call.to_s.html_safe
+    end
+
     def turbo_overlay_position; nil; end
     def turbo_overlay_align;    nil; end
     def turbo_overlay_offset;   nil; end
@@ -543,7 +551,7 @@ class ViewHelperTest < Minitest::Test
   # ---- generic in-view content helpers ----
 
   def test_overlay_title_with_value
-    view = FakeView.new
+    view = FakeView.new(modal_request: true)
     view.overlay_title("New User")
 
     name, value, _block = view.content_for_calls.first
@@ -552,7 +560,7 @@ class ViewHelperTest < Minitest::Test
   end
 
   def test_overlay_title_with_block
-    view = FakeView.new
+    view = FakeView.new(modal_request: true)
     view.overlay_title { "<i>fancy</i>" }
 
     name, value, block = view.content_for_calls.first
@@ -561,13 +569,37 @@ class ViewHelperTest < Minitest::Test
     assert_kind_of Proc, block
   end
 
-  def test_overlay_footer_with_block
+  def test_overlay_title_returns_value_inline_when_not_in_overlay
     view = FakeView.new
+    result = view.overlay_title("Page Title")
+
+    assert_equal "Page Title", result
+    assert_empty view.content_for_calls
+  end
+
+  def test_overlay_title_block_returns_captured_content_when_not_in_overlay
+    view = FakeView.new
+    result = view.overlay_title { "<i>fancy</i>" }
+
+    assert_equal "<i>fancy</i>", result
+    assert_empty view.content_for_calls
+  end
+
+  def test_overlay_footer_with_block
+    view = FakeView.new(modal_request: true)
     view.overlay_footer { "buttons" }
 
     name, _value, block = view.content_for_calls.first
     assert_equal :overlay_footer, name
     assert_kind_of Proc, block
+  end
+
+  def test_overlay_footer_block_returns_captured_content_when_not_in_overlay
+    view = FakeView.new
+    result = view.overlay_footer { "buttons" }
+
+    assert_equal "buttons", result
+    assert_empty view.content_for_calls
   end
 
   # ---- overlay_close / overlay_close? ----

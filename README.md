@@ -109,17 +109,22 @@ a drawer:
 
 ```erb
 <%# app/views/users/new.html.erb %>
-<% overlay_title "New User" %>
+<%= overlay_title "New User" %>
 
 <%= form_with(model: @user) do |f| %>
   <%= f.text_field :name %>
 <% end %>
 
-<% overlay_footer do %>
+<%= overlay_footer do %>
   <%= modal_dismiss_link_to "Cancel", users_path, class: "btn btn-secondary" %>
   <button type="submit" class="btn btn-primary">Save</button>
 <% end %>
 ```
+
+Use `<%=` (not `<%`): inside an overlay the helpers capture into
+the chrome's header/footer slots and emit nothing inline, but on
+a standalone page render they fall back to printing the content
+where the tag sits — so one template covers both renders.
 
 Variant templates pick different markup per chrome:
 

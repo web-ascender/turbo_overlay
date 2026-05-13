@@ -295,13 +295,23 @@ module TurboOverlay
       end
 
       # Set the overlay header title.
+      #
+      # Inside an overlay request, captures the value/block into
+      # `content_for(:overlay_title)` so the chrome partial can yield
+      # it into the header. On a plain (non-overlay) render, returns
+      # the content so `<%= overlay_title ... %>` prints it inline at
+      # the spot where it's written. This lets the same template do
+      # double duty: in a modal the title goes in the chrome header,
+      # on the standalone page it renders where the tag appears.
       def overlay_title(value = nil, &block)
-        content_for(:overlay_title, value, &block)
+        _overlay_content_for(:overlay_title, value, &block)
       end
 
-      # Set the overlay footer content.
+      # Set the overlay footer content. Mirrors `overlay_title`:
+      # captured into `content_for(:overlay_footer)` inside an overlay
+      # request, returned for inline rendering otherwise.
       def overlay_footer(value = nil, &block)
-        content_for(:overlay_footer, value, &block)
+        _overlay_content_for(:overlay_footer, value, &block)
       end
 
       # Toggle the chrome's default close ("×") button for the current
@@ -326,6 +336,20 @@ module TurboOverlay
       end
 
       private
+
+      # Branch for `overlay_title` / `overlay_footer`: capture into
+      # the named `content_for` slot when rendering inside an overlay
+      # so the chrome partial picks it up via `yield(:overlay_*)`,
+      # otherwise return the content so `<%=` prints it inline.
+      def _overlay_content_for(name, value, &block)
+        if controller.overlay_request?
+          content_for(name, value, &block)
+        elsif block_given?
+          capture(&block)
+        else
+          value
+        end
+      end
 
       # Resolve the hint body for `overlay_stack_tag`. On a hintable
       # request (Turbo prefetch or explicit `:hint` variant fetch),
