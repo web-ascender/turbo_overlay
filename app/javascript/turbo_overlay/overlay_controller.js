@@ -36,8 +36,21 @@ export default class extends Controller {
       : this.element.querySelector("dialog")
 
     if (this.stack && this.stack.has(this.idValue)) {
-      // Frame re-render: dialog is already open; just update reference.
+      // Frame re-render — form submission inside an open overlay
+      // (the most common case is a validation failure re-rendering
+      // the form). Turbo's default frame replacement swaps the
+      // `<dialog>` node entirely; the new dialog has no `open`
+      // attribute and is detached from the top layer. Re-open it in
+      // the same mode the original used so the overlay stays visible.
       this.stack.updateController(this.idValue, this)
+      if (this.dialog && !this.dialog.open) {
+        if (this.backdropValue) {
+          try { this.dialog.showModal() } catch (_) { this.dialog.setAttribute("open", "") }
+        } else {
+          try { this.dialog.show() } catch (_) { this.dialog.setAttribute("open", "") }
+          this._installEscHandler()
+        }
+      }
       if (this.typeValue === "popover") {
         this._targetLinksTop()
         this._positionPopover()
