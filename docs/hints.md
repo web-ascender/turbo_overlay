@@ -142,6 +142,20 @@ TurboOverlay.configure do |config|
 end
 ```
 
+Individual links can override either delay with `show_delay:` /
+`hide_delay:` (milliseconds):
+
+```erb
+<%= hint_link_to "User", user_path(@user), show_delay: 600 %>
+<%= modal_link_to "Edit", edit_user_path(@user),
+                  hint: true, hint_url: hint_user_path(@user),
+                  show_delay: 600 %>
+```
+
+Useful for dense datatables and menus where a longer show delay
+keeps hints from flickering during scroll or keyboard navigation,
+or for a single high-signal link that wants a near-zero delay.
+
 Hints are inert on pages without `data-turbo-overlay-hint` markers,
 so the module is free to leave enabled even for apps that don't use
 hover previews.

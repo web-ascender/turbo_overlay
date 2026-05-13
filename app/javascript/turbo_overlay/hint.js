@@ -100,24 +100,33 @@ let current = null  // { link, url, element }
 let pending = null  // { link, url, showTimer, fetchController, awaitTimer, hintReadyHandler }
 let previousAriaDescribedBy = null
 
-// Read show/hide delays from the stack tag (`overlay_stack_tag`).
-// Returns defaults if the stack element is absent (e.g. before the
-// host page renders it). Re-read on every event so the values track
-// late mounts and back/forward restores.
-function readConfig() {
+// Read show/hide delays. Per-link `data-turbo-overlay-hint-show-delay`
+// / `-hide-delay` win over the stack tag's defaults
+// (`overlay_stack_tag`), which in turn win over the module's hardcoded
+// fallbacks. Re-read on every event so the values track late mounts
+// and back/forward restores. `link` is optional — when omitted (or
+// when the link has no per-link overrides) the stack-level config
+// applies.
+function readConfig(link) {
   const stack = typeof document !== "undefined"
     ? document.querySelector("[data-controller~='turbo-overlay-stack']")
     : null
-  if (!stack) return DEFAULTS
 
-  const d = stack.dataset
-  const showAttr = d.turboOverlayHintShowDelay
-  const hideAttr = d.turboOverlayHintHideDelay
+  const stackShow = stack && stack.dataset.turboOverlayHintShowDelay
+  const stackHide = stack && stack.dataset.turboOverlayHintHideDelay
+  const linkShow  = link && link.dataset && link.dataset.turboOverlayHintShowDelay
+  const linkHide  = link && link.dataset && link.dataset.turboOverlayHintHideDelay
 
   return {
-    showDelay: showAttr == null ? DEFAULTS.showDelay : (parseInt(showAttr, 10) || DEFAULTS.showDelay),
-    hideDelay: hideAttr == null ? DEFAULTS.hideDelay : (parseInt(hideAttr, 10) || DEFAULTS.hideDelay)
+    showDelay: parseDelay(linkShow, parseDelay(stackShow, DEFAULTS.showDelay)),
+    hideDelay: parseDelay(linkHide, parseDelay(stackHide, DEFAULTS.hideDelay))
   }
+}
+
+function parseDelay(raw, fallback) {
+  if (raw == null || raw === "") return fallback
+  const n = parseInt(raw, 10)
+  return Number.isFinite(n) && n >= 0 ? n : fallback
 }
 
 function hintsActive() {
@@ -247,7 +256,7 @@ function hoverEnter(link) {
   const url = link.dataset.turboOverlayHintUrl || link.href
   if (!url) return
 
-  const delay = readConfig().showDelay
+  const delay = readConfig(link).showDelay
   const showTimer = setTimeout(() => onShowTimerFire(link, url), delay)
   pending = { link, url, showTimer, fetchController: null, hintReadyHandler: null, hideTimer: null, element: null, maxPendingTimer: null }
 }
@@ -500,7 +509,8 @@ function showHint(link, url, fragment) {
 
 function scheduleHide() {
   cancelHideTimer()
-  const delay = readConfig().hideDelay
+  const link = (current && current.link) || (pending && pending.link) || null
+  const delay = readConfig(link).hideDelay
   if (current) {
     current.hideTimer = setTimeout(() => dismissCurrent(), delay)
   } else if (pending && pending.element) {

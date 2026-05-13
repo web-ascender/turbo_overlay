@@ -699,6 +699,32 @@ class ViewHelperTest < Minitest::Test
     assert_equal "/users/1/hint", html_options[:data][:turbo_overlay_hint_url]
   end
 
+  def test_hint_link_to_sets_per_link_show_and_hide_delay_attributes
+    view = FakeView.new
+    view.hint_link_to("User", "/users/1", show_delay: 600, hide_delay: 80)
+
+    _, _, html_options = view.link_to_args
+    assert_equal "600", html_options[:data][:turbo_overlay_hint_show_delay]
+    assert_equal "80",  html_options[:data][:turbo_overlay_hint_hide_delay]
+  end
+
+  def test_hint_link_to_omits_delay_attributes_when_not_provided
+    view = FakeView.new
+    view.hint_link_to("User", "/users/1")
+
+    _, _, html_options = view.link_to_args
+    refute html_options[:data].key?(:turbo_overlay_hint_show_delay)
+    refute html_options[:data].key?(:turbo_overlay_hint_hide_delay)
+  end
+
+  def test_modal_link_to_with_hint_accepts_per_link_delays
+    view = FakeView.new
+    view.modal_link_to("Edit", "/edit", hint: true, show_delay: 400)
+
+    _, _, html_options = view.link_to_args
+    assert_equal "400", html_options[:data][:turbo_overlay_hint_show_delay]
+  end
+
   def test_hint_link_to_does_not_set_turbo_stream_or_top_frame
     # hint_link_to is meant to be a plain navigation link with a hover
     # preview — not an overlay-opening link.

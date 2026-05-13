@@ -122,6 +122,15 @@ module TurboOverlay
       # `:hint` request variant on hover. Overlay links
       # (`modal_link_to` etc.) are excluded from Turbo's hover prefetch
       # — provide `hint_url:` for them.
+      #
+      # `show_delay:` / `hide_delay:` (ms) override the configured
+      # `TurboOverlay.configuration.hint.show_delay_ms` /
+      # `hide_delay_ms` for this one link. Useful for dense lists
+      # (datatables, menus) where a longer show delay keeps hints from
+      # flickering during scroll/keyboard navigation, or for a single
+      # high-signal link that wants a near-zero delay.
+      #
+      #   <%= hint_link_to "User", user_path(@user), show_delay: 600 %>
       def hint_link_to(name = nil, options = nil, html_options = nil, &block)
         if block_given?
           html_options = options || {}
@@ -426,7 +435,9 @@ module TurboOverlay
         has_hint     = html_options.key?(:hint) || html_options.key?("hint")
         hint_value   = html_options.delete(:hint)
         hint_value   = html_options.delete("hint") if hint_value.nil? && has_hint
-        hint_url     = html_options.delete(:hint_url) || html_options.delete("hint_url")
+        hint_url     = html_options.delete(:hint_url)   || html_options.delete("hint_url")
+        show_delay   = html_options.delete(:show_delay) || html_options.delete("show_delay")
+        hide_delay   = html_options.delete(:hide_delay) || html_options.delete("hide_delay")
 
         data = (html_options[:data] || {}).dup
         data[:turbo_stream] = true unless data.key?(:turbo_stream) || html_options.key?("data-turbo-stream")
@@ -447,6 +458,12 @@ module TurboOverlay
         if hint_url && !data.key?(:turbo_overlay_hint_url) && !html_options.key?("data-turbo-overlay-hint-url")
           data[:turbo_overlay_hint_url] = hint_url.to_s
         end
+        if show_delay && !data.key?(:turbo_overlay_hint_show_delay) && !html_options.key?("data-turbo-overlay-hint-show-delay")
+          data[:turbo_overlay_hint_show_delay] = show_delay.to_s
+        end
+        if hide_delay && !data.key?(:turbo_overlay_hint_hide_delay) && !html_options.key?("data-turbo-overlay-hint-hide-delay")
+          data[:turbo_overlay_hint_hide_delay] = hide_delay.to_s
+        end
         # Break out of any enclosing per-overlay turbo-frame so a click
         # on a modal/drawer/popover link from inside an open overlay
         # opens a new (stacked) overlay instead of replacing the current one.
@@ -462,12 +479,20 @@ module TurboOverlay
       # (Turbo prefetch can still apply); the hint is just hover preview.
       def _hint_normalize_link_args(options, html_options)
         html_options = (html_options || {}).dup
-        hint_url = html_options.delete(:hint_url) || html_options.delete("hint_url")
+        hint_url   = html_options.delete(:hint_url)   || html_options.delete("hint_url")
+        show_delay = html_options.delete(:show_delay) || html_options.delete("show_delay")
+        hide_delay = html_options.delete(:hide_delay) || html_options.delete("hide_delay")
 
         data = (html_options[:data] || {}).dup
         data[:turbo_overlay_hint] = "true" unless data.key?(:turbo_overlay_hint) || html_options.key?("data-turbo-overlay-hint")
         if hint_url && !data.key?(:turbo_overlay_hint_url) && !html_options.key?("data-turbo-overlay-hint-url")
           data[:turbo_overlay_hint_url] = hint_url.to_s
+        end
+        if show_delay && !data.key?(:turbo_overlay_hint_show_delay) && !html_options.key?("data-turbo-overlay-hint-show-delay")
+          data[:turbo_overlay_hint_show_delay] = show_delay.to_s
+        end
+        if hide_delay && !data.key?(:turbo_overlay_hint_hide_delay) && !html_options.key?("data-turbo-overlay-hint-hide-delay")
+          data[:turbo_overlay_hint_hide_delay] = hide_delay.to_s
         end
         html_options[:data] = data unless data.empty?
 

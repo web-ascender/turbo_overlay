@@ -53,10 +53,10 @@ Available on controllers (when the concern is included) and views:
 | `turbo_overlay_offset`                  | Per-link popover pixel offset, or `nil`                                |
 | `turbo_overlay_backdrop?`               | `false` only when the link opened with `backdrop: false`; else `true`  |
 | `turbo_overlay_close?`                  | `false` only when the link opened with `close: false`; else `true`     |
-| `modal_link_to(name, path, overlay_id:, close:, hint:, hint_url:)` | `link_to` that opens the target as a stacked modal |
-| `drawer_link_to(name, path, overlay_id:, position:, backdrop:, close:, hint:, hint_url:)` | stacked drawer |
-| `popover_link_to(name, path, overlay_id:, position:, align:, offset:, close:, hint:, hint_url:)` | anchored popover |
-| `hint_link_to(name, path, hint_url:)`   | plain `link_to` decorated with hint data attributes (no overlay opening) |
+| `modal_link_to(name, path, overlay_id:, close:, hint:, hint_url:, show_delay:, hide_delay:)` | `link_to` that opens the target as a stacked modal |
+| `drawer_link_to(name, path, overlay_id:, position:, backdrop:, close:, hint:, hint_url:, show_delay:, hide_delay:)` | stacked drawer |
+| `popover_link_to(name, path, overlay_id:, position:, align:, offset:, close:, hint:, hint_url:, show_delay:, hide_delay:)` | anchored popover |
+| `hint_link_to(name, path, hint_url:, show_delay:, hide_delay:)` | plain `link_to` decorated with hint data attributes (no overlay opening) |
 | `modal_dismiss_link_to(...)`            | dismiss link inside a modal                                            |
 | `drawer_dismiss_link_to(...)`           | dismiss link inside a drawer                                           |
 | `popover_dismiss_link_to(...)`          | dismiss link inside a popover                                          |
