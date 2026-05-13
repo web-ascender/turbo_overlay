@@ -196,19 +196,23 @@ function spawnLoadingOverlay(link) {
 
   if (root.tagName === "DIALOG") {
     const useModal = (type === "modal") || (type === "drawer" && backdrop)
-    // Non-modal overlays (popovers, drawers with `backdrop: false`)
-    // opened from inside an existing modal dialog must themselves be
-    // modal. The HTML inertness algorithm blocks every non-descendant
-    // of the topmost modal dialog from receiving input, even top-layer
-    // popovers added afterwards; non-modal dialogs additionally aren't
-    // in the top layer at all and render behind the modal. Switching
-    // to showModal makes the new overlay the topmost modal and keeps
-    // it interactive. Transparent ::backdrop CSS preserves the
-    // non-modal visual feel.
-    const needsModalStacking = (type === "popover" || (type === "drawer" && !backdrop)) &&
-                               !!document.querySelector("dialog:modal")
+    // Popovers opened from inside an existing modal dialog must
+    // themselves be modal. The HTML inertness algorithm blocks every
+    // non-descendant of the topmost modal dialog from receiving input,
+    // even top-layer popovers added afterwards. Switching to showModal
+    // makes the popover the topmost modal so it stays interactive;
+    // transparent ::backdrop CSS preserves the non-modal visual feel.
+    //
+    // Non-modal drawers are *not* auto-promoted: the UA `dialog:modal`
+    // stylesheet would override the gem's `.turbo-overlay--drawer-right`
+    // (etc.) inset rules and re-center the drawer in the viewport.
+    // Opening a non-modal drawer from inside a modal is documented as
+    // unsupported — the parent modal blocks page interaction anyway, so
+    // the "non-modal" semantic doesn't really apply in that context.
+    const popoverNeedsModal = type === "popover" &&
+                              !!document.querySelector("dialog:modal")
     try {
-      if (useModal || needsModalStacking) root.showModal()
+      if (useModal || popoverNeedsModal) root.showModal()
       else if (type === "popover") root.showPopover()
       else root.show()
     } catch (_) {
@@ -266,6 +270,15 @@ function attachLoadingDismissHandlers(dialog, frame, id) {
 }
 
 function positionLoadingPopover(root, link) {
+  // Normalize the dialog's positioning BEFORE measuring — see comment
+  // in overlay_controller.js#_positionPopover. UA [popover] /
+  // dialog:modal styles set inset:0 with width:auto, which stretches
+  // the dialog and corrupts the auto-flip math if measured first.
+  root.style.position = "fixed"
+  root.style.right    = "auto"
+  root.style.bottom   = "auto"
+  root.style.margin   = "0"
+
   const anchorRect = link.getBoundingClientRect()
   const dialogRect = root.getBoundingClientRect()
   const viewport = {
@@ -285,14 +298,8 @@ function positionLoadingPopover(root, link) {
     autoFlip: true
   })
 
-  root.style.position = "fixed"
-  root.style.top      = `${top}px`
-  root.style.left     = `${left}px`
-  // Override UA inset: 0 from [popover] / dialog:modal — see comment
-  // in overlay_controller.js#_positionPopover.
-  root.style.right    = "auto"
-  root.style.bottom   = "auto"
-  root.style.margin   = "0"
+  root.style.top  = `${top}px`
+  root.style.left = `${left}px`
 }
 
 // Morph the placeholder dialog so it becomes the live overlay:

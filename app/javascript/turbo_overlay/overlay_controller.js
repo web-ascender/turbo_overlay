@@ -46,11 +46,12 @@ export default class extends Controller {
       if (this.dialog && !this._isShown()) {
         if (this.backdropValue) {
           try { this.dialog.showModal() } catch (_) { this.dialog.setAttribute("open", "") }
-        } else if (this._needsModalStacking()) {
-          try { this.dialog.showModal() } catch (_) { this.dialog.setAttribute("open", "") }
-          this._installEscHandler()
         } else if (this.typeValue === "popover") {
-          try { this.dialog.showPopover() } catch (_) { this.dialog.setAttribute("open", "") }
+          if (this._needsModalStacking()) {
+            try { this.dialog.showModal() } catch (_) { this.dialog.setAttribute("open", "") }
+          } else {
+            try { this.dialog.showPopover() } catch (_) { this.dialog.setAttribute("open", "") }
+          }
           this._installEscHandler()
         } else {
           try { this.dialog.show() } catch (_) { this.dialog.setAttribute("open", "") }
@@ -77,12 +78,6 @@ export default class extends Controller {
 
     if (this.dialog && !this.dialog.open) {
       if (this.backdropValue) {
-        try { this.dialog.showModal() } catch (_) { this.dialog.setAttribute("open", "") }
-      } else if (this._needsModalStacking()) {
-        // Non-modal drawer opened inside an existing modal: promote to
-        // showModal so it actually stacks above the parent. See
-        // _needsModalStacking. Transparent ::backdrop CSS keeps the
-        // visual feel.
         try { this.dialog.showModal() } catch (_) { this.dialog.setAttribute("open", "") }
       } else {
         // Non-modal: page remains interactive (no backdrop, no focus
@@ -210,20 +205,21 @@ export default class extends Controller {
     links.forEach((a) => { a.dataset.turboFrame = "_top" })
   }
 
-  // When a modal dialog is already open, non-modal overlays (popovers
-  // and drawers with `backdrop: false`) need to use `showModal()` to
-  // stack correctly. Two browser-side reasons:
-  //   - The HTML inertness algorithm blocks every non-descendant of
-  //     the topmost modal from receiving input, even top-layer
-  //     popovers added afterwards.
-  //   - Non-modal `dialog.show()` doesn't enter the top layer at all,
-  //     so the dialog renders behind the modal.
-  // Switching to `showModal()` makes the new overlay the topmost modal
-  // and keeps it interactive. Transparent `::backdrop` CSS preserves
-  // the non-modal visual feel.
+  // When a modal dialog is already open, popovers added to the top
+  // layer via `showPopover()` are still rendered above the modal but
+  // become inert per the HTML inertness algorithm — only descendants
+  // of the topmost modal dialog (or the modal itself) receive input.
+  // Detect that case so the popover can use `showModal()` instead
+  // and become the topmost modal itself; a transparent `::backdrop`
+  // CSS rule preserves the non-modal visual feel.
+  //
+  // Non-modal drawers are intentionally NOT auto-promoted: the UA
+  // `dialog:modal` stylesheet overrides the gem's drawer-position
+  // inset rules and re-centers the drawer in the viewport. Opening a
+  // non-modal drawer from inside a modal is documented as unsupported.
   //
   // The check excludes our own dialog: when called from the frame
-  // re-render branch the overlay may already be open via showModal()
+  // re-render branch the popover may already be open via showModal()
   // and would otherwise match `:modal` against itself.
   _needsModalStacking() {
     if (typeof document === "undefined") return false
@@ -293,6 +289,19 @@ export default class extends Controller {
       return
     }
 
+    // Normalize the dialog's positioning BEFORE measuring its rect. UA
+    // styles for `[popover]` and especially `dialog:modal` apply
+    // `inset: 0` with `width: auto`, so the dialog stretches to fill
+    // the gap; measuring then yields a width far larger than the
+    // content's actual size and the auto-flip math goes wrong. Setting
+    // right/bottom: auto first makes width shrink-to-fit content, so
+    // `dialogRect.width` reflects the size we actually intend to render.
+    this.dialog.style.position = "fixed"
+    this.dialog.style.right  = "auto"
+    this.dialog.style.bottom = "auto"
+    this.dialog.style.margin = "0"
+    this.dialog.style.transform = ""
+
     const anchorRect = this._anchorRect()
     const dialogRect = this.dialog.getBoundingClientRect()
     const viewport = {
@@ -310,19 +319,8 @@ export default class extends Controller {
       autoFlip: true
     })
 
-    this.dialog.style.position = "fixed"
-    this.dialog.style.top    = `${top}px`
-    this.dialog.style.left   = `${left}px`
-    // Override the UA `inset: 0` that comes with `[popover]` and
-    // `dialog:modal` rules. Without this, having all four insets set
-    // resolves to "fill the gap" sizing (popover stretches from
-    // computed-left to viewport-right) when width is auto, and to
-    // ignored `right` only when width is also a fixed value. Setting
-    // right/bottom: auto explicitly leaves only top/left active.
-    this.dialog.style.right  = "auto"
-    this.dialog.style.bottom = "auto"
-    this.dialog.style.margin = "0"
-    this.dialog.style.transform = ""
+    this.dialog.style.top  = `${top}px`
+    this.dialog.style.left = `${left}px`
     this.dialog.dataset.resolvedPosition = resolvedPosition
   }
 
@@ -360,13 +358,6 @@ export default class extends Controller {
   // Opt out per-overlay with data-turbo-overlay-backdrop-dismiss-value="false".
   backdropClick(event) {
     if (!this.backdropDismissValue) return
-    // The user explicitly opened this overlay with `backdrop: false`
-    // — they don't want backdrop-click dismissal even when the overlay
-    // was auto-promoted to showModal() because of a parent modal. In
-    // that case the ::backdrop is transparent (so the overlay still
-    // looks non-modal); honor the original intent and require ESC or
-    // an explicit close instead.
-    if (!this.backdropValue) return
     const target = event.target
     if (target === this.dialog) {
       this.cancel(event)
