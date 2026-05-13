@@ -571,6 +571,16 @@ class OverlayTest < ApplicationSystemTestCase
     page.go_back
     assert_no_selector "dialog.turbo-overlay--modal[open]"
     assert_equal "/", page.current_path
+    # Regression: canceling the restore visit must not leave Turbo
+    # Drive's progress bar dangling at the top of the page. The bar
+    # is scheduled by `requestStarted` (called on a microtask after
+    # our turbo:visit handler returns), so this assertion needs a
+    # generous wait beyond `Turbo.config.drive.progressBarDelay`
+    # (default 500ms).
+    sleep 0.6
+    assert_no_selector ".turbo-progress-bar"
+    refute page.evaluate_script("document.documentElement.hasAttribute('aria-busy')"),
+      "documentElement should not be marked aria-busy after closing the last advance overlay"
   end
 
   test "stacked advance modals push two history entries; back closes them in reverse" do

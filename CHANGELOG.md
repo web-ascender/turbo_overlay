@@ -53,6 +53,18 @@ Big iteration cycle ahead of the first public release. Highlights:
   dismiss links (`modal_dismiss_link_to` etc.) rendered inside an
   overlay now set `data-turbo-prefetch="false"` since their click
   is preventDefault'd by the Stimulus action.
+- **Closing the last advance overlay no longer leaves Turbo's
+  progress bar stuck at the top of the page.** When the entry
+  beneath the advance overlay has Turbo's restoration state (e.g.
+  the page that was loaded via Turbo Drive before opening any
+  overlay), the gem cancels the proposed restore visit — but
+  `FetchRequest#perform` had already started on a microtask and
+  would call `visit.requestStarted()` after our handler returned,
+  scheduling a `.turbo-progress-bar` timer that never gets cleared
+  (canceled visits don't fire `visitCompleted`). The gem now stubs
+  `visit.requestStarted` to a no-op before canceling and clears
+  the stray `aria-busy` attribute that
+  `Session#visitStarted` left on `<html>`.
 - **Closing the top of a stacked advance overlay no longer tears
   down the whole stack.** Two compounded bugs:
   (a) The gem's `turbo:before-cache` handler ran

@@ -504,9 +504,28 @@ function registerLoadingHook() {
       // Turbo exposes the navigator at `window.Turbo.navigator`
       // (flat, not under session). `currentVisit` is set inside
       // `Navigator#startVisit` before `turbo:visit` dispatches.
-      const visit = window.Turbo && window.Turbo.navigator && window.Turbo.navigator.currentVisit
+      const turbo = window.Turbo
+      const visit = turbo && turbo.navigator && turbo.navigator.currentVisit
       if (visit && typeof visit.cancel === "function") {
+        // `FetchRequest#perform` already started (synchronously,
+        // inside `issueRequest`) and is suspended at an `await`
+        // boundary. When that microtask resumes — after our handler
+        // returns — it calls `visit.requestStarted()`, which schedules
+        // a 500ms timer to show Turbo Drive's `.turbo-progress-bar`.
+        // Visit cancellation aborts the underlying fetch but doesn't
+        // suppress that `requestStarted` callback, so the timer would
+        // still fire and the bar would never hide (no
+        // `visitCompleted` for a canceled visit). Stub the callback
+        // to a no-op before canceling.
+        visit.requestStarted = function () {}
         try { visit.cancel() } catch (_) { /* ignore */ }
+      }
+      // `Session#visitStarted` also called `markAsBusy(documentElement)`
+      // before we got control. Without `visitCompleted`/`visitFailed`
+      // running through Turbo's normal lifecycle, `aria-busy` would
+      // stay stuck on `<html>`. Clear it explicitly.
+      if (typeof document !== "undefined" && document.documentElement) {
+        document.documentElement.removeAttribute("aria-busy")
       }
       return
     }
