@@ -5,6 +5,26 @@
 Big iteration cycle ahead of the first public release. Highlights:
 
 ### Changed
+- **In-overlay form re-renders now morph the dialog in place.**
+  `overlay_response_wrapper` emits a `<turbo-stream action="replace"
+  method="morph">` on a frame re-render (form validation failure
+  inside an open overlay) instead of a bare `<turbo-frame>`. Idiomorph
+  preserves the `<dialog>` node identity, top-layer membership,
+  popover anchor coordinates, stack registration, and the
+  document-level ESC / outside-click / reflow handlers the per-dialog
+  Stimulus controller installed on first open. Previously Turbo
+  replaced the frame's contents wholesale; for popovers this detached
+  the new dialog from its anchor and re-rendered it centered, and for
+  every overlay type it leaked the original controller's document
+  handlers. The after_action that sets `text/vnd.turbo-stream.html`
+  on initial-open responses now also runs on frame re-renders so
+  Turbo processes the embedded `<turbo-stream>`. `request.format`
+  stays `:turbo_stream` on re-renders — apps' `respond_to`
+  `format.turbo_stream` branches keep running on successful saves;
+  implicit `render :edit` calls still find `edit.html.erb` via
+  Rails' format-fallback. A `turbo:before-morph-attribute` hook in
+  `setup.js` preserves the two attributes the JS owns on overlay
+  dialogs (`open` and inline `style`) so idiomorph doesn't strip them.
 - **Auto-installed overlay `layout` proc.** Including
   `TurboOverlay::Controller` now declares `layout -> { turbo_overlay_layout }`
   on its own, so host apps no longer hand-write a `resolve_layout`

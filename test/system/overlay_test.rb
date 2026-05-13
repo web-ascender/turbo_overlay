@@ -310,13 +310,66 @@ class OverlayTest < ApplicationSystemTestCase
       click_on "Create"   # blank name → 422 with error
     end
 
-    # Overlay stays open (frame re-render, not stream append) and the
-    # error message is visible inside the same dialog. Exercises the
-    # `stack.has(id)` branch in overlay_controller's connect() — Turbo
-    # replaces the dialog node wholesale, so connect() has to re-open
-    # the new node.
+    # The morph stream emitted by `overlay_response_wrapper` updates
+    # the dialog's children in place — same node, no close/reopen —
+    # so the overlay stays open and the error renders inside it.
     assert_selector "dialog.turbo-overlay--modal[open]", count: 1
     assert_selector "[data-test-error]", text: "Name is required"
+  end
+
+  test "successful form submit closes the overlay and does not morph the next page into it" do
+    # Regression: the original morphing fix forced format=:html on
+    # frame re-renders, which made `respond_to` resolve `format.html`
+    # for every successful save. Turbo would follow the redirect
+    # back through the overlay layout, and the morph-stream wrapper
+    # would morph the entire redirected page into the open dialog.
+    # The successful branch must hit `format.turbo_stream` and close.
+    visit "/"
+    click_on "New widget"
+    assert_selector "dialog.turbo-overlay--modal[open]"
+
+    within "dialog.turbo-overlay--modal[open]" do
+      fill_in "widget[name]", with: "Cog"
+      click_on "Create"
+    end
+
+    assert_no_selector "dialog.turbo-overlay--modal[open]"
+    assert_no_selector "dialog.turbo-overlay"
+    # The page didn't get morphed into the (now-closed) dialog — the
+    # host page's widget list is still the visible content.
+    assert_selector "h1", text: "Widgets"
+  end
+
+  test "form submit validation error inside a popover keeps it anchored to its trigger" do
+    visit "/"
+    click_on "New widget popover"
+    assert_selector "dialog.turbo-overlay--popover:popover-open"
+
+    rect_before = page.evaluate_script(<<~JS)
+      document.querySelector("dialog.turbo-overlay--popover").getBoundingClientRect().toJSON()
+    JS
+
+    within "dialog.turbo-overlay--popover:popover-open" do
+      click_on "Create"   # blank name → 422 with error
+    end
+
+    # Popover stays open, error appears, and — crucially — the dialog
+    # node retains the inline-style coordinates the controller wrote
+    # on first open. Plain frame replacement would tear the dialog
+    # down; the new dialog has no anchor entry on connect and falls
+    # back to centered positioning. Morphing preserves the dialog
+    # node identity and (via the before-morph-attribute hook) its
+    # `open` + `style` attributes, so position is unchanged.
+    assert_selector "dialog.turbo-overlay--popover:popover-open", count: 1
+    assert_selector "[data-test-error]", text: "Name is required"
+
+    rect_after = page.evaluate_script(<<~JS)
+      document.querySelector("dialog.turbo-overlay--popover").getBoundingClientRect().toJSON()
+    JS
+    assert_in_delta rect_before["top"],  rect_after["top"],  2,
+      "popover drifted vertically after validation re-render"
+    assert_in_delta rect_before["left"], rect_after["left"], 2,
+      "popover drifted horizontally after validation re-render"
   end
 
   test "hovering a hint-marked link shows the +hint variant after the show delay" do

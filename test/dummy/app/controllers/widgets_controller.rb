@@ -28,7 +28,19 @@ class WidgetsController < ApplicationController
       @error = "Name is required"
       render :new, status: :unprocessable_entity
     else
-      render turbo_stream: turbo_stream.overlay(:close, id: turbo_overlay_id)
+      # Mirrors the realistic pattern: `respond_to` with a
+      # `format.turbo_stream` success branch and a `format.html`
+      # redirect fallback. Drives the regression test for the
+      # format-forcing bug — if the concern ever forced format to
+      # :html on a frame re-render, the redirect branch would run
+      # and Turbo would follow it back through the overlay layout,
+      # morphing the next page into the open dialog.
+      respond_to do |format|
+        format.turbo_stream do
+          render turbo_stream: turbo_stream.overlay(:close, id: turbo_overlay_id)
+        end
+        format.html { redirect_to widgets_path, notice: "Created" }
+      end
     end
   end
 

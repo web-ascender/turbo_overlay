@@ -305,6 +305,18 @@ module TurboOverlay
     # response Content-Type after the action so Turbo still processes
     # the embedded `<turbo-stream>` tags.
     #
+    # Frame re-renders deliberately do NOT force the format. Apps
+    # typically branch the action on format
+    # (`respond_to { |format| format.turbo_stream { … }; format.html
+    # { redirect_to … } }`); forcing html here would pick the
+    # redirect branch on every successful save, and the redirected
+    # page would itself render through this concern's overlay
+    # layout — morphing the entire next page into the open dialog.
+    # Implicit renders (`render :edit` with no `respond_to`) still
+    # work: `request.format` stays `:turbo_stream`, Rails' template
+    # resolution walks `request.formats` and falls back to
+    # `<action>.html.erb`.
+    #
     # Hint requests skip both: they're fetched by the gem's JS via
     # plain `fetch()` (not Turbo), the Accept header is `text/html`
     # already, and the response is parsed via DOMParser. Forcing the
@@ -316,8 +328,16 @@ module TurboOverlay
       request.format = :html
     end
 
+    # Frame re-renders DO need the turbo-stream Content-Type even
+    # though the action template is `*.html.erb`: the overlay layout
+    # wraps the body in a `<turbo-stream action="replace"
+    # method="morph">` tag, and Turbo only processes stream actions
+    # when the response Content-Type is the turbo-stream mime. Rails
+    # would otherwise set it to `text/html` (matched-template mime),
+    # which makes Turbo treat the response as a frame body, find no
+    # matching `<turbo-frame>` at the top level, and silently drop it.
     def _turbo_overlay_set_stream_content_type
-      return unless turbo_overlay_initial_open?
+      return unless turbo_overlay_initial_open? || turbo_overlay_frame_re_render?
       return if turbo_overlay_type == :hint
       return unless response
       response.content_type = "text/vnd.turbo-stream.html; charset=utf-8"

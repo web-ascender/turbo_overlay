@@ -100,10 +100,23 @@ When a form inside an overlay submits:
 3. On validation failure
    (`render :new, status: :unprocessable_entity`), the layout
    detects the frame request and wraps the response in
-   `<turbo-frame id="turbo_overlay_modal_<id>">`. Turbo replaces
-   the frame contents in place. The per-dialog Stimulus controller
-   re-connects on the new `<dialog>` and re-opens it in the same
-   mode (`showModal()` / `show()`) so the overlay stays visible.
+   `<turbo-stream action="replace" method="morph">` targeting the
+   open frame. Turbo morphs the existing frame in place: same
+   `<dialog>` node, same top-layer membership, same popover anchor
+   coordinates, same stack registration, same focus and scroll
+   position — only the children change to show the error markup
+   and repopulated fields. Plain frame replacement would tear the
+   dialog down and attach a new one, detaching popovers from their
+   anchor and leaking the document-level ESC / outside-click /
+   reflow handlers the Stimulus controller installed on first open.
+4. Idiomorph would strip attributes the chrome partial doesn't
+   emit. The gem's JS owns two such attributes on overlay dialogs
+   — `open` (top-layer membership, set by `showModal()` /
+   `showPopover()` / `show()`) and inline `style` (popover anchor
+   coordinates, written by `_positionPopover`). A
+   `turbo:before-morph-attribute` listener preventDefaults those
+   two mutations on `dialog.turbo-overlay`; everything else
+   (data-* values, class, children) morphs normally.
 
 ## Request headers
 
@@ -278,4 +291,6 @@ Two view helpers exist primarily for use inside the gem's layouts
   `turbo_overlay_<type>_<id>`, the per-overlay turbo-frame id.
 - `overlay_response_wrapper(type, &block)` — wraps the layout body
   in the right primitive: a `<turbo-stream action="append">` on
-  initial open, a bare `<turbo-frame>` on in-overlay re-render.
+  initial open, or a `<turbo-stream action="replace" method="morph">`
+  targeting the open frame on in-overlay re-render so the dialog
+  morphs in place instead of being torn down.

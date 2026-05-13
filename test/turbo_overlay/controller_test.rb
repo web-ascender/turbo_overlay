@@ -361,6 +361,14 @@ class ControllerTest < Minitest::Test
   end
 
   def test_force_html_format_skipped_for_frame_re_render
+    # The format must NOT be forced to html on a frame re-render:
+    # apps branch their action on format (`respond_to { format.turbo_stream
+    # { … }; format.html { redirect_to … } }`), and forcing html here
+    # would pick the redirect branch on every successful save — and
+    # the followed redirect would render the next page through this
+    # concern's overlay layout, morphing it into the open dialog.
+    # Implicit `render :edit` calls still resolve `edit.html.erb`
+    # via Rails' format-fallback in `request.formats`.
     with_headers("Turbo-Frame" => "turbo_overlay_modal_abc")
     @controller.request.format = :turbo_stream
     @controller.send(:_turbo_overlay_force_html_format)
@@ -417,11 +425,16 @@ class ControllerTest < Minitest::Test
     assert_equal "text/html", @controller.response.content_type
   end
 
-  def test_after_action_skipped_for_frame_re_render
+  def test_after_action_sets_turbo_stream_content_type_on_frame_re_render
+    # The morph wrapper emits a `<turbo-stream>` body — Turbo will
+    # only process it when the response Content-Type is the
+    # turbo-stream mime, so the after_action applies on re-render
+    # the same way it does on initial open.
     with_headers("Turbo-Frame" => "turbo_overlay_modal_abc")
     @controller.response.content_type = "text/html"
     @controller.send(:_turbo_overlay_set_stream_content_type)
-    assert_equal "text/html", @controller.response.content_type
+    assert_equal "text/vnd.turbo-stream.html; charset=utf-8",
+      @controller.response.content_type
   end
 
   def test_after_action_skipped_when_no_response

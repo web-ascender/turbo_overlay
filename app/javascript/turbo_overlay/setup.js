@@ -698,6 +698,43 @@ function promptConfirm(message, formElement, submitter) {
   })
 }
 
+// Morph re-renders (form validation failure inside an open overlay)
+// preserve dialog node identity so the overlay never closes/reopens.
+// Idiomorph by default removes attributes not present in the incoming
+// HTML — that's correct for normal markup but lethal for two
+// attributes the gem's JS owns on overlay dialogs:
+//
+//   - `open`  — drives top-layer membership. The chrome partial never
+//               emits it (showModal()/showPopover()/show() set it at
+//               runtime), so a naive morph would strip it and the
+//               overlay would close mid-edit.
+//   - `style` — popover positioning is computed in JS and written as
+//               inline styles. The chrome partial doesn't emit a
+//               style attribute, so a naive morph would erase the
+//               anchor coordinates and the popover would jump back
+//               to its UA-default position.
+//
+// Block both attribute mutations on overlay dialogs. Everything else
+// (data-* values, class, children) morphs normally so the form
+// re-render shows error messages, repopulated fields, etc.
+function registerMorphPreservationHook() {
+  if (typeof document === "undefined") return
+  if (window._turboOverlayMorphHookRegistered) return
+  window._turboOverlayMorphHookRegistered = true
+
+  document.addEventListener("turbo:before-morph-attribute", (event) => {
+    const target = event.target
+    if (!target || !target.classList) return
+    if (target.tagName !== "DIALOG") return
+    if (!target.classList.contains("turbo-overlay")) return
+    const attributeName = event.detail && event.detail.attributeName
+    if (attributeName === "open" || attributeName === "style") {
+      event.preventDefault()
+    }
+  })
+}
+
 registerStreamAction()
 registerFetchHook()
 registerLoadingHook()
+registerMorphPreservationHook()

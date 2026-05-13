@@ -84,7 +84,7 @@ class ViewHelperTest < Minitest::Test
     include TurboOverlay::Helpers::ViewHelper
 
     attr_reader :link_to_args, :content_for_calls, :modal_request_value, :drawer_request_value, :popover_request_value
-    attr_accessor :_turbo_overlay_id, :_lookup_context, :_render_returns, :_hintable_request, :_controller_path, :_action_name
+    attr_accessor :_turbo_overlay_id, :_lookup_context, :_render_returns, :_hintable_request, :_controller_path, :_action_name, :_frame_re_render
 
     def initialize(modal_request: false, drawer_request: false, popover_request: false, hintable_request: true, controller_path: "users", action_name: "show")
       # Default `hintable_request: true` so the existing hint-emission
@@ -204,7 +204,7 @@ class ViewHelperTest < Minitest::Test
     end
 
     def turbo_overlay_frame_re_render?
-      false
+      @_frame_re_render == true
     end
 
     def turbo_stream
@@ -216,6 +216,12 @@ class ViewHelperTest < Minitest::Test
     def append(target)
       content = block_given? ? yield : ""
       %(<turbo-stream action="append" target="#{target}"><template>#{content}</template></turbo-stream>)
+    end
+
+    def replace(target, method: nil)
+      content = block_given? ? yield : ""
+      method_attr = method ? %( method="#{method}") : ""
+      %(<turbo-stream action="replace" target="#{target}"#{method_attr}><template>#{content}</template></turbo-stream>)
     end
   end
 
@@ -839,5 +845,35 @@ class ViewHelperTest < Minitest::Test
     output = view.overlay_stack_tag
     assert_includes output, "data-turbo-overlay-hint-show-delay"
     assert_includes output, "data-turbo-overlay-hint-hide-delay"
+  end
+
+  # ---- overlay_response_wrapper ----
+
+  def test_overlay_response_wrapper_initial_open_appends_to_stack
+    view = FakeView.new(modal_request: true)
+    view._turbo_overlay_id = "abc"
+    out = view.overlay_response_wrapper(:modal) { "BODY".html_safe }
+
+    stack_id = TurboOverlay.configuration.stack_id
+    assert_includes out, %(<turbo-stream action="append" target="#{stack_id}">)
+    assert_includes out, %(<turbo-frame id="turbo_overlay_modal_abc")
+    assert_includes out, "BODY"
+  end
+
+  def test_overlay_response_wrapper_frame_re_render_emits_morph_stream
+    # Re-render must morph the existing frame in place rather than
+    # replacing its contents wholesale: morphing preserves the
+    # `<dialog>` node identity (top-layer membership, popover
+    # anchor, stack registration, ESC / outside-click handlers,
+    # focus / scroll position) and updates just the children.
+    view = FakeView.new(popover_request: true)
+    view._turbo_overlay_id  = "abc"
+    view._frame_re_render   = true
+    out = view.overlay_response_wrapper(:popover) { "BODY".html_safe }
+
+    assert_includes out, %(<turbo-stream action="replace" target="turbo_overlay_popover_abc" method="morph">)
+    assert_includes out, %(<turbo-frame id="turbo_overlay_popover_abc")
+    assert_includes out, "BODY"
+    refute_includes out, %(action="append")
   end
 end

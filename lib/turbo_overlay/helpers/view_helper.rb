@@ -270,9 +270,16 @@ module TurboOverlay
       #   template contains a `<turbo-frame id="<frame_id>">` around
       #   the dialog.
       # - Form re-render inside an open overlay
-      #   (`Turbo-Frame: turbo_overlay_<type>_<id>`): emits just the
-      #   `<turbo-frame id="<frame_id>">` so Turbo can replace the
-      #   frame's contents in place.
+      #   (`Turbo-Frame: turbo_overlay_<type>_<id>`): emits a
+      #   `<turbo-stream action="replace" method="morph">` targeting
+      #   the open frame. Morphing preserves the `<dialog>` node
+      #   identity (top-layer membership, popover anchor, stack
+      #   registration, ESC / outside-click handlers, focus, and
+      #   scroll position) and just updates the children to show the
+      #   new markup — the error messages, the populated form fields.
+      #   Plain frame replacement would tear the dialog down and
+      #   re-attach a fresh one, which detaches popovers from their
+      #   anchor and leaks document-level handlers.
       #
       # Used by the modal/drawer layouts to keep them readable.
       def overlay_response_wrapper(type, &block)
@@ -280,7 +287,7 @@ module TurboOverlay
         frame_html = turbo_frame_tag(frame_id, class: "turbo-overlay-frame", &block)
 
         if controller.turbo_overlay_frame_re_render?
-          frame_html
+          turbo_stream.replace(frame_id, method: :morph) { frame_html }
         else
           stack_id = TurboOverlay.configuration.stack_id
           turbo_stream.append(stack_id) { frame_html }

@@ -21,6 +21,11 @@
 <%# Drives the form re-render test. %>
 <%= modal_link_to  "New widget", new_widget_path, id: "modal-new-widget" %>
 
+<%# Drives the popover form re-render test — asserts the popover stays
+    anchored to its trigger across validation-failure morph. %>
+<%= popover_link_to "New widget popover", new_widget_path,
+                    id: "popover-new-widget" %>
+
 <%# Drives the themed-confirm test. button_to wraps in a form so Turbo
     routes the click through Turbo.config.forms.confirm. %>
 <%= button_to "Delete Sprocket",
