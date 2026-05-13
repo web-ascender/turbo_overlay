@@ -46,12 +46,14 @@ chrome you'll customize:
 
 - Copies the chosen theme's chrome partials to `app/views/turbo_overlay/`:
   `_modal.html.erb`, `_drawer.html.erb`, `_popover.html.erb`,
-  `_hint.html.erb`, plus body-only `_confirm.html+<modal|popover>.erb`
-  and `_loading.html+<modal|drawer|popover|hint>.erb` partials that the
-  gem wraps in the matching chrome at template-emission time. These are
-  *your* files — edit freely. Tailwind / similar content scanners pick
-  them up here automatically (which they can't if the file lives inside
-  the gem).
+  `_hint.html.erb`, plus body-only `_confirm.html.erb` and
+  `_loading.html.erb` partials that the gem wraps in the matching chrome
+  at template-emission time. The shared loading/confirm partials work
+  across all chrome variants — drop in a `_loading.html+<variant>.erb`
+  or `_confirm.html+<variant>.erb` later if you need chrome-specific
+  markup. These are *your* files — edit freely. Tailwind / similar
+  content scanners pick them up here automatically (which they can't if
+  the file lives inside the gem).
 - Writes `config/initializers/turbo_overlay.rb`.
 - Injects `<%= overlay_stack_tag %>` before `</body>` in
   `app/views/layouts/application.html.erb`.
@@ -246,7 +248,7 @@ the placeholder. The same cleanup fires on fetch errors and on
 
 The placeholder is cloned from `<template id="turbo_overlay_loading_<modal|drawer|popover|hint>_template">`
 that `overlay_stack_tag` emits — one per chrome type, rendered from
-`_loading.html+<variant>.erb` (body-only) wrapped in the matching
+the shared `_loading.html.erb` (body-only) wrapped in the matching
 chrome partial with `loading: true`. The `loading:` flag tells the
 chrome partial to:
 
@@ -257,13 +259,14 @@ chrome partial to:
   aria-label="Loading"`
 - add a `turbo-overlay--loading` modifier class for any visual tweaks
   (the shipped CSS adds a spinner with `prefers-reduced-motion`
-  support)
+  support, and collapses the body's default padding inside hint chrome
+  so the spinner fits a tooltip-sized container)
 
-Apps that want a different spinner / different loading layout per
-chrome type override `_loading.html+modal.erb` etc. — same body-only
-contract as the confirm partials. Or to share one loader across all
-four chromes, drop a single `_loading.html.erb` and delete the
-variants.
+Apps that want a different spinner per chrome type drop in
+`_loading.html+<variant>.erb` (modal/drawer/popover/hint) — same
+body-only contract as the confirm partials. The variant wins when
+present; otherwise the shared `_loading.html.erb` renders into every
+chrome.
 
 ### Hover hints
 
@@ -355,9 +358,10 @@ extractor.
 #### Pending placeholder while the hint loads
 
 After `show_delay_ms`, if the hint content isn't cached yet, the gem
-paints a pending placeholder (cloned from
-`_loading.html+hint.erb`) so the user sees feedback while the
-prefetch or `hint_url:` fetch is in flight. When the real content
+paints a pending placeholder (cloned from the hint-chrome wrapping of
+`_loading.html.erb`, or `_loading.html+hint.erb` if you've added one)
+so the user sees feedback while the prefetch or `hint_url:` fetch is
+in flight. When the real content
 lands the placeholder swaps in place — no flicker. If the response
 carries no hint template (or the request errored out), the
 placeholder dismisses silently.
@@ -625,12 +629,13 @@ register(application, { confirm: true })
               data: { turbo_confirm: "Really delete this user?" } %>
 ```
 
-The install generator drops two themed confirm partials into your app:
+The install generator drops a themed confirm partial into your app:
 
-- `app/views/turbo_overlay/_confirm.html+modal.erb` — centered modal
-- `app/views/turbo_overlay/_confirm.html+popover.erb` — anchored to the clicked submitter
+- `app/views/turbo_overlay/_confirm.html.erb` — shared body wrapped at
+  emission time in modal chrome (default) or popover chrome (when
+  `config.confirm.style = :popover` or `data-turbo-confirm-style="popover"`)
 
-Edit them freely. JS only depends on three data attributes:
+Edit it freely. JS only depends on three data attributes:
 
 | Attribute                                  | Role                                |
 |--------------------------------------------|-------------------------------------|
@@ -638,11 +643,12 @@ Edit them freely. JS only depends on three data attributes:
 | `[data-turbo-overlay-confirm-cancel]`      | clicking resolves the promise as cancel |
 | `[data-turbo-overlay-confirm-accept]`      | clicking resolves the promise as accept |
 
-Each variant renders *inside* its corresponding chrome partial
-(`_modal.html.erb` or `_popover.html.erb`), so retheming the chrome
-carries through to confirm automatically. Delete either variant to
-disable that style; delete both and the hook falls back to the
-browser-native `confirm()`.
+The same body renders *inside* both `_modal.html.erb` and
+`_popover.html.erb`, so retheming the chrome carries through to confirm
+automatically. Add `_confirm.html+modal.erb` or `_confirm.html+popover.erb`
+for chrome-specific tuning (variant wins over the shared file). Delete
+the partial entirely and the hook falls back to the browser-native
+`confirm()`.
 
 #### Modal or popover?
 
@@ -750,15 +756,18 @@ The install generator copies these partials into your app:
 - `app/views/turbo_overlay/_popover.html.erb`
 - `app/views/turbo_overlay/_hint.html.erb`
 
-**Body-only variant partials** (rendered *inside* the matching chrome
-at template-emission time by `overlay_stack_tag`):
+**Body-only partials** (rendered *inside* the matching chrome at
+template-emission time by `overlay_stack_tag`):
 
-- `app/views/turbo_overlay/_confirm.html+modal.erb`
-- `app/views/turbo_overlay/_confirm.html+popover.erb`
-- `app/views/turbo_overlay/_loading.html+modal.erb`
-- `app/views/turbo_overlay/_loading.html+drawer.erb`
-- `app/views/turbo_overlay/_loading.html+popover.erb`
-- `app/views/turbo_overlay/_loading.html+hint.erb`
+- `app/views/turbo_overlay/_confirm.html.erb` — shared confirm body,
+  wrapped in modal or popover chrome per `config.confirm.style`
+- `app/views/turbo_overlay/_loading.html.erb` — shared loading body,
+  wrapped in modal/drawer/popover/hint chrome
+
+Both default to a single shared file that works across every chrome
+variant. Drop in a chrome-specific override (`_confirm.html+modal.erb`,
+`_loading.html+hint.erb`, etc.) when you need different markup for
+one variant — the variant lookup prefers it over the shared file.
 
 These are *your* files. Edit them freely — change classes, add a
 brand container, restyle the close button.
@@ -779,9 +788,10 @@ controller. `overlay_stack_tag` does `render(partial: "turbo_overlay/confirm",
 layout: "turbo_overlay/<variant>", ...)` so retheming the chrome
 carries through to confirm and loading automatically.
 
-Apps that want one confirm or loading body across chromes can ship a
-single `_confirm.html.erb` or `_loading.html.erb` instead of the
-variant files; per-chrome overrides still win when present.
+Apps that want per-chrome bodies add `_confirm.html+<variant>.erb` or
+`_loading.html+<variant>.erb` alongside the shared file — the variant
+wins when present, otherwise the shared body renders into every
+chrome.
 
 If you delete these files, the gem's plain fallback partials kick in.
 To switch themes (e.g. plain → tailwind), re-run install with

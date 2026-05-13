@@ -28,23 +28,28 @@ module TurboOverlay
       # canonical copies of the same markup. Themed (`tailwind`,
       # `bootstrap5`, `bootstrap3`) installs source from the
       # per-theme template directory.
+      #
+      # `_loading.html.erb` is a single shared partial — the same body
+      # renders inside modal, drawer, popover, and hint chromes, with
+      # chrome-context CSS handling the size differences. Apps that
+      # want chrome-specific loading markup can add
+      # `_loading.html+<variant>.erb` and the existing lookup will
+      # prefer it over the shared file.
       FALLBACK_PARTIALS = %w[
         _modal.html.erb
         _drawer.html.erb
         _popover.html.erb
         _hint.html.erb
-        _loading.html+modal.erb
-        _loading.html+drawer.erb
-        _loading.html+popover.erb
-        _loading.html+hint.erb
+        _loading.html.erb
       ].freeze
 
       # Confirm partials have no gem-side fallback — they're optional
       # (only used when `register(application, confirm: true)`) and
       # require per-theme markup. Always source from the theme directory.
+      # A single `_confirm.html.erb` serves both modal- and popover-style
+      # confirms; add `_confirm.html+<variant>.erb` for chrome-specific tuning.
       THEME_ONLY_PARTIALS = %w[
-        _confirm.html+modal.erb
-        _confirm.html+popover.erb
+        _confirm.html.erb
       ].freeze
 
       class_option :theme,

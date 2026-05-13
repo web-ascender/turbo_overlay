@@ -1,0 +1,9 @@
+<%# Body content for an overlay's loading placeholder. Wrapped in the
+    matching chrome at template-emission time by `overlay_stack_tag`.
+    Sizing comes from the gem's CSS so the same partial fits modal,
+    drawer, popover, and hint contexts. Add `_loading.html+<variant>.erb`
+    if you need chrome-specific markup.
+%>
+<div class="turbo-overlay-loading__body d-flex align-items-center justify-content-center">
+  <span class="turbo-overlay-loading__spinner" aria-hidden="true"></span>
+</div>

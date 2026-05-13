@@ -1,5 +1,7 @@
-<%# Confirm dialog body, wrapped in the modal chrome at template-emission
-    time by `overlay_stack_tag`. JS only depends on:
+<%# Confirm dialog body, wrapped in the matching chrome at template-
+    emission time by `overlay_stack_tag`. Used for both modal- and
+    popover-style confirms; add `_confirm.html+<variant>.erb` for
+    chrome-specific tuning. JS only depends on:
       [data-turbo-overlay-confirm-message] — text insertion point
       [data-turbo-overlay-confirm-cancel]  — cancels (resolves false)
       [data-turbo-overlay-confirm-accept]  — accepts (resolves true)

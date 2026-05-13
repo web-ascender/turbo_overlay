@@ -192,6 +192,13 @@ dialog.turbo-overlay--popover.turbo-overlay-closing  { animation: turbo-overlay-
   min-height: 100%;
 }
 
+/* Hint loading sits inside a tooltip-sized chrome — collapse the body's
+   default min-height/padding so the spinner doesn't bloat the hint. */
+:where(.turbo-overlay-hint.turbo-overlay--loading .turbo-overlay-loading__body) {
+  min-height: 0;
+  padding: 0;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .turbo-overlay-loading__spinner { animation: none !important; }
 }
