@@ -1,5 +1,6 @@
 <% loading = local_assigns.fetch(:loading, false) %>
-<div class="<%= class_names("turbo-overlay-hint", "fixed z-50 max-w-xs rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 shadow-lg ring-1 ring-black/5 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 dark:ring-white/10", "turbo-overlay--loading": loading) %>"
+<div popover="manual"
+     class="<%= class_names("turbo-overlay-hint", "fixed z-50 max-w-xs rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 shadow-lg ring-1 ring-black/5 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 dark:ring-white/10", "turbo-overlay--loading": loading) %>"
      <% if loading %>role="status" aria-live="polite" aria-label="Loading"<% else %>role="tooltip"<% end %>>
   <%= yield %>
 </div>

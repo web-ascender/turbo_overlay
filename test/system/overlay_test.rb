@@ -26,7 +26,7 @@ class OverlayTest < ApplicationSystemTestCase
     visit "/"
 
     click_on "Popover", match: :first
-    assert_selector "dialog.turbo-overlay--popover[open]"
+    assert_selector "dialog.turbo-overlay--popover:popover-open"
     # Popovers position-fixed themselves; with no anchor the controller
     # falls back to centered, so just assert it rendered.
     assert_selector "dialog.turbo-overlay--popover [data-test-widget-show='Sprocket']"
@@ -82,16 +82,32 @@ class OverlayTest < ApplicationSystemTestCase
     assert_selector   "[data-test-widget-show='Sprocket']"
   end
 
+  test "popover triggered from inside an open modal renders in the top layer" do
+    visit "/"
+    click_on "Modal", match: :first
+    assert_selector "dialog.turbo-overlay--modal[open]"
+
+    within "dialog.turbo-overlay--modal[open]" do
+      click_on "Popover from modal"
+    end
+
+    # `:popover-open` matches only when the dialog has been promoted to the
+    # top layer via `showPopover()` — proves the popover stacks above the
+    # modal instead of being hidden underneath it.
+    assert_selector "dialog.turbo-overlay--popover:popover-open"
+    assert_selector "dialog.turbo-overlay--modal[open]"
+  end
+
   test "re-clicking the same popover_link_to does not duplicate the popover" do
     visit "/"
     click_on "Popover", match: :first
-    assert_selector "dialog.turbo-overlay--popover[open]", count: 1
+    assert_selector "dialog.turbo-overlay--popover:popover-open", count: 1
 
     # The link's overlay id is sticky after the first click; clicking
     # again must tear the existing frame down before spawning a new one
     # (CHANGELOG fix c1486c7).
     click_on "Popover", match: :first
-    assert_selector "dialog.turbo-overlay--popover[open]", count: 1
+    assert_selector "dialog.turbo-overlay--popover:popover-open", count: 1
   end
 
   test "server-issued turbo_stream.overlay(:close) dismisses the overlay" do

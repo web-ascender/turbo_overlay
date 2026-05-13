@@ -43,9 +43,12 @@ export default class extends Controller {
       // attribute and is detached from the top layer. Re-open it in
       // the same mode the original used so the overlay stays visible.
       this.stack.updateController(this.idValue, this)
-      if (this.dialog && !this.dialog.open) {
+      if (this.dialog && !this._isShown()) {
         if (this.backdropValue) {
           try { this.dialog.showModal() } catch (_) { this.dialog.setAttribute("open", "") }
+        } else if (this.typeValue === "popover") {
+          try { this.dialog.showPopover() } catch (_) { this.dialog.setAttribute("open", "") }
+          this._installEscHandler()
         } else {
           try { this.dialog.show() } catch (_) { this.dialog.setAttribute("open", "") }
           this._installEscHandler()
@@ -132,8 +135,8 @@ export default class extends Controller {
       : true
     if (!registered) return
 
-    if (this.dialog && !this.dialog.open) {
-      try { this.dialog.show() } catch (_) { this.dialog.setAttribute("open", "") }
+    if (this.dialog && !this._isShown()) {
+      try { this.dialog.showPopover() } catch (_) { this.dialog.setAttribute("open", "") }
     }
 
     this._targetLinksTop()
@@ -298,8 +301,15 @@ export default class extends Controller {
   }
 
   _finalizeClose() {
-    if (this.dialog && this.dialog.open) {
-      try { this.dialog.close() } catch (_) { this.dialog.removeAttribute("open") }
+    if (this.dialog) {
+      if (this.typeValue === "popover") {
+        try { this.dialog.hidePopover() } catch (_) { /* not currently a popover */ }
+        if (this.dialog.open) {
+          try { this.dialog.close() } catch (_) { this.dialog.removeAttribute("open") }
+        }
+      } else if (this.dialog.open) {
+        try { this.dialog.close() } catch (_) { this.dialog.removeAttribute("open") }
+      }
     }
     // Dispatch :closed before _removeFrame so the dialog is still in
     // the DOM and the bubbled event reaches document-level listeners.
@@ -311,6 +321,16 @@ export default class extends Controller {
     const frame = this.element.closest("turbo-frame.turbo-overlay-frame")
     if (frame && frame.parentNode) frame.remove()
     else if (this.element.parentNode) this.element.remove()
+  }
+
+  // `showPopover()` doesn't set the `[open]` attribute, so check `:popover-open` for popovers too.
+  _isShown() {
+    if (!this.dialog) return false
+    if (this.dialog.open) return true
+    if (this.typeValue === "popover" && this.dialog.matches) {
+      try { return this.dialog.matches(":popover-open") } catch (_) { /* unsupported */ }
+    }
+    return false
   }
 
   _findStack() {

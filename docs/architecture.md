@@ -12,9 +12,14 @@ stack as its own `<turbo-frame id="turbo_overlay_<type>_<id>">`
 wrapping a `<dialog>`. Forms inside the overlay re-render in place
 via standard Turbo frame scoping.
 
-Stacking is handled by the browser's `<dialog>` top layer. Modals
-and drawers can stack freely. Popovers replace each other on the
-same layer; modals/drawers still stack on top of popovers.
+Stacking follows the browser's top-layer "last shown wins" order.
+Modals and drawers enter via `dialog.showModal()`; popovers and
+hints enter via the native Popover API (`element.showPopover()` on
+a `popover="manual"` element). Whichever overlay was shown most
+recently renders on top — so a popover opened from inside a modal
+sits above that modal, and a modal opened from inside a popover
+sits above the popover. Popovers still replace each other on the
+same layer via the stack controller's single-popover rule.
 
 ## Layout proc
 

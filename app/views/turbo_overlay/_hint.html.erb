@@ -1,5 +1,6 @@
 <% loading = local_assigns.fetch(:loading, false) %>
-<div class="<%= class_names("turbo-overlay-hint", "turbo-hint", "turbo-overlay--loading": loading) %>"
+<div popover="manual"
+     class="<%= class_names("turbo-overlay-hint", "turbo-hint", "turbo-overlay--loading": loading) %>"
      <% if loading %>role="status" aria-live="polite" aria-label="Loading"<% else %>role="tooltip"<% end %>>
   <%= yield %>
 </div>

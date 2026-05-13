@@ -332,6 +332,7 @@ function renderPendingHint(link) {
   node.dataset.state = "entering"
   node.dataset.turboOverlayHintPending = "true"
   document.body.appendChild(node)
+  showHintPopover(node)
 
   positionFloatingHint(node, link)
 
@@ -487,6 +488,7 @@ function showHint(link, url, fragment) {
 
   node.dataset.state = "entering"
   document.body.appendChild(node)
+  showHintPopover(node)
 
   positionFloatingHint(node, link)
 
@@ -545,12 +547,12 @@ function dismissCurrent({ animate = true } = {}) {
   current = null
 
   if (!element || !element.parentNode) return
-  if (!animate) { element.remove(); return }
+  if (!animate) { removeHint(element); return }
 
   element.dataset.state = "leaving"
-  const onEnd = () => { element.removeEventListener("animationend", onEnd); element.remove() }
+  const onEnd = () => { element.removeEventListener("animationend", onEnd); removeHint(element) }
   element.addEventListener("animationend", onEnd)
-  setTimeout(() => { if (element.parentNode) element.remove() }, 250)
+  setTimeout(() => { if (element.parentNode) removeHint(element) }, 250)
 }
 
 function cancelPending() {
@@ -567,11 +569,24 @@ function cancelPending() {
   if (pending.element && pending.element.parentNode) {
     const el = pending.element
     el.dataset.state = "leaving"
-    const onEnd = () => { el.removeEventListener("animationend", onEnd); el.remove() }
+    const onEnd = () => { el.removeEventListener("animationend", onEnd); removeHint(el) }
     el.addEventListener("animationend", onEnd)
-    setTimeout(() => { if (el.parentNode) el.remove() }, 250)
+    setTimeout(() => { if (el.parentNode) removeHint(el) }, 250)
   }
   pending = null
+}
+
+// Hints join the top layer via the Popover API so they render above any open modal/drawer.
+function showHintPopover(node) {
+  if (typeof node.showPopover !== "function") return
+  try { node.showPopover() } catch (_) { /* already open or unsupported */ }
+}
+
+function removeHint(node) {
+  if (typeof node.hidePopover === "function") {
+    try { node.hidePopover() } catch (_) { /* not currently a popover */ }
+  }
+  node.remove()
 }
 
 // ----- cache -----

@@ -30,9 +30,10 @@ popover repositions itself as the anchor scrolls.
 ## Single-popover behavior
 
 Opening a second popover automatically dismisses any other open
-popover. Modals and drawers still stack as normal — a modal opened
-from inside a popover sits on top, and dismissing it leaves the
-popover anchored.
+popover. Stacking follows the browser's top-layer "last shown wins"
+order: a popover opened from inside a modal sits above the modal,
+and a modal opened from inside a popover sits above the popover.
+Dismissing the upper overlay leaves the lower one in place.
 
 ## Links inside popovers
 

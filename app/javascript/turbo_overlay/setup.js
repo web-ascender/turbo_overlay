@@ -197,7 +197,9 @@ function spawnLoadingOverlay(link) {
   if (root.tagName === "DIALOG") {
     const useModal = (type === "modal") || (type === "drawer" && backdrop)
     try {
-      if (useModal) root.showModal(); else root.show()
+      if (useModal) root.showModal()
+      else if (type === "popover") root.showPopover()
+      else root.show()
     } catch (_) {
       root.setAttribute("open", "")
     }
@@ -233,8 +235,12 @@ function attachLoadingDismissHandlers(dialog, frame, id) {
     }
     dismissedLoadingIds.add(id)
 
-    if (dialog.tagName === "DIALOG" && dialog.open) {
-      try { dialog.close() } catch (_) { /* ignore */ }
+    if (dialog.tagName === "DIALOG") {
+      if (dialog.classList.contains("turbo-overlay--popover")) {
+        try { dialog.hidePopover() } catch (_) { /* ignore */ }
+      } else if (dialog.open) {
+        try { dialog.close() } catch (_) { /* ignore */ }
+      }
     }
     frame.remove()
   }

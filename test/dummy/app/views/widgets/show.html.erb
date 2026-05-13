@@ -7,6 +7,7 @@
       second modal on top, exercising the stack registry. %>
   <% if @widget[:name] == "Sprocket" %>
     <%= modal_link_to "Open Flywheel", widget_path("2") %>
+    <%= popover_link_to "Popover from modal", widget_path("2") %>
   <% end %>
 
   <%# Server-initiated close: POST returns a turbo_stream that closes
