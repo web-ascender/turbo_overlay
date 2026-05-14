@@ -3,28 +3,6 @@
 Candidate features, ordered roughly by impact. None are committed —
 each needs a design pass before implementation.
 
-## 1. Click-outside allowlist for body-appended widgets
-
-Whitelist of CSS selectors whose clicks shouldn't dismiss the overlay.
-Solves flatpickr, Select2, Tippy, Tom Select, and every other widget
-that portals its dropdown to `<body>`.
-
-- Global config: `config.allowed_click_outside_selector = [".flatpickr-calendar", ...]`
-- Per-overlay override via data attribute on the dialog
-- Reads selectors at dismiss time so apps can extend at runtime
-
-UTMR's defaults list is a useful starting point for the docs.
-
-## 3. Mousedown-origin dismiss check
-
-Even without #1, fix the "drag a text selection out of the dialog and
-release on the backdrop" bug. Track which element `mousedown` landed
-on; if it was inside the dialog content, suppress the subsequent
-backdrop-click dismissal.
-
-Small, orthogonal to #1, and fixes a class of false dismissals that
-the allowlist can't catch.
-
 ## 5. Free-form `size:` for modals, drawers, and popover min-width
 
 UTMR's drawer takes `:xs / :sm / :md / :lg / :xl / :"2xl" / :full` or
