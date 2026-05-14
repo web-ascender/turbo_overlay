@@ -70,7 +70,7 @@ When `modal_link_to "Edit", edit_user_path(@user)` is clicked:
 
 1. A JS fetch hook adds `X-Turbo-Overlay: modal` (and optional
    `X-Turbo-Overlay-Id`, `-Position`, `-Align`, `-Offset`,
-   `-Backdrop`, `-Close` headers) to Turbo's request.
+   `-Backdrop`, `-Close`, `-Keep-Open` headers) to Turbo's request.
 2. The controller concern's `before_action` reads `X-Turbo-Overlay`,
    sets `request.variant = :modal`, and forces html template
    resolution.
@@ -86,6 +86,22 @@ When `modal_link_to "Edit", edit_user_path(@user)` is clicked:
 6. Turbo appends the frame into the stack.
 7. The per-dialog `turbo-overlay` Stimulus controller registers
    with the stack controller and opens the dialog.
+
+Three other entry points reach the same pipeline:
+
+- **`*_button_to` helpers** — render a `<form data-turbo-overlay=…>`
+  with the same dataset attrs the link helpers put on the anchor. The
+  document-level `submit` hook in `setup.js` records the form as the
+  trigger, and the fetch hook adds headers identically. Used when the
+  overlay is the result of a non-GET action (DELETE, POST, PATCH).
+- **`TurboOverlay.visit(url, opts)`** — synthesizes a hidden `<a>`
+  with the dataset attrs and dispatches a click. Same `setup.js`
+  hooks pick it up; Turbo's `FormLinkClickObserver` routes the fetch.
+  Used for non-anchor triggers (map markers, custom elements).
+- **Server-issued `turbo_stream.overlay(...)`** — the response is a
+  stream the gem owns, processed by `Turbo.StreamActions.overlay`.
+  Mostly used for close, but can be used to open from a non-overlay
+  request as well.
 
 ## Request lifecycle: form re-render
 
@@ -332,7 +348,9 @@ overlay state to restore.
 - **`stack_controller.js`** — Stimulus controller on the stack
   container (`turbo-overlay-stack`). Per-page entry registry of
   open overlays; routes `turbo-overlay:close` window events to the
-  matching overlay(s).
+  matching overlay(s). When the close event carries a `visit:`
+  detail (from `turbo_stream.overlay(:close, visit: …)`), awaits
+  the close-animation Promise then runs `Turbo.visit` on the host.
 - **`overlay_controller.js`** — Stimulus controller on each
   `<dialog>` (`turbo-overlay`). Drives open/close, focus
   management, and dispatches the `turbo-overlay:shown` /

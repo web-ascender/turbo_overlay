@@ -115,6 +115,19 @@ render turbo_stream: [
 ]
 ```
 
+If the action wants to *navigate* the host page after close — without
+a form submission to ride a redirect on — pass `visit:`:
+
+```ruby
+turbo_stream.overlay(:close, visit: widgets_path)
+turbo_stream.overlay(:close, visit: widgets_path, visit_action: :replace)
+```
+
+The client awaits the close animation before running `Turbo.visit`,
+so the new page doesn't paint behind a still-animating overlay. Use
+this for stream-driven flows (ActionCable broadcasts, async job
+completion) where the form-submit redirect path doesn't apply.
+
 Stack-scoped variants (close all, close by id, filter by type) are
 documented in
 [reference.md](reference.md#turbo_streamoverlayclose-variants).

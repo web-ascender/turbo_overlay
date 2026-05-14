@@ -158,3 +158,55 @@ the implementation needs one of:
 Deferred until the per-overlay opt-out shows wear in practice. The
 wizard-style use case is fully covered by per-overlay opt-out today
 when the wizard is opened from a single link.
+
+## 15. CSS anchor positioning for popovers
+
+Popover placement currently runs in JS: a `scroll`/`resize` reflow
+handler reads `anchor.getBoundingClientRect()` and writes
+`transform: translate(x, y)` on every frame. Modern browsers ship a
+declarative alternative — `anchor-name` / `position-anchor` /
+`position-area` / `position-try-fallbacks` — that hands all of this
+to the compositor and eliminates the residual one-frame lag on
+momentum scrolling.
+
+Browser support as of 2026: Chrome shipped (125+), Safari partial
+(`anchor()` function, `position-try-fallbacks` uneven), Firefox
+behind a flag. Defer until Firefox ships and Safari catches up on
+fallbacks; the end state is *deleting* the JS positioner entirely,
+not running it in parallel.
+
+The auto-close-on-anchor-exit logic still needs JS
+(IntersectionObserver) regardless, so the module won't be empty
+either way.
+
+## 16. Hover-prefetch overlay-opening links
+
+Turbo's `LinkPrefetchObserver` excludes `data-turbo-stream` links
+from prefetch (`nonSafeLink` predicate, treated as side-effecty).
+Overlay-opening links are stream links, so a hover on
+`modal_link_to` never warms the cache and the click pays full
+round-trip latency.
+
+Two paths forward, both blocked on upstream:
+
+1. **Petition Turbo to relax the exclusion** for GET stream links
+   via a `data-turbo-prefetch="true"` opt-in. The prefetch fetch
+   would need to carry the `X-Turbo-Overlay-*` headers so the cached
+   response is the right shape — the gem's `turbo:before-prefetch`
+   listener could inject them. A small PR to turbo-rails.
+2. **Roll our own prefetch.** Hover handler fires a fetch with
+   overlay headers, caches by URL, click consumes it. Rejected
+   per `feedback_no_parallel_fetch` — we'd be duplicating Turbo's
+   prefetch machinery instead of integrating with it.
+
+Deferred unless Turbo accepts the upstream change.
+
+## 17. Two stream-submitting forms in one dialog
+
+Capybara's `send_keys :escape` fails when a dialog hosts two
+`<form data-turbo-stream>` elements (see the `Bearing`-only gating
+in `test/dummy/app/views/widgets/show.html.erb`). Whether this is a
+real user-visible bug or only a `send_keys` artifact is unclear —
+the failing path synthesizes the ESC keypress, which may interact
+differently from a real keyboard event. Worth investigating before
+documenting any limitation.
