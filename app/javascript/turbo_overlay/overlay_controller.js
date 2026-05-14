@@ -1,5 +1,6 @@
 import { Controller } from "@hotwired/stimulus"
 import { computePopoverPosition } from "turbo_overlay/popover_position"
+import { safelyCloseDialog, safelyHidePopover, normalizePopoverDialogStyles } from "turbo_overlay/dialog_utils"
 import { shouldCloseOnRedirect, isSamePageRedirect } from "turbo_overlay/submit_close"
 import {
   getAdvanceUrl, clearAdvanceUrl,
@@ -508,10 +509,7 @@ export default class extends Controller {
     // content's actual size and the auto-flip math goes wrong. Setting
     // right/bottom: auto first makes width shrink-to-fit content, so
     // `dialogRect.width` reflects the size we actually intend to render.
-    this.dialog.style.position = "fixed"
-    this.dialog.style.right  = "auto"
-    this.dialog.style.bottom = "auto"
-    this.dialog.style.margin = "0"
+    normalizePopoverDialogStyles(this.dialog)
     this.dialog.style.transform = ""
 
     const anchorRect = this._anchorRect()
@@ -636,12 +634,10 @@ export default class extends Controller {
   _finalizeClose() {
     if (this.dialog) {
       if (this.typeValue === "popover") {
-        try { this.dialog.hidePopover() } catch (_) { /* not currently a popover */ }
-        if (this.dialog.open) {
-          try { this.dialog.close() } catch (_) { this.dialog.removeAttribute("open") }
-        }
+        safelyHidePopover(this.dialog)
+        if (this.dialog.open) safelyCloseDialog(this.dialog)
       } else if (this.dialog.open) {
-        try { this.dialog.close() } catch (_) { this.dialog.removeAttribute("open") }
+        safelyCloseDialog(this.dialog)
       }
     }
     // Dispatch :closed before _removeFrame so the dialog is still in

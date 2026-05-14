@@ -4,5 +4,6 @@ pin "turbo_overlay/stack_controller", to: "turbo_overlay/stack_controller.js", p
 pin "turbo_overlay/overlay_controller", to: "turbo_overlay/overlay_controller.js", preload: true
 pin "turbo_overlay/hint", to: "turbo_overlay/hint.js", preload: true
 pin "turbo_overlay/popover_position", to: "turbo_overlay/popover_position.js", preload: true
+pin "turbo_overlay/dialog_utils", to: "turbo_overlay/dialog_utils.js", preload: true
 pin "turbo_overlay/history", to: "turbo_overlay/history.js", preload: true
 pin "turbo_overlay/submit_close", to: "turbo_overlay/submit_close.js", preload: true

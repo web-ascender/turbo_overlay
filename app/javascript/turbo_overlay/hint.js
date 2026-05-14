@@ -1,4 +1,6 @@
 import { computePopoverPosition } from "turbo_overlay/popover_position"
+import { safelyHidePopover, normalizePopoverDialogStyles } from "turbo_overlay/dialog_utils"
+import { randomIdSuffix } from "turbo_overlay/setup"
 
 // Hover-triggered hint previews for turbo_overlay.
 //
@@ -89,6 +91,15 @@ const MAX_PENDING_MS = 10000
 const NO_HINT = Symbol("turbo-overlay-no-hint")
 
 const TEMPLATE_ID = "turbo-overlay-hint"
+
+// Guard timers for CSS state-driven enter/leave animations. The CSS
+// rules pivot on `data-state="entering"` / `data-state="leaving"`;
+// these timeouts strip the attribute / remove the node if the
+// `animationend` event never fires (e.g. prefers-reduced-motion or
+// the bubble was removed/morphed before its animation finished).
+// Must stay ≥ the longest matching CSS animation duration.
+const HINT_ENTER_ANIMATION_TIMEOUT_MS = 200
+const HINT_LEAVE_ANIMATION_TIMEOUT_MS = 250
 
 const DEFAULTS = {
   showDelay: 250,
@@ -347,7 +358,7 @@ function renderPendingHint(link) {
     cancelPending()
   }, MAX_PENDING_MS)
 
-  setTimeout(() => { if (node.dataset.state === "entering") delete node.dataset.state }, 200)
+  setTimeout(() => { if (node.dataset.state === "entering") delete node.dataset.state }, HINT_ENTER_ANIMATION_TIMEOUT_MS)
 }
 
 function positionFloatingHint(node, link) {
@@ -358,10 +369,7 @@ function positionFloatingHint(node, link) {
   // side, the leftover space gets distributed via the auto margins
   // and the hint ends up centered in the gap rather than anchored to
   // our computed left.
-  node.style.position = "fixed"
-  node.style.right    = "auto"
-  node.style.bottom   = "auto"
-  node.style.margin   = "0"
+  normalizePopoverDialogStyles(node)
 
   const dialogRect = node.getBoundingClientRect()
   const anchorRect = link.getBoundingClientRect()
@@ -503,7 +511,7 @@ function showHint(link, url, fragment) {
 
   positionFloatingHint(node, link)
 
-  const hintId = node.id || `turbo-overlay-hint-${Math.random().toString(36).slice(2, 10)}`
+  const hintId = node.id || `turbo-overlay-hint-${randomIdSuffix()}`
   node.id = hintId
   previousAriaDescribedBy = link.getAttribute("aria-describedby")
   link.setAttribute("aria-describedby", hintId)
@@ -513,7 +521,7 @@ function showHint(link, url, fragment) {
 
   current = { link, url, element: node, hideTimer: null }
 
-  setTimeout(() => { if (node.dataset.state === "entering") delete node.dataset.state }, 200)
+  setTimeout(() => { if (node.dataset.state === "entering") delete node.dataset.state }, HINT_ENTER_ANIMATION_TIMEOUT_MS)
 
   document.dispatchEvent(new CustomEvent("turbo-overlay:hint-shown", {
     detail: { url }
@@ -563,7 +571,7 @@ function dismissCurrent({ animate = true } = {}) {
   element.dataset.state = "leaving"
   const onEnd = () => { element.removeEventListener("animationend", onEnd); removeHint(element) }
   element.addEventListener("animationend", onEnd)
-  setTimeout(() => { if (element.parentNode) removeHint(element) }, 250)
+  setTimeout(() => { if (element.parentNode) removeHint(element) }, HINT_LEAVE_ANIMATION_TIMEOUT_MS)
 }
 
 function cancelPending() {
@@ -582,7 +590,7 @@ function cancelPending() {
     el.dataset.state = "leaving"
     const onEnd = () => { el.removeEventListener("animationend", onEnd); removeHint(el) }
     el.addEventListener("animationend", onEnd)
-    setTimeout(() => { if (el.parentNode) removeHint(el) }, 250)
+    setTimeout(() => { if (el.parentNode) removeHint(el) }, HINT_LEAVE_ANIMATION_TIMEOUT_MS)
   }
   pending = null
 }
@@ -594,9 +602,7 @@ function showHintPopover(node) {
 }
 
 function removeHint(node) {
-  if (typeof node.hidePopover === "function") {
-    try { node.hidePopover() } catch (_) { /* not currently a popover */ }
-  }
+  safelyHidePopover(node)
   node.remove()
 }
 

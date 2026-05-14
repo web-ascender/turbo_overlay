@@ -437,74 +437,49 @@ module TurboOverlay
 
       def _overlay_normalize_link_args(type, options, html_options)
         html_options = (html_options || {}).dup
-        overlay_id   = html_options.delete(:overlay_id) || html_options.delete("overlay_id")
-        position     = html_options.delete(:position)   || html_options.delete("position")
-        align        = html_options.delete(:align)      || html_options.delete("align")
-        offset       = html_options.delete(:offset)     || html_options.delete("offset")
-        has_backdrop = html_options.key?(:backdrop) || html_options.key?("backdrop")
-        backdrop     = html_options.delete(:backdrop)
-        backdrop     = html_options.delete("backdrop") if backdrop.nil? && has_backdrop
-        has_close    = html_options.key?(:close) || html_options.key?("close")
-        close_value  = html_options.delete(:close)
-        close_value  = html_options.delete("close") if close_value.nil? && has_close
-        has_hint     = html_options.key?(:hint) || html_options.key?("hint")
-        hint_value   = html_options.delete(:hint)
-        hint_value   = html_options.delete("hint") if hint_value.nil? && has_hint
-        hint_url     = html_options.delete(:hint_url)   || html_options.delete("hint_url")
-        show_delay   = html_options.delete(:show_delay) || html_options.delete("show_delay")
-        hide_delay   = html_options.delete(:hide_delay) || html_options.delete("hide_delay")
-        has_advance  = html_options.key?(:advance) || html_options.key?("advance")
-        advance_val  = html_options.delete(:advance)
-        advance_val  = html_options.delete("advance") if advance_val.nil? && has_advance
-        has_keep_open = html_options.key?(:keep_overlay_open_on_redirect) || html_options.key?("keep_overlay_open_on_redirect")
-        keep_open_val = html_options.delete(:keep_overlay_open_on_redirect)
-        keep_open_val = html_options.delete("keep_overlay_open_on_redirect") if keep_open_val.nil? && has_keep_open
+        _,             overlay_id    = _pop_option(html_options, :overlay_id)
+        _,             position      = _pop_option(html_options, :position)
+        _,             align         = _pop_option(html_options, :align)
+        _,             offset        = _pop_option(html_options, :offset)
+        has_backdrop,  backdrop      = _pop_option(html_options, :backdrop)
+        has_close,     close_value   = _pop_option(html_options, :close)
+        has_hint,      hint_value    = _pop_option(html_options, :hint)
+        _,             hint_url      = _pop_option(html_options, :hint_url)
+        _,             show_delay    = _pop_option(html_options, :show_delay)
+        _,             hide_delay    = _pop_option(html_options, :hide_delay)
+        has_advance,   advance_val   = _pop_option(html_options, :advance)
+        has_keep_open, keep_open_val = _pop_option(html_options, :keep_overlay_open_on_redirect)
 
         data = (html_options[:data] || {}).dup
-        data[:turbo_stream] = true unless data.key?(:turbo_stream) || html_options.key?("data-turbo-stream")
-        data[:turbo_overlay] = type.to_s unless data.key?(:turbo_overlay) || html_options.key?("data-turbo-overlay")
-        data[:turbo_overlay_id] = overlay_id.to_s if overlay_id && !data.key?(:turbo_overlay_id) && !html_options.key?("data-turbo-overlay-id")
-        data[:turbo_overlay_position] = position.to_s if position && !data.key?(:turbo_overlay_position) && !html_options.key?("data-turbo-overlay-position")
-        data[:turbo_overlay_align] = align.to_s if align && !data.key?(:turbo_overlay_align) && !html_options.key?("data-turbo-overlay-align")
-        data[:turbo_overlay_offset] = offset.to_s if offset && !data.key?(:turbo_overlay_offset) && !html_options.key?("data-turbo-overlay-offset")
-        if has_backdrop && backdrop == false && !data.key?(:turbo_overlay_backdrop) && !html_options.key?("data-turbo-overlay-backdrop")
-          data[:turbo_overlay_backdrop] = "false"
-        end
-        if has_close && close_value == false && !data.key?(:turbo_overlay_close) && !html_options.key?("data-turbo-overlay-close")
-          data[:turbo_overlay_close] = "false"
-        end
-        if has_keep_open && keep_open_val == true && !data.key?(:turbo_overlay_keep_open_on_redirect) && !html_options.key?("data-turbo-overlay-keep-open-on-redirect")
-          data[:turbo_overlay_keep_open_on_redirect] = "true"
-        end
-        if has_hint && hint_value && !data.key?(:turbo_overlay_hint) && !html_options.key?("data-turbo-overlay-hint")
-          data[:turbo_overlay_hint] = "true"
-        end
-        if hint_url && !data.key?(:turbo_overlay_hint_url) && !html_options.key?("data-turbo-overlay-hint-url")
-          data[:turbo_overlay_hint_url] = hint_url.to_s
-        end
-        if show_delay && !data.key?(:turbo_overlay_hint_show_delay) && !html_options.key?("data-turbo-overlay-hint-show-delay")
-          data[:turbo_overlay_hint_show_delay] = show_delay.to_s
-        end
-        if hide_delay && !data.key?(:turbo_overlay_hint_hide_delay) && !html_options.key?("data-turbo-overlay-hint-hide-delay")
-          data[:turbo_overlay_hint_hide_delay] = hide_delay.to_s
-        end
+        _assign_overlay_data(data, html_options, :turbo_stream,  "data-turbo-stream",  true)
+        _assign_overlay_data(data, html_options, :turbo_overlay, "data-turbo-overlay", type.to_s)
+        _assign_overlay_data(data, html_options, :turbo_overlay_id,       "data-turbo-overlay-id",       overlay_id&.to_s)
+        _assign_overlay_data(data, html_options, :turbo_overlay_position, "data-turbo-overlay-position", position&.to_s)
+        _assign_overlay_data(data, html_options, :turbo_overlay_align,    "data-turbo-overlay-align",    align&.to_s)
+        _assign_overlay_data(data, html_options, :turbo_overlay_offset,   "data-turbo-overlay-offset",   offset&.to_s)
+        _assign_overlay_data(data, html_options, :turbo_overlay_backdrop, "data-turbo-overlay-backdrop", "false") if has_backdrop && backdrop == false
+        _assign_overlay_data(data, html_options, :turbo_overlay_close,    "data-turbo-overlay-close",    "false") if has_close && close_value == false
+        _assign_overlay_data(data, html_options, :turbo_overlay_keep_open_on_redirect, "data-turbo-overlay-keep-open-on-redirect", "true") if has_keep_open && keep_open_val == true
+        _assign_overlay_data(data, html_options, :turbo_overlay_hint,     "data-turbo-overlay-hint",     "true") if has_hint && hint_value
+        _assign_overlay_data(data, html_options, :turbo_overlay_hint_url, "data-turbo-overlay-hint-url", hint_url&.to_s)
+        _assign_overlay_data(data, html_options, :turbo_overlay_hint_show_delay, "data-turbo-overlay-hint-show-delay", show_delay&.to_s)
+        _assign_overlay_data(data, html_options, :turbo_overlay_hint_hide_delay, "data-turbo-overlay-hint-hide-delay", hide_delay&.to_s)
         # URL advance — only modal and drawer participate. Popover and
         # hint configs deliberately don't expose `advance`, and stray
         # `:advance` keys on those link helpers are dropped silently.
-        if has_advance && (type == :modal || type == :drawer) &&
-           !data.key?(:turbo_overlay_advance) && !html_options.key?("data-turbo-overlay-advance")
-          case advance_val
-          when true   then data[:turbo_overlay_advance] = "true"
-          when false  then data[:turbo_overlay_advance] = "false"
-          when String then data[:turbo_overlay_advance] = advance_val
-          else
-            data[:turbo_overlay_advance] = advance_val.to_s if advance_val.respond_to?(:to_str)
-          end
+        if has_advance && (type == :modal || type == :drawer)
+          advance_string = case advance_val
+                           when true   then "true"
+                           when false  then "false"
+                           when String then advance_val
+                           else (advance_val.to_s if advance_val.respond_to?(:to_str))
+                           end
+          _assign_overlay_data(data, html_options, :turbo_overlay_advance, "data-turbo-overlay-advance", advance_string)
         end
         # Break out of any enclosing per-overlay turbo-frame so a click
         # on a modal/drawer/popover link from inside an open overlay
         # opens a new (stacked) overlay instead of replacing the current one.
-        data[:turbo_frame] = "_top" unless data.key?(:turbo_frame) || html_options.key?("data-turbo-frame")
+        _assign_overlay_data(data, html_options, :turbo_frame, "data-turbo-frame", "_top")
         html_options[:data] = data unless data.empty?
         _merge_aria_haspopup(html_options, "dialog")
 
@@ -517,25 +492,43 @@ module TurboOverlay
       # (Turbo prefetch can still apply); the hint is just hover preview.
       def _hint_normalize_link_args(options, html_options)
         html_options = (html_options || {}).dup
-        hint_url   = html_options.delete(:hint_url)   || html_options.delete("hint_url")
-        show_delay = html_options.delete(:show_delay) || html_options.delete("show_delay")
-        hide_delay = html_options.delete(:hide_delay) || html_options.delete("hide_delay")
+        _, hint_url   = _pop_option(html_options, :hint_url)
+        _, show_delay = _pop_option(html_options, :show_delay)
+        _, hide_delay = _pop_option(html_options, :hide_delay)
 
         data = (html_options[:data] || {}).dup
-        data[:turbo_overlay_hint] = "true" unless data.key?(:turbo_overlay_hint) || html_options.key?("data-turbo-overlay-hint")
-        if hint_url && !data.key?(:turbo_overlay_hint_url) && !html_options.key?("data-turbo-overlay-hint-url")
-          data[:turbo_overlay_hint_url] = hint_url.to_s
-        end
-        if show_delay && !data.key?(:turbo_overlay_hint_show_delay) && !html_options.key?("data-turbo-overlay-hint-show-delay")
-          data[:turbo_overlay_hint_show_delay] = show_delay.to_s
-        end
-        if hide_delay && !data.key?(:turbo_overlay_hint_hide_delay) && !html_options.key?("data-turbo-overlay-hint-hide-delay")
-          data[:turbo_overlay_hint_hide_delay] = hide_delay.to_s
-        end
+        _assign_overlay_data(data, html_options, :turbo_overlay_hint,            "data-turbo-overlay-hint",            "true")
+        _assign_overlay_data(data, html_options, :turbo_overlay_hint_url,        "data-turbo-overlay-hint-url",        hint_url&.to_s)
+        _assign_overlay_data(data, html_options, :turbo_overlay_hint_show_delay, "data-turbo-overlay-hint-show-delay", show_delay&.to_s)
+        _assign_overlay_data(data, html_options, :turbo_overlay_hint_hide_delay, "data-turbo-overlay-hint-hide-delay", hide_delay&.to_s)
         html_options[:data] = data unless data.empty?
         _merge_aria_haspopup(html_options, "tooltip")
 
         [options, html_options]
+      end
+
+      # Delete `key` from `html_options` accepting either Symbol or
+      # String form. Returns `[present?, value]`.
+      #   - present? is true when the key existed under either form
+      #   - value is the value, even when explicitly nil/false
+      def _pop_option(html_options, key)
+        sym = key.to_sym
+        str = key.to_s
+        present = html_options.key?(sym) || html_options.key?(str)
+        value = html_options.delete(sym)
+        value = html_options.delete(str) if value.nil? && present
+        [present, value]
+      end
+
+      # Gated assignment to `data` honoring caller-wins precedence: an
+      # explicit `data[:foo]` or `"data-foo"` in `html_options` is left
+      # alone. Skips assignment when `value` is nil/false (treat nil as
+      # "no override supplied").
+      def _assign_overlay_data(data, html_options, data_key, html_attr, value)
+        return if value.nil?
+        return if data.key?(data_key)
+        return if html_options.key?(html_attr)
+        data[data_key] = value
       end
 
       # Signal to assistive tech that activating the link opens a

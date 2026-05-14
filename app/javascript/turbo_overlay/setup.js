@@ -1,5 +1,8 @@
 import { computePopoverPosition } from "turbo_overlay/popover_position"
 import {
+  safelyCloseDialog, safelyHidePopover, normalizePopoverDialogStyles
+} from "turbo_overlay/dialog_utils"
+import {
   setAdvanceUrl, clearAdvanceUrl, resetHistoryState, registerPopstateHandler,
   expectedPopstateCount, hasPushedOverlayOnStack
 } from "turbo_overlay/history"
@@ -54,8 +57,15 @@ export function clearPopoverTrigger(id) {
   popoverTriggers.delete(id)
 }
 
+// 8-char base36 suffix for DOM ids the gem assigns at runtime
+// (overlays, hint bubbles, ad-hoc confirm dialogs). Not cryptographic
+// — just needs to be unique among concurrently-live ids on the page.
+export function randomIdSuffix() {
+  return Math.random().toString(36).slice(2, 10)
+}
+
 function generateOverlayId() {
-  return "ov-" + Math.random().toString(36).slice(2, 10)
+  return "ov-" + randomIdSuffix()
 }
 
 function cssEscape(value) {
@@ -100,9 +110,7 @@ function removeLoadingOverlay(id) {
   const frame = findLoadingFrame(id)
   if (!frame) return
   const dialog = frame.querySelector("dialog")
-  if (dialog && dialog.open) {
-    try { dialog.close() } catch (_) { /* ignore */ }
-  }
+  if (dialog && dialog.open) safelyCloseDialog(dialog)
   frame.remove()
   inflightAborts.delete(id)
 }
@@ -111,9 +119,7 @@ function clearAllLoadingOverlays() {
   const frames = document.querySelectorAll("[data-turbo-overlay-loading-id]")
   frames.forEach((frame) => {
     const dialog = frame.querySelector("dialog")
-    if (dialog && dialog.open) {
-      try { dialog.close() } catch (_) { /* ignore */ }
-    }
+    if (dialog && dialog.open) safelyCloseDialog(dialog)
     frame.remove()
   })
   inflightAborts.forEach((aborter) => {
@@ -139,9 +145,7 @@ function tearDownAllOverlays() {
   const frames = document.querySelectorAll("turbo-frame.turbo-overlay-frame")
   frames.forEach((frame) => {
     const dialog = frame.querySelector("dialog")
-    if (dialog && dialog.open) {
-      try { dialog.close() } catch (_) { /* ignore */ }
-    }
+    if (dialog && dialog.open) safelyCloseDialog(dialog)
     frame.remove()
   })
   inflightAborts.forEach((aborter) => {
@@ -171,9 +175,7 @@ function teardownExistingOverlayFrame(frame, id) {
 
   if (frame.parentNode) {
     const dialog = frame.querySelector("dialog")
-    if (dialog && dialog.open) {
-      try { dialog.close() } catch (_) { /* ignore */ }
-    }
+    if (dialog && dialog.open) safelyCloseDialog(dialog)
     frame.remove()
   }
 }
@@ -292,9 +294,9 @@ function attachLoadingDismissHandlers(dialog, frame, id) {
 
     if (dialog.tagName === "DIALOG") {
       if (dialog.classList.contains("turbo-overlay--popover")) {
-        try { dialog.hidePopover() } catch (_) { /* ignore */ }
+        safelyHidePopover(dialog)
       } else if (dialog.open) {
-        try { dialog.close() } catch (_) { /* ignore */ }
+        safelyCloseDialog(dialog)
       }
     }
     frame.remove()
@@ -314,10 +316,7 @@ function positionLoadingPopover(root, link) {
   // in overlay_controller.js#_positionPopover. UA [popover] /
   // dialog:modal styles set inset:0 with width:auto, which stretches
   // the dialog and corrupts the auto-flip math if measured first.
-  root.style.position = "fixed"
-  root.style.right    = "auto"
-  root.style.bottom   = "auto"
-  root.style.margin   = "0"
+  normalizePopoverDialogStyles(root)
 
   const anchorRect = link.getBoundingClientRect()
   const dialogRect = root.getBoundingClientRect()
@@ -790,7 +789,7 @@ function promptConfirm(message, formElement, submitter) {
 
   const style = found.style
   const clone = dialog.cloneNode(true)
-  const id = "confirm-" + Math.random().toString(36).slice(2, 10)
+  const id = "confirm-" + randomIdSuffix()
   clone.setAttribute("data-turbo-overlay-id-value", id)
 
   const titlePrefix = style === "popover" ? "turbo-popover-title-" : "turbo-modal-title-"
