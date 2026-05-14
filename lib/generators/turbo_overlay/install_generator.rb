@@ -108,11 +108,15 @@ module TurboOverlay
       end
 
       def inject_stack_tag
-        return if options[:skip_layout_inject]
+        if options[:skip_layout_inject]
+          @layout_instructions_only = true
+          return
+        end
 
         layout_path = locate_application_layout
         unless layout_path
-          say_status :skip, "no application.html.erb found; add `<%= overlay_stack_tag %>` before </body> manually", :yellow
+          @layout_instructions_only = true
+          say_status :skip, "no application.html.erb found; see post-install instructions for `overlay_stack_tag`", :yellow
           return
         end
 
@@ -128,7 +132,10 @@ module TurboOverlay
       end
 
       def wire_javascript
-        return if options[:skip_javascript]
+        if options[:skip_javascript]
+          @js_instructions_only = true
+          return
+        end
 
         @js_setup = detect_js_setup
         case @js_setup
@@ -142,7 +149,10 @@ module TurboOverlay
       end
 
       def wire_stylesheet
-        return if options[:skip_stylesheet]
+        if options[:skip_stylesheet]
+          @css_instructions_only = true
+          return
+        end
 
         @css_setup = detect_css_setup
         case @css_setup
@@ -158,37 +168,28 @@ module TurboOverlay
       end
 
       def show_post_install_message
-        say <<~MSG, :green
+        say "\nTurbo Overlay installed with the #{@theme} theme.\n"
+        say "\nSetup checklist:\n"
 
-          Turbo Overlay installed with the #{@theme} theme.
+        print_controller_step
+        print_layout_step
+        print_js_step
+        print_css_step
 
-          Wire the controller concern in ApplicationController:
+        say "\nUsage:\n"
+        say <<~MSG
+            Open views as overlays:
 
-            class ApplicationController < ActionController::Base
-              include TurboOverlay::Controller
-            end
+              <%= modal_link_to   "New",     new_thing_path %>
+              <%= drawer_link_to  "Filters", filters_path %>
+              <%= popover_link_to "Edit",    edit_thing_path(@thing) %>
 
-          Including the concern auto-installs the overlay layout swap
-          and preserves Turbo's `turbo_rails/frame` layout for plain
-          frame requests. For custom layouts, see "A note on custom
-          layouts" in the README.
+            Add hover-hint previews with `hint: true` (and `hint_url:` for
+            content from a separate URL):
 
-          Then open views as overlays:
-
-            <%= modal_link_to   "New",     new_thing_path %>
-            <%= drawer_link_to  "Filters", filters_path %>
-            <%= popover_link_to "Edit",    edit_thing_path(@thing) %>
-
-          Add hover-hint previews to any link with `hint: true`, and
-          (optionally) `hint_url:` for content from a separate URL:
-
-            <%= hint_link_to "User",       user_path(@user) %>
-            <%= modal_link_to "Edit", path, hint: true, hint_url: hint_path %>
-
+              <%= hint_link_to "User",       user_path(@user) %>
+              <%= modal_link_to "Edit", path, hint: true, hint_url: hint_path %>
         MSG
-
-        print_js_instructions_if_needed
-        print_css_instructions_if_needed
       end
 
       private
@@ -340,53 +341,102 @@ module TurboOverlay
         end
       end
 
-      def print_js_instructions_if_needed
-        return unless @js_instructions_only
+      def print_controller_step
+        # The generator never edits ApplicationController, so this is
+        # always a manual step.
+        say "\n  #{marker(:todo)} 1. Controller concern"
+        say step_body(<<~BODY)
+          Add to ApplicationController:
 
-        say <<~MSG, :yellow
+            class ApplicationController < ActionController::Base
+              include TurboOverlay::Controller
+            end
 
-          Couldn't auto-wire the JS. Add these lines to your Stimulus entry
-          (typically app/javascript/controllers/index.js or your bundler's
-          equivalent):
-
-            import { register as registerTurboOverlay } from "turbo_overlay"
-            registerTurboOverlay(application, { confirm: true })
-
-          jsbundling-rails apps: add the gem's `app/javascript` directory
-          to your bundler's resolve paths, OR run
-          `bin/rails g turbo_overlay:eject --js` to copy the controllers
-          into your app.
-
-        MSG
+          This auto-installs the overlay layout swap and preserves Turbo's
+          `turbo_rails/frame` layout for plain frame requests. For custom
+          layouts, see "A note on custom layouts" in the README.
+        BODY
       end
 
-      def print_css_instructions_if_needed
-        return unless @css_instructions_only
+      def print_layout_step
+        if @layout_instructions_only
+          say "\n  #{marker(:todo)} 2. Layout stack tag"
+          say step_body(<<~BODY)
+            Add to your application layout, just before </body>:
 
-        say <<~MSG, :yellow
+              <%= overlay_stack_tag %>
 
-          Couldn't auto-wire the stylesheet. Pick the option that matches
-          your setup:
+            This renders the slots overlays mount into. Without it, modal /
+            drawer / popover / hint links will navigate full-page instead
+            of opening as overlays.
+          BODY
+        else
+          say "\n  #{marker(:done)} 2. Layout stack tag"
+          say step_body("`<%= overlay_stack_tag %>` is present in your application layout.")
+        end
+      end
 
-            # propshaft — add to app/views/layouts/application.html.erb:
-            <%= stylesheet_link_tag "turbo_overlay", "data-turbo-track": "reload" %>
+      def print_js_step
+        if @js_instructions_only
+          say "\n  #{marker(:todo)} 3. JavaScript wiring"
+          say step_body(<<~BODY)
+            Add to your Stimulus entry (typically
+            app/javascript/controllers/index.js or your bundler's equivalent):
 
-            # sprockets manifest — add to app/assets/stylesheets/application.css:
-            *= require turbo_overlay
+              import { register as registerTurboOverlay } from "turbo_overlay"
+              registerTurboOverlay(application, { confirm: true })
 
-            # cssbundling / dartsass / tailwind v4 — add to your source CSS:
-            @import "turbo_overlay";
+            jsbundling-rails apps: add the gem's `app/javascript` directory
+            to your bundler's resolve paths, OR run
+            `bin/rails g turbo_overlay:eject --js` to copy the controllers
+            into your app.
+          BODY
+        else
+          say "\n  #{marker(:done)} 3. JavaScript wiring"
+          say step_body("Registered with your Stimulus entry.")
+        end
+      end
 
-          Propshaft does not rewrite CSS `@import` URLs to digested
-          asset paths; use a separate `stylesheet_link_tag` instead so
-          the gem's CSS is served with a fingerprinted URL.
+      def print_css_step
+        if @css_instructions_only
+          say "\n  #{marker(:todo)} 4. Stylesheet wiring"
+          say step_body(<<~BODY)
+            Add to your stylesheet. Pick the option that matches your setup:
 
-          cssbundling apps may also need to add the gem's
-          `app/assets/stylesheets` directory to the bundler's load paths,
-          OR run `bin/rails g turbo_overlay:eject --css` to copy the
-          stylesheet into your app.
+              # propshaft — add to app/views/layouts/application.html.erb:
+              <%= stylesheet_link_tag "turbo_overlay", "data-turbo-track": "reload" %>
 
-        MSG
+              # sprockets manifest — add to app/assets/stylesheets/application.css:
+              *= require turbo_overlay
+
+              # cssbundling / dartsass / tailwind v4 — add to your source CSS:
+              @import "turbo_overlay";
+
+            Notes:
+              - Propshaft does not rewrite CSS `@import` URLs to digested
+                asset paths; use a separate `stylesheet_link_tag` instead so
+                the gem's CSS is served with a fingerprinted URL.
+              - cssbundling apps may also need to add the gem's
+                `app/assets/stylesheets` directory to the bundler's load
+                paths, OR run `bin/rails g turbo_overlay:eject --css` to
+                copy the stylesheet into your app.
+          BODY
+        else
+          say "\n  #{marker(:done)} 4. Stylesheet wiring"
+          say step_body("Imported into your application stylesheet.")
+        end
+      end
+
+      def marker(state)
+        case state
+        when :done then set_color("[done]", :green)
+        when :todo then set_color("[todo]", :yellow)
+        end
+      end
+
+      # Indent each non-empty line so step bodies sit under the marker.
+      def step_body(text)
+        text.lines.map { |l| l.chomp.empty? ? "" : "         #{l.chomp}" }.join("\n")
       end
     end
   end

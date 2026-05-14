@@ -44,6 +44,29 @@ into your application layout, and registers the Stimulus / asset
 wiring appropriate to your build setup (importmap, propshaft,
 sprockets, jsbundling, cssbundling).
 
+### Required: `overlay_stack_tag` in your layout
+
+The gem **will not render overlays** without `overlay_stack_tag`
+present in your application layout. The generator injects it
+automatically when it finds `app/views/layouts/application.html.erb`,
+but verify it's there — and add it manually if you use a non-standard
+layout, run the generator with `--skip-layout-inject`, or the
+generator prints a yellow warning about it:
+
+```erb
+<%# app/views/layouts/application.html.erb %>
+<body>
+  <%= yield %>
+  <%= overlay_stack_tag %>
+</body>
+```
+
+This renders the slots overlays mount into. Without it, modal /
+drawer / popover / hint links navigate full-page instead of opening
+as overlays.
+
+### Required: `TurboOverlay::Controller` concern
+
 The final wiring step is your `ApplicationController`. Include the
 concern:
 
