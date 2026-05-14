@@ -1,5 +1,11 @@
 <h1>Widgets</h1>
 
+<%# Drives the smooth same-page redirect system tests. The counter
+    increments on every `widgets#bump` POST; that action redirects
+    back to this index. The morph-behind path should refresh this
+    element in place behind the still-open overlay. %>
+<div data-test-bump-counter><%= @bump_counter || 0 %></div>
+
 <ul>
   <% @widgets.each do |id, w| %>
     <li>
@@ -42,3 +48,10 @@
               widget_path("1"),
               method: :delete,
               data: { turbo_confirm: "Are you sure you want to delete Sprocket?" } %>
+
+<%# Drives the smooth same-page redirect (morph-behind) system tests.
+    Distinct text from "Modal" so the existing `click_on "Modal"` tests
+    aren't shadowed by these triggers. %>
+<%= modal_link_to "Bump counter",         bump_form_widgets_path, id: "modal-bump" %>
+<%= modal_link_to "Bump counter advance", bump_form_widgets_path,
+                  advance: true, id: "modal-bump-advance" %>

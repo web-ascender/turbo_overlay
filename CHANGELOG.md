@@ -5,6 +5,42 @@
 Big iteration cycle ahead of the first public release. Highlights:
 
 ### Changed
+- **Smooth close on form-submit redirects.** Two improvements to the
+  close-on-redirect path, both default-on; the existing
+  `keep_overlay_open_on_redirect` / per-form opt-out covers both.
+  Also fixes a pre-existing flash where Turbo would render the
+  redirect target's HTML into the still-open overlay before the
+  submit-end handler closed it — same-origin fetch follows preserve
+  the `Turbo-Frame` / `X-Turbo-Overlay` headers, so the redirect
+  target was being wrapped in overlay layout by the controller
+  concern and morphed into the dialog. The per-dialog listener now
+  stops the `turbo:before-fetch-response` event before Turbo's
+  StreamObserver and FormSubmission can process it.
+  - **Same-page redirects morph the host page behind the overlay
+    before closing.** When the redirect target's pathname matches the
+    URL the overlay was opened from, the gem fetches the target,
+    morphs `document.body` (excluding the `overlay_stack_tag`
+    container so the open dialog is preserved), updates the URL via
+    `history.replaceState`, then animates the close. No more
+    flash-of-stale-content while the overlay closes. Modal/drawer
+    only; falls back to the existing close-then-visit path when
+    another overlay is open in the stack, when the fetch fails, or
+    when `Turbo.morphChildren` is unavailable. Uses
+    `window.Turbo.morphChildren` (public API in Turbo 8) so morph
+    runs through Turbo's own Idiomorph copy and `data-turbo-permanent`
+    + `turbo:before-morph-*` events compose normally — no new
+    dependency. The opener URL is captured on the dialog as
+    `data-turbo-overlay-opener-url` on Stimulus connect; the morph-
+    attribute preservation hook keeps it intact through in-overlay
+    form re-renders.
+  - **Different-page redirects await the close animation before
+    navigating.** Previously `Turbo.visit` fired immediately after
+    starting the close, so the new page could paint behind a
+    still-closing overlay. The submit-end handler now `await`s the
+    overlay close (which returns a `Promise`) before invoking
+    `Turbo.visit`. The close `Promise` resolves on `animationend`,
+    the 400ms fallback timer, the reduced-motion shortcut, or the
+    no-dialog shortcut — same lifecycle as before, just observable.
 - **Form submissions inside an overlay close it on redirect by default.**
   When a descendant form submits and the response is a followed
   redirect (`fetchResponse.redirected === true`), the overlay closes

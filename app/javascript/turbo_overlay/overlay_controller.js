@@ -1,10 +1,11 @@
 import { Controller } from "@hotwired/stimulus"
 import { computePopoverPosition } from "turbo_overlay/popover_position"
-import { shouldCloseOnRedirect } from "turbo_overlay/submit_close"
+import { shouldCloseOnRedirect, isSamePageRedirect } from "turbo_overlay/submit_close"
 import {
   getAdvanceUrl, clearAdvanceUrl,
   markPushed, isPushed, clearPushed, livePushedCount,
-  pushOverlayState, reverseHistoryForClose
+  pushOverlayState, reverseHistoryForClose,
+  getStackController
 } from "turbo_overlay/history"
 
 // Per-overlay controller for turbo_overlay. Drives a native
@@ -40,6 +41,8 @@ export default class extends Controller {
     this.dialog = this.element.tagName === "DIALOG"
       ? this.element
       : this.element.querySelector("dialog")
+
+    this._captureOpenerUrl()
 
     if (this.stack && this.stack.has(this.idValue)) {
       // Frame re-render — form submission inside an open overlay
@@ -109,6 +112,10 @@ export default class extends Controller {
       this.dialog.removeEventListener("turbo:submit-end", this._submitEndHandler)
       this._submitEndHandler = null
     }
+    if (this._beforeFetchResponseHandler && this.dialog) {
+      this.dialog.removeEventListener("turbo:before-fetch-response", this._beforeFetchResponseHandler)
+      this._beforeFetchResponseHandler = null
+    }
     if (this._escHandler) {
       document.removeEventListener("keydown", this._escHandler)
       this._escHandler = null
@@ -143,29 +150,187 @@ export default class extends Controller {
     document.addEventListener("keydown", this._escHandler)
   }
 
+  // Record the URL the overlay was opened from so the submit-end
+  // handler can decide whether a redirect target is "same page"
+  // (morph the page behind, then animate close) or different
+  // (await close, then Turbo.visit). Captured once per dialog node —
+  // `advance` pushes happen after `connect`, and frame re-renders
+  // morph the dialog in place with the data attribute preserved by
+  // the morph-attribute hook in setup.js, so the capture-once guard
+  // keeps the opener URL stable through validation re-renders.
+  // Modal/drawer only — popovers/hints don't host redirect-y forms.
+  _captureOpenerUrl() {
+    if (this.typeValue !== "modal" && this.typeValue !== "drawer") return
+    if (!this.dialog) return
+    if (this.dialog.dataset.turboOverlayOpenerUrl) return
+    if (typeof window === "undefined" || !window.location) return
+    this.dialog.dataset.turboOverlayOpenerUrl = window.location.href
+  }
+
   // Close-on-redirect: when a descendant form submits and Turbo
   // followed a redirect to the final response, dismiss this overlay
-  // and visit the redirect target as a normal page navigation. The
-  // listener is scoped to this dialog (not document) so stacking
-  // works — only the dialog containing the form closes — and so the
-  // listener auto-cleans on disconnect. The pure decision lives in
-  // submit_close.js for testability and so the rules are documented
-  // in one place.
+  // and navigate. The listener is scoped to this dialog (not
+  // document) so stacking works — only the dialog containing the
+  // form closes — and so the listener auto-cleans on disconnect.
+  //
+  // Two paths after `shouldCloseOnRedirect` returns true:
+  //
+  //   - Same-page redirect (pathname matches the URL the overlay was
+  //     opened from) on a lone overlay → `_morphAndClose`: fetch the
+  //     redirect target, morph the host page behind the overlay,
+  //     then animate the close. No `Turbo.visit` — page is correct.
+  //
+  //   - Different page, or sibling overlay in the stack → await the
+  //     close animation, then `Turbo.visit`. Awaiting avoids the
+  //     flash where the new page paints behind a still-closing
+  //     overlay.
+  //
+  // Pure decisions live in submit_close.js for testability.
   _installSubmitEndHandler() {
     if (!this.dialog) return
-    this._submitEndHandler = (event) => {
+
+    // Stop Turbo from rendering a close-bound redirect response into
+    // the open overlay. Fetch follows the redirect transparently and
+    // carries the original `Turbo-Frame` / `X-Turbo-Overlay` headers
+    // on the same-origin follow, so the controller concern wraps the
+    // redirect target in overlay layout — Turbo would then morph that
+    // payload into the open dialog, briefly showing the wrong content
+    // before our submit-end handler closes (or morph-closes) it.
+    //
+    // `preventDefault` alone isn't enough: Turbo's StreamObserver
+    // listens on the same event at the window level and does its own
+    // `receiveMessageResponse` (which processes the
+    // `<turbo-stream method="morph">` action and morphs the frame)
+    // independent of `defaultPrevented`. The fix is to stop the
+    // event before it reaches the window. The dialog listener fires
+    // in the bubble phase before window's, so
+    // `stopImmediatePropagation` keeps StreamObserver from receiving
+    // it. `preventDefault` is still needed so FormSubmission's own
+    // success path takes the `requestPreventedHandlingResponse`
+    // branch (no frame replace).
+    //
+    // Same predicate as the submit-end handler — when we'd close the
+    // overlay, we own the response. The keep-open opt-outs naturally
+    // pass through: `shouldCloseOnRedirect` returns false →
+    // pass-through → Turbo renders the response normally
+    // (wizard-style flows). Non-redirect responses (validation
+    // 422s, raw 200s) likewise pass through, so morph re-renders are
+    // unaffected.
+    this._beforeFetchResponseHandler = (event) => {
       if (!shouldCloseOnRedirect({
         form: event.target,
         dialog: this.dialog,
         fetchResponse: event.detail && event.detail.fetchResponse
       })) return
-      const url = event.detail.fetchResponse.response && event.detail.fetchResponse.response.url
-      this.close(event)
+      event.preventDefault()
+      event.stopImmediatePropagation()
+    }
+    this.dialog.addEventListener("turbo:before-fetch-response", this._beforeFetchResponseHandler)
+
+    this._submitEndHandler = async (event) => {
+      const fetchResponse = event.detail && event.detail.fetchResponse
+      if (!shouldCloseOnRedirect({
+        form: event.target,
+        dialog: this.dialog,
+        fetchResponse
+      })) return
+      const url = fetchResponse.response && fetchResponse.response.url
+      const canMorph = !this._stackHasSiblings() &&
+        isSamePageRedirect({ dialog: this.dialog, fetchResponse })
+      if (canMorph && url) {
+        const morphed = await this._morphAndClose(url, event)
+        if (morphed) return
+        // fall through on morph failure
+      }
+      await this.close(event)
       if (url && typeof window !== "undefined" && window.Turbo && typeof window.Turbo.visit === "function") {
         window.Turbo.visit(url)
       }
     }
     this.dialog.addEventListener("turbo:submit-end", this._submitEndHandler)
+  }
+
+  // True when another overlay is open in the same stack. Used to
+  // skip the morph-behind path: morphing the body while a sibling
+  // overlay is rendered (and the URL bar belongs to a sibling's
+  // advanced entry) would clobber state we can't safely reconstruct.
+  _stackHasSiblings() {
+    const stack = getStackController()
+    return !!(stack && stack.entries && stack.entries.length > 1)
+  }
+
+  // Fetch the redirect target, morph the host page behind the
+  // overlay (preserving the open dialog), update the URL bar to the
+  // redirect URL, then animate the close.
+  //
+  // Returns true on success, false on any failure (caller falls back
+  // to the await-close-then-visit path). Never throws.
+  async _morphAndClose(url, event) {
+    if (typeof window === "undefined" || !window.Turbo) return false
+    if (typeof window.Turbo.morphChildren !== "function") return false
+
+    let html
+    try {
+      html = await this._fetchOpenerHTML(url)
+    } catch (_) {
+      return false
+    }
+    if (!html) return false
+
+    let doc
+    try {
+      doc = new DOMParser().parseFromString(html, "text/html")
+    } catch (_) {
+      return false
+    }
+    if (!doc || !doc.body) return false
+
+    // Morph first; only update history and close if the morph
+    // succeeds. If morph throws, the URL bar is unchanged so the
+    // caller's fallback `Turbo.visit(url)` can navigate cleanly.
+    try {
+      window.Turbo.morphChildren(document.body, doc.body, {
+        ignoreActiveValue: true,
+        callbacks: {
+          beforeNodeMorphed: (oldNode) => {
+            if (!oldNode || !oldNode.closest) return true
+            // Exclude the open overlay + sibling overlays from morph.
+            return !oldNode.closest("[data-controller~='turbo-overlay-stack']")
+          }
+        }
+      })
+    } catch (_) {
+      return false
+    }
+
+    try {
+      window.history.replaceState(null, "", url)
+    } catch (_) {
+      // cross-origin URL or other replaceState rejection — leave the
+      // URL bar pointing at the prior entry. The body is correctly
+      // morphed; the URL mismatch is acceptable degradation.
+    }
+
+    // Suppress `_syncHistoryOnClose` from running `history.back()` —
+    // we already replaced the current history entry to land on the
+    // redirect URL directly, regardless of whether the overlay was
+    // advanced.
+    this._closedByBack = true
+    await this.close(event)
+    return true
+  }
+
+  async _fetchOpenerHTML(url) {
+    const init = {
+      headers: { "Accept": "text/html" },
+      credentials: "same-origin"
+    }
+    if (typeof AbortSignal !== "undefined" && typeof AbortSignal.timeout === "function") {
+      init.signal = AbortSignal.timeout(3000)
+    }
+    const response = await fetch(url, init)
+    if (!response.ok) throw new Error(`fetch ${response.status}`)
+    return await response.text()
   }
 
   _connectPopover() {
@@ -372,17 +537,22 @@ export default class extends Controller {
   }
 
   // data-action="click->turbo-overlay#close"
+  // Returns a Promise that resolves when the close animation has
+  // finished and `_finalizeClose` has run. Callers that need to act
+  // after the overlay is fully closed (e.g., the submit-end handler
+  // gating `Turbo.visit` on animation completion) can `await` it.
   close(event) {
     if (event) event.preventDefault()
     const snapshot = this.stack && this.stack.entries ? this.stack.entries.slice() : []
     if (this.stack) this.stack.unregister(this.idValue)
     this._syncHistoryOnClose(snapshot)
-    this._animatedClose()
+    return this._animatedClose()
   }
 
   // data-action="cancel->turbo-overlay#cancel" — native dialog ESC.
   // Prevent the immediate close so we can animate; stop propagation
   // so ESC doesn't bubble to the dialog beneath in the stack.
+  // Returns the same Promise as `close`.
   cancel(event) {
     if (event) {
       event.preventDefault()
@@ -391,7 +561,7 @@ export default class extends Controller {
     const snapshot = this.stack && this.stack.entries ? this.stack.entries.slice() : []
     if (this.stack) this.stack.unregister(this.idValue)
     this._syncHistoryOnClose(snapshot)
-    this._animatedClose()
+    return this._animatedClose()
   }
 
   // data-action="click->turbo-overlay#backdropClick" — clicks on the
@@ -419,12 +589,16 @@ export default class extends Controller {
     }
   }
 
+  // Returns a Promise that resolves after `_finalizeClose` runs. The
+  // promise never rejects — even the no-dialog and reduced-motion
+  // shortcuts resolve through `_finalizeClose` synchronously, so
+  // awaiting callers can rely on "after this, the overlay is gone."
   _animatedClose() {
     this._dispatch("before-close")
 
     if (!this.dialog) {
       this._removeFrame()
-      return
+      return Promise.resolve()
     }
 
     const reduced = typeof window !== "undefined" &&
@@ -433,27 +607,30 @@ export default class extends Controller {
 
     if (reduced || !this.dialog.open) {
       this._finalizeClose()
-      return
+      return Promise.resolve()
     }
 
     const target = this.element
     target.classList.add(CLOSING_CLASS)
 
-    let done = false
-    const finish = () => {
-      if (done) return
-      done = true
-      target.removeEventListener("animationend", onEnd)
-      this._finalizeClose()
-    }
-    const onEnd = (event) => {
-      // Animations on inner elements may also fire; only finalize
-      // when the dialog (or its ::backdrop) finishes.
-      if (event.target !== target) return
-      finish()
-    }
-    target.addEventListener("animationend", onEnd)
-    setTimeout(finish, CLOSE_ANIMATION_TIMEOUT_MS)
+    return new Promise((resolve) => {
+      let done = false
+      const finish = () => {
+        if (done) return
+        done = true
+        target.removeEventListener("animationend", onEnd)
+        this._finalizeClose()
+        resolve()
+      }
+      const onEnd = (event) => {
+        // Animations on inner elements may also fire; only finalize
+        // when the dialog (or its ::backdrop) finishes.
+        if (event.target !== target) return
+        finish()
+      }
+      target.addEventListener("animationend", onEnd)
+      setTimeout(finish, CLOSE_ANIMATION_TIMEOUT_MS)
+    })
   }
 
   _finalizeClose() {

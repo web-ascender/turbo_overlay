@@ -1,0 +1,5 @@
+<% overlay_title "Bump counter" %>
+
+<%= form_with url: bump_widgets_path, method: :post, data: { test_form: "bump" } do %>
+  <button type="submit">Bump</button>
+<% end %>

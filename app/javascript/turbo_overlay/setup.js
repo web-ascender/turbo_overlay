@@ -839,7 +839,7 @@ function promptConfirm(message, formElement, submitter) {
 // Morph re-renders (form validation failure inside an open overlay)
 // preserve dialog node identity so the overlay never closes/reopens.
 // Idiomorph by default removes attributes not present in the incoming
-// HTML — that's correct for normal markup but lethal for two
+// HTML — that's correct for normal markup but lethal for three
 // attributes the gem's JS owns on overlay dialogs:
 //
 //   - `open`  — drives top-layer membership. The chrome partial never
@@ -851,9 +851,15 @@ function promptConfirm(message, formElement, submitter) {
 //               style attribute, so a naive morph would erase the
 //               anchor coordinates and the popover would jump back
 //               to its UA-default position.
+//   - `data-turbo-overlay-opener-url` — set by the overlay controller
+//               on first connect to record where the overlay was
+//               opened from. Drives the smooth same-page redirect
+//               path. The chrome partial doesn't emit it, so a naive
+//               morph would erase it and the next form submit would
+//               fall back to the non-morph close path.
 //
-// Block both attribute mutations on overlay dialogs. Everything else
-// (data-* values, class, children) morphs normally so the form
+// Block these attribute mutations on overlay dialogs. Everything else
+// (other data-* values, class, children) morphs normally so the form
 // re-render shows error messages, repopulated fields, etc.
 function registerMorphPreservationHook() {
   if (typeof document === "undefined") return
@@ -866,7 +872,9 @@ function registerMorphPreservationHook() {
     if (target.tagName !== "DIALOG") return
     if (!target.classList.contains("turbo-overlay")) return
     const attributeName = event.detail && event.detail.attributeName
-    if (attributeName === "open" || attributeName === "style") {
+    if (attributeName === "open" ||
+        attributeName === "style" ||
+        attributeName === "data-turbo-overlay-opener-url") {
       event.preventDefault()
     }
   })

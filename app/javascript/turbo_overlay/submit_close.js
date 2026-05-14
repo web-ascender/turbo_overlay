@@ -26,3 +26,24 @@ export function shouldCloseOnRedirect({ form, dialog, fetchResponse }) {
   if (dialog.dataset && dialog.dataset.turboOverlayKeepOpenOnRedirect === "true") return false
   return true
 }
+
+// Same-page-redirect predicate for the smooth-close path: returns true
+// when the redirect target's pathname matches the URL the overlay was
+// opened from. Used by overlay_controller to decide between the
+// morph-behind path (true) and the existing close-then-visit path
+// (false). Pathname-only — query string and hash differ freely.
+// Cross-origin and missing inputs return false.
+export function isSamePageRedirect({ dialog, fetchResponse }) {
+  const openerUrl = dialog && dialog.dataset && dialog.dataset.turboOverlayOpenerUrl
+  if (!openerUrl) return false
+  const respUrl = fetchResponse && fetchResponse.response && fetchResponse.response.url
+  if (!respUrl) return false
+  try {
+    const base = (typeof document !== "undefined" && document.baseURI) || undefined
+    const a = new URL(openerUrl, base)
+    const b = new URL(respUrl, base)
+    return a.origin === b.origin && a.pathname === b.pathname
+  } catch (_) {
+    return false
+  }
+}

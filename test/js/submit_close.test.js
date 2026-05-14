@@ -7,7 +7,7 @@
 
 import test from "node:test"
 import assert from "node:assert/strict"
-import { shouldCloseOnRedirect } from "../../app/javascript/turbo_overlay/submit_close.js"
+import { shouldCloseOnRedirect, isSamePageRedirect } from "../../app/javascript/turbo_overlay/submit_close.js"
 
 function makeForm({ keepOpen = false } = {}) {
   return {
@@ -103,6 +103,98 @@ test("does not close when dialog is missing", () => {
   const form = makeForm()
   assert.equal(
     shouldCloseOnRedirect({ form, dialog: null, fetchResponse: fetchResponse() }),
+    false
+  )
+})
+
+// ---- isSamePageRedirect ----
+
+function dialogWith(openerUrl) {
+  return openerUrl
+    ? { dataset: { turboOverlayOpenerUrl: openerUrl } }
+    : { dataset: {} }
+}
+
+function fetchResponseWithUrl(url) {
+  return { redirected: true, response: { url } }
+}
+
+test("same-page: identical pathname matches", () => {
+  assert.equal(
+    isSamePageRedirect({
+      dialog: dialogWith("https://example.test/things"),
+      fetchResponse: fetchResponseWithUrl("https://example.test/things")
+    }),
+    true
+  )
+})
+
+test("same-page: same pathname with different query string matches", () => {
+  assert.equal(
+    isSamePageRedirect({
+      dialog: dialogWith("https://example.test/things"),
+      fetchResponse: fetchResponseWithUrl("https://example.test/things?filter=new")
+    }),
+    true
+  )
+})
+
+test("same-page: differing pathname does not match", () => {
+  assert.equal(
+    isSamePageRedirect({
+      dialog: dialogWith("https://example.test/things"),
+      fetchResponse: fetchResponseWithUrl("https://example.test/widgets")
+    }),
+    false
+  )
+})
+
+test("same-page: cross-origin does not match", () => {
+  assert.equal(
+    isSamePageRedirect({
+      dialog: dialogWith("https://example.test/things"),
+      fetchResponse: fetchResponseWithUrl("https://other.test/things")
+    }),
+    false
+  )
+})
+
+test("same-page: opener URL missing returns false", () => {
+  assert.equal(
+    isSamePageRedirect({
+      dialog: dialogWith(null),
+      fetchResponse: fetchResponseWithUrl("https://example.test/things")
+    }),
+    false
+  )
+})
+
+test("same-page: response URL missing returns false", () => {
+  assert.equal(
+    isSamePageRedirect({
+      dialog: dialogWith("https://example.test/things"),
+      fetchResponse: { redirected: true, response: {} }
+    }),
+    false
+  )
+})
+
+test("same-page: trailing-slash and hash difference still matches", () => {
+  assert.equal(
+    isSamePageRedirect({
+      dialog: dialogWith("https://example.test/things"),
+      fetchResponse: fetchResponseWithUrl("https://example.test/things#anchor")
+    }),
+    true
+  )
+})
+
+test("same-page: malformed opener URL returns false", () => {
+  assert.equal(
+    isSamePageRedirect({
+      dialog: dialogWith("::::not-a-url"),
+      fetchResponse: fetchResponseWithUrl("https://example.test/things")
+    }),
     false
   )
 })

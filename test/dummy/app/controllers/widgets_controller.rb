@@ -5,8 +5,19 @@ class WidgetsController < ApplicationController
     "3" => { name: "Bearing",   description: "Spins smoothly."         }
   }.freeze
 
+  # Process-local counter that increments on every `bump` action.
+  # Drives the smooth same-page redirect system test: the form in
+  # the overlay POSTs to `bump`, which redirects to widgets index.
+  # The morph-behind path should update the counter in the host
+  # page's DOM before the overlay closes.
+  @@bump_counter = 0
+  def self.reset_bump_counter
+    @@bump_counter = 0
+  end
+
   def index
     @widgets = WIDGETS
+    @bump_counter = @@bump_counter
   end
 
   def show
@@ -55,5 +66,22 @@ class WidgetsController < ApplicationController
   # controller close().
   def close
     render turbo_stream: turbo_stream.overlay(:close, id: turbo_overlay_id)
+  end
+
+  # Renders a form whose submit drives the smooth-redirect system
+  # tests. Form posts to `bump`, which performs a plain HTTP redirect
+  # to the index — the path the morph-and-close handler exercises.
+  def bump_form
+  end
+
+  # Plain HTTP redirect after mutating server state. Drives the
+  # smooth same-page redirect path — the overlay controller's
+  # submit-end handler should see `fetchResponse.redirected = true`
+  # with the index URL, recognize it as same-pathname as the page
+  # the overlay was opened from, fetch the index, morph the host
+  # page (showing the incremented counter), then animate close.
+  def bump
+    @@bump_counter += 1
+    redirect_to widgets_path
   end
 end

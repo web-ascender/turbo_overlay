@@ -177,41 +177,26 @@ end
 ```
 
 Validation failures (`:unprocessable_entity`, 422) don't redirect, so
-the form re-renders in the overlay with errors in place.
+the form re-renders in the overlay with errors in place. If the
+redirect goes back to the page the overlay was opened from, the host
+page morphs in place behind the closing overlay so there's no
+flash-of-stale-content — no app configuration needed.
 
 **Explicit.** `turbo_stream.overlay(:close)` closes the top overlay
 from any non-redirect response. Useful when the action wants to
 update other parts of the page in the same response:
 
 ```ruby
-def create
-  @user = User.new(user_params)
-  if @user.save
-    render turbo_stream: [
-      turbo_stream.update("flash", partial: "shared/flash"),
-      turbo_stream.overlay(:close)
-    ]
-  else
-    render :new, status: :unprocessable_entity
-  end
-end
+render turbo_stream: [
+  turbo_stream.update("flash", partial: "shared/flash"),
+  turbo_stream.overlay(:close)
+]
 ```
 
-Stack-scoped variants (close all, close by id, filter by type) are
-documented in [docs/reference.md](docs/reference.md#turbo_streamoverlayclose-variants).
-
-**Keep the overlay open on redirect.** Wizard steps and inline edits
-that follow the POST-then-redirect idiom opt out at one of two levels
-— finest-grained wins:
-
-```erb
-<%# Per-overlay: every form inside this overlay survives its redirects %>
-<%= modal_link_to "Start Wizard", new_wizard_path, keep_overlay_open_on_redirect: true %>
-
-<%# Per-form: this one form opts out; siblings still close %>
-<%= form_with(model: @step,
-              data: { "turbo-overlay-keep-open-on-redirect" => true }) do |f| %>
-```
+See [docs/close-on-redirect.md](docs/close-on-redirect.md) for
+opt-outs (`keep_overlay_open_on_redirect`, per-form data attribute),
+the smooth-same-page-redirect mechanics, and stack-scoped close
+variants.
 
 ESC and clicking the backdrop dismiss the top overlay out of the
 box. Opt a specific overlay out with

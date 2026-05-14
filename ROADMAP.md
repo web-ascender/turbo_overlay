@@ -25,19 +25,6 @@ backdrop-click dismissal.
 Small, orthogonal to #1, and fixes a class of false dismissals that
 the allowlist can't catch.
 
-## 4. Smooth same-page redirect / morph-behind
-
-On a successful submit that redirects to the *same* page the overlay
-was opened from, morph the page behind the overlay before animating
-the close. Redirects to a *different* page animate close → navigate.
-
-Avoids the flash-of-stale-content that bare Turbo redirects can
-produce after closing.
-
-Building block already exists: idiomorph runs on in-overlay form
-re-renders. Extending it to "morph the host page on close" is the
-next step.
-
 ## 5. Free-form `size:` for modals, drawers, and popover min-width
 
 UTMR's drawer takes `:xs / :sm / :md / :lg / :xl / :"2xl" / :full` or
