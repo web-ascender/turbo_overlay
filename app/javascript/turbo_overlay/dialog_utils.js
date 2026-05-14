@@ -23,12 +23,23 @@ export function safelyHidePopover(dialog) {
 }
 
 // Reset a <dialog>'s positioning styles so popover-positioning math
-// can place it via top/left. Default <dialog> styles (margin: auto,
-// right/bottom set, position relative or absolute depending on open
-// state) interfere with anchored placement.
+// can place it via a single `transform: translate(...)`. Default
+// <dialog> styles (margin: auto, right/bottom set, position relative
+// or absolute depending on open state) and the `dialog:modal` UA
+// `inset: 0` interfere with anchored placement.
+//
+// We pin the dialog at viewport origin (top: 0, left: 0) and carry
+// the actual placement on `transform`. Transforms run on the
+// compositor thread, so they stay in sync with scroll-induced repaint
+// instead of trailing by a frame (which produces a "springy" feel on
+// momentum scrolling). The CSS for popovers sets
+// `animation-composition: add` so the entry/exit keyframes compose
+// with our positioning transform instead of overriding it.
 export function normalizePopoverDialogStyles(dialog) {
   if (!dialog) return
   dialog.style.position = "fixed"
+  dialog.style.top      = "0"
+  dialog.style.left     = "0"
   dialog.style.right    = "auto"
   dialog.style.bottom   = "auto"
   dialog.style.margin   = "0"

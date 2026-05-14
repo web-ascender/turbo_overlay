@@ -7,3 +7,5 @@ pin "turbo_overlay/popover_position", to: "turbo_overlay/popover_position.js", p
 pin "turbo_overlay/dialog_utils", to: "turbo_overlay/dialog_utils.js", preload: true
 pin "turbo_overlay/history", to: "turbo_overlay/history.js", preload: true
 pin "turbo_overlay/submit_close", to: "turbo_overlay/submit_close.js", preload: true
+pin "turbo_overlay/options", to: "turbo_overlay/options.js", preload: true
+pin "turbo_overlay/visit", to: "turbo_overlay/visit.js", preload: true

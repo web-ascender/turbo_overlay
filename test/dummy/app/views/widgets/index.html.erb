@@ -55,3 +55,27 @@
 <%= modal_link_to "Bump counter",         bump_form_widgets_path, id: "modal-bump" %>
 <%= modal_link_to "Bump counter advance", bump_form_widgets_path,
                   advance: true, id: "modal-bump-advance" %>
+
+<%# Drives the TurboOverlay.visit (programmatic open) system tests.
+    Non-anchor triggers — buttons whose click handlers call the JS
+    API. Exercises the `window.TurboOverlay` global path. %>
+<button id="js-visit-modal"
+        onclick="TurboOverlay.visit('<%= widget_path("1") %>')">
+  Open Sprocket via JS
+</button>
+<button id="js-visit-popover"
+        onclick="TurboOverlay.visit('<%= widget_path("1") %>', { type: 'popover', anchor: this })">
+  Open Sprocket popover via JS
+</button>
+
+<%# Drives popover scroll-reposition tests. The spacer pushes the
+    bottom trigger past the initial viewport so we can open a popover,
+    scroll the window, and assert the popover tracked the anchor. %>
+<div style="height: 2000px"></div>
+<%= popover_link_to "Popover near page bottom", widget_path("1"),
+                    id: "popover-bottom" %>
+<%= popover_link_to "Popover-right near page bottom", widget_path("1"),
+                    position: :right, id: "popover-right-bottom" %>
+<%= popover_link_to "Popover-left near page bottom", widget_path("1"),
+                    position: :left, id: "popover-left-bottom" %>
+<div style="height: 2000px"></div>

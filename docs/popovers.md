@@ -7,6 +7,11 @@ to the clicked link.
 <%= popover_link_to "Edit", edit_user_path(@user) %>
 ```
 
+For non-anchor triggers (map pins, custom elements) call
+`TurboOverlay.visit(url, { type: "popover", anchor: element })` from
+JavaScript — the supplied element drives positioning. See the
+[JavaScript API](reference.md#javascript-api).
+
 ## Per-link options
 
 ```erb
@@ -25,7 +30,9 @@ bottom edge). Disable globally with `config.popover.auto_flip = false`.
 ESC, clicking outside the popover, or any explicit
 `turbo_stream.overlay(:close, type: :popover)`. Because popovers are
 non-modal, the page beneath stays scrollable and interactive — the
-popover repositions itself as the anchor scrolls.
+popover repositions itself as the anchor scrolls, and auto-closes
+once the anchor leaves the viewport so the popover never floats
+unattached.
 
 ## Single-popover behavior
 

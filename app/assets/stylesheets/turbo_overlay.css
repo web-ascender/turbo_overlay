@@ -152,6 +152,12 @@ dialog.turbo-overlay--drawer-top.turbo-overlay-closing         { animation: turb
 dialog.turbo-overlay--drawer-bottom.turbo-overlay-closing      { animation: turbo-overlay-slide-out-bottom 0.3s ease-out forwards; }
 dialog.turbo-overlay--drawer.turbo-overlay-closing::backdrop   { animation: turbo-overlay-backdrop-out 0.3s ease-out forwards; }
 
+/* Popovers position themselves by writing `transform: translate(...)`
+   so the placement stays in sync with compositor-thread scroll. The
+   open/close keyframes also use `transform`, so we set
+   `animation-composition: add` on the dialog — keyframe transforms
+   then compose with (rather than replace) the positioning transform. */
+dialog.turbo-overlay--popover                        { animation-composition: add; }
 dialog.turbo-overlay--popover:popover-open           { animation: turbo-overlay-popover-in  0.12s ease-out; }
 dialog.turbo-overlay--popover.turbo-overlay-closing  { animation: turbo-overlay-popover-out 0.12s ease-out forwards; }
 

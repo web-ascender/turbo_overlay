@@ -810,4 +810,227 @@ class OverlayTest < ApplicationSystemTestCase
     assert(timeline.any? { _1.start_with?("closed:") },
       "turbo-overlay:closed should have fired")
   end
+
+  test "TurboOverlay.visit opens a modal from a non-anchor trigger" do
+    visit "/"
+
+    assert_no_selector "dialog.turbo-overlay--modal[open]"
+    find("#js-visit-modal").click
+
+    assert_selector "dialog.turbo-overlay--modal[open]"
+    assert_selector "dialog.turbo-overlay--modal [data-test-widget-show='Sprocket']"
+
+    find("dialog.turbo-overlay--modal[open]").send_keys :escape
+    assert_no_selector "dialog.turbo-overlay--modal[open]"
+  end
+
+  test "TurboOverlay.visit opens a popover anchored to the supplied element" do
+    visit "/"
+
+    find("#js-visit-popover").click
+
+    assert_selector "dialog.turbo-overlay--popover:popover-open"
+    assert_selector "dialog.turbo-overlay--popover [data-test-widget-show='Sprocket']"
+  end
+
+  test "popover repositions when the page scrolls" do
+    visit "/"
+    page.execute_script("window.scrollTo(0, 0)")
+
+    # Open the popover anchored to a trigger we can later scroll out
+    # of the initial viewport, then assert the popover's viewport
+    # position moves in sync with the anchor's viewport position.
+    find("#popover-link-1").click
+    assert_selector "dialog.turbo-overlay--popover:popover-open"
+
+    before = page.evaluate_script(<<~JS)
+      (() => {
+        const anchor = document.getElementById("popover-link-1").getBoundingClientRect()
+        const dialog = document.querySelector("dialog.turbo-overlay--popover").getBoundingClientRect()
+        return { anchorTop: anchor.top, anchorBottom: anchor.bottom, dialogTop: dialog.top }
+      })()
+    JS
+
+    page.execute_script("window.scrollBy(0, 300)")
+    # Allow the rAF-throttled reflow to run.
+    sleep 0.1
+
+    after = page.evaluate_script(<<~JS)
+      (() => {
+        const anchor = document.getElementById("popover-link-1").getBoundingClientRect()
+        const dialog = document.querySelector("dialog.turbo-overlay--popover").getBoundingClientRect()
+        return { anchorTop: anchor.top, anchorBottom: anchor.bottom, dialogTop: dialog.top }
+      })()
+    JS
+
+    # The anchor moved up by roughly 300px (window scrolled down).
+    anchor_delta = after["anchorTop"] - before["anchorTop"]
+    dialog_delta = after["dialogTop"] - before["dialogTop"]
+    assert anchor_delta < -250,
+      "test setup: anchor should have moved up at least 250px after scroll (moved #{anchor_delta})"
+    # The dialog should have moved by the same amount — within a few
+    # pixels for rounding/auto-flip. If it stays put (delta near 0),
+    # the reposition logic isn't running and the popover behaves like
+    # sticky-nav.
+    assert (dialog_delta - anchor_delta).abs < 10,
+      "popover should track its anchor on scroll (anchor moved #{anchor_delta}, dialog moved #{dialog_delta})"
+  end
+
+  test "right-positioned popover tracks its anchor on window scroll" do
+    visit "/"
+    page.execute_script("document.getElementById('popover-right-bottom').scrollIntoView({ block: 'center' })")
+    find("#popover-right-bottom").click
+    assert_selector "dialog.turbo-overlay--popover:popover-open"
+
+    before = page.evaluate_script(<<~JS)
+      (() => {
+        const a = document.getElementById("popover-right-bottom").getBoundingClientRect()
+        const d = document.querySelector("dialog.turbo-overlay--popover").getBoundingClientRect()
+        return { aTop: a.top, aLeft: a.left, dTop: d.top, dLeft: d.left }
+      })()
+    JS
+
+    page.execute_script("window.scrollBy(0, 50)")
+    sleep 0.1
+
+    after = page.evaluate_script(<<~JS)
+      (() => {
+        const a = document.getElementById("popover-right-bottom").getBoundingClientRect()
+        const d = document.querySelector("dialog.turbo-overlay--popover").getBoundingClientRect()
+        return { aTop: a.top, aLeft: a.left, dTop: d.top, dLeft: d.left }
+      })()
+    JS
+
+    anchor_dy = after["aTop"] - before["aTop"]
+    dialog_dy = after["dTop"] - before["dTop"]
+    dialog_dx = after["dLeft"] - before["dLeft"]
+
+    assert anchor_dy < -30,
+      "test setup: anchor should have moved up after window.scrollBy (moved #{anchor_dy})"
+    assert (dialog_dy - anchor_dy).abs < 5,
+      "right popover should track anchor.top on scroll (anchor dy=#{anchor_dy}, dialog dy=#{dialog_dy})"
+    assert dialog_dx.abs < 5,
+      "right popover's left position should not change on vertical scroll (dx=#{dialog_dx})"
+  end
+
+  test "right popover gap stays constant across repeated small scrolls" do
+    visit "/"
+    page.execute_script("document.getElementById('popover-right-bottom').scrollIntoView({ block: 'center' })")
+    find("#popover-right-bottom").click
+    assert_selector "dialog.turbo-overlay--popover:popover-open"
+
+    initial_gap = page.evaluate_script(<<~JS)
+      (() => {
+        const a = document.getElementById("popover-right-bottom").getBoundingClientRect()
+        const d = document.querySelector("dialog.turbo-overlay--popover").getBoundingClientRect()
+        return d.left - a.right
+      })()
+    JS
+
+    gaps = [initial_gap]
+    20.times do
+      page.execute_script("window.scrollBy(0, 15)")
+      sleep 0.03
+      gaps << page.evaluate_script(<<~JS)
+        (() => {
+          const a = document.getElementById("popover-right-bottom").getBoundingClientRect()
+          const d = document.querySelector("dialog.turbo-overlay--popover").getBoundingClientRect()
+          return d.left - a.right
+        })()
+      JS
+    end
+
+    spread = gaps.max - gaps.min
+    assert spread < 5,
+      "right-popover horizontal gap should stay within 5px during scroll (saw spread=#{spread}, gaps=#{gaps.inspect})"
+  end
+
+  test "left popover tracks anchor on scroll" do
+    visit "/"
+    page.execute_script("document.getElementById('popover-left-bottom').scrollIntoView({ block: 'center' })")
+    find("#popover-left-bottom").click
+    assert_selector "dialog.turbo-overlay--popover:popover-open"
+
+    before = page.evaluate_script(<<~JS)
+      (() => {
+        const a = document.getElementById("popover-left-bottom").getBoundingClientRect()
+        const d = document.querySelector("dialog.turbo-overlay--popover").getBoundingClientRect()
+        return { aTop: a.top, dTop: d.top, gap: a.left - d.right }
+      })()
+    JS
+
+    page.execute_script("window.scrollBy(0, 50)")
+    sleep 0.1
+
+    after = page.evaluate_script(<<~JS)
+      (() => {
+        const a = document.getElementById("popover-left-bottom").getBoundingClientRect()
+        const d = document.querySelector("dialog.turbo-overlay--popover").getBoundingClientRect()
+        return { aTop: a.top, dTop: d.top, gap: a.left - d.right }
+      })()
+    JS
+
+    anchor_dy = after["aTop"] - before["aTop"]
+    dialog_dy = after["dTop"] - before["dTop"]
+    assert (dialog_dy - anchor_dy).abs < 5,
+      "left popover should track anchor.top (anchor dy=#{anchor_dy}, dialog dy=#{dialog_dy})"
+    assert (after["gap"] - before["gap"]).abs < 5,
+      "left popover gap should stay constant on scroll (before=#{before["gap"]}, after=#{after["gap"]})"
+  end
+
+  test "popover auto-closes when its anchor scrolls out of view" do
+    visit "/"
+    page.execute_script("document.getElementById('popover-link-1').scrollIntoView({ block: 'center' })")
+    find("#popover-link-1").click
+    assert_selector "dialog.turbo-overlay--popover:popover-open"
+
+    # Scroll far enough that the anchor is well off-screen. The
+    # debounce inside the controller is ~120ms, so wait a bit longer.
+    page.execute_script("window.scrollBy(0, 2000)")
+    sleep 0.4
+
+    assert_no_selector "dialog.turbo-overlay--popover:popover-open"
+  end
+
+  test "popover stays open if anchor briefly clips the edge then returns" do
+    visit "/"
+    page.execute_script("document.getElementById('popover-link-1').scrollIntoView({ block: 'center' })")
+    find("#popover-link-1").click
+    assert_selector "dialog.turbo-overlay--popover:popover-open"
+
+    # Scroll out, then quickly scroll back before the 120ms debounce
+    # would fire. The popover should still be open.
+    page.execute_script(<<~JS)
+      window.scrollBy(0, 2000)
+      requestAnimationFrame(() => window.scrollBy(0, -2000))
+    JS
+    sleep 0.3
+
+    assert_selector "dialog.turbo-overlay--popover:popover-open"
+  end
+
+  test "TurboOverlay.visit popover positions relative to its anchor element" do
+    visit "/"
+
+    # Drive the synthesized link's click and capture the anchor's rect
+    # at click time so we can compare against the popover's resolved
+    # position. The popover positioner reads the anchor's bounding rect
+    # — for a JS-initiated open we expect the anchor we passed (the
+    # button), not the hidden synthesized <a>.
+    anchor_top = page.evaluate_script(
+      "document.getElementById('js-visit-popover').getBoundingClientRect().bottom"
+    )
+    find("#js-visit-popover").click
+    assert_selector "dialog.turbo-overlay--popover:popover-open"
+
+    popover_top = page.evaluate_script(
+      "document.querySelector('dialog.turbo-overlay--popover').getBoundingClientRect().top"
+    )
+    # Default position is "bottom" with a 4px offset. Assert the
+    # popover is positioned somewhere below the button (not at the
+    # top-left of the viewport, which is where a missing-anchor
+    # fallback would land it).
+    assert popover_top >= anchor_top,
+      "popover top (#{popover_top}) should be at or below the anchor's bottom (#{anchor_top})"
+  end
 end

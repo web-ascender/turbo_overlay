@@ -134,6 +134,14 @@ export default class extends Controller {
       cancelAnimationFrame(this._reflowFrame)
       this._reflowFrame = null
     }
+    if (this._anchorObserver) {
+      this._anchorObserver.disconnect()
+      this._anchorObserver = null
+    }
+    if (this._anchorOutTimer) {
+      clearTimeout(this._anchorOutTimer)
+      this._anchorOutTimer = null
+    }
     queueMicrotask(() => {
       if (!document.body.contains(this.element) && this.stack) {
         this.stack.unregister(this.idValue)
@@ -399,8 +407,39 @@ export default class extends Controller {
     window.addEventListener("scroll", this._reflowHandler, true)
     window.addEventListener("resize", this._reflowHandler)
 
+    this._installAnchorVisibilityObserver()
+
     this._dispatch("shown")
     this._installSubmitEndHandler()
+  }
+
+  // Auto-close the popover when its anchor scrolls out of view. A
+  // popover whose trigger isn't visible reads as a floating widget
+  // with no obvious connection to anything — Bootstrap, MUI, Floating
+  // UI, and native iOS UIPopover all collapse on this signal. A short
+  // debounce avoids closing on momentum-scroll frames that briefly
+  // clip the anchor edge before settling back into view.
+  _installAnchorVisibilityObserver() {
+    if (typeof IntersectionObserver === "undefined") return
+    if (!this.anchor || typeof this.anchor.getBoundingClientRect !== "function") return
+
+    this._anchorObserver = new IntersectionObserver((entries) => {
+      const entry = entries[entries.length - 1]
+      if (!entry) return
+      if (entry.isIntersecting) {
+        if (this._anchorOutTimer) {
+          clearTimeout(this._anchorOutTimer)
+          this._anchorOutTimer = null
+        }
+      } else {
+        if (this._anchorOutTimer) return
+        this._anchorOutTimer = setTimeout(() => {
+          this._anchorOutTimer = null
+          if (this.dialog && this._isShown()) this.cancel()
+        }, 120)
+      }
+    }, { threshold: 0 })
+    this._anchorObserver.observe(this.anchor)
   }
 
   // Inside a popover, a plain `link_to` would otherwise navigate
@@ -502,18 +541,33 @@ export default class extends Controller {
       return
     }
 
-    // Normalize the dialog's positioning BEFORE measuring its rect. UA
+    // Pin the dialog at viewport origin and carry placement on
+    // `transform`. Transforms run on the compositor thread, so the
+    // popover stays in lock-step with scroll-induced repaint instead
+    // of trailing by a frame. The CSS for popovers sets
+    // `animation-composition: add` so the open/close keyframes
+    // compose with our inline transform rather than overriding it.
+    //
+    // Normalize BEFORE measuring the dialog's natural size. The UA
     // styles for `[popover]` and especially `dialog:modal` apply
-    // `inset: 0` with `width: auto`, so the dialog stretches to fill
-    // the gap; measuring then yields a width far larger than the
-    // content's actual size and the auto-flip math goes wrong. Setting
-    // right/bottom: auto first makes width shrink-to-fit content, so
-    // `dialogRect.width` reflects the size we actually intend to render.
+    // `inset: 0` with `width: auto`, which stretches the dialog to
+    // fill the viewport; measuring then yields a width far larger
+    // than the content and auto-flip goes wrong. After
+    // `normalizePopoverDialogStyles` the dialog shrinks to content.
     normalizePopoverDialogStyles(this.dialog)
-    this.dialog.style.transform = ""
 
     const anchorRect = this._anchorRect()
-    const dialogRect = this.dialog.getBoundingClientRect()
+    // `offsetWidth/offsetHeight` ignore the current transform and
+    // return the laid-out box, which is what auto-flip math needs.
+    // `getBoundingClientRect()` here would include our prior
+    // positioning transform and bias the size measurement.
+    const dialogWidth  = this.dialog.offsetWidth
+    const dialogHeight = this.dialog.offsetHeight
+    const dialogRect = {
+      top: 0, left: 0,
+      right: dialogWidth, bottom: dialogHeight,
+      width: dialogWidth, height: dialogHeight,
+    }
     const viewport = {
       width:  document.documentElement.clientWidth,
       height: document.documentElement.clientHeight
@@ -529,8 +583,7 @@ export default class extends Controller {
       autoFlip: true
     })
 
-    this.dialog.style.top  = `${top}px`
-    this.dialog.style.left = `${left}px`
+    this.dialog.style.transform = `translate(${left}px, ${top}px)`
     this.dialog.dataset.resolvedPosition = resolvedPosition
   }
 

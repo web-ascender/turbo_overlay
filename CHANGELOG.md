@@ -156,6 +156,26 @@ Big iteration cycle ahead of the first public release. Highlights:
   precedence wins over the gem's copy).
 
 ### Added
+- **Popovers auto-close when their anchor scrolls out of view.** A
+  popover whose trigger isn't visible reads as a floating widget with
+  no obvious connection to anything; matching Bootstrap / MUI /
+  native iOS UIPopover, the popover now collapses when its anchor
+  exits the viewport. Short debounce (~120ms) so momentum scrolls
+  that briefly clip the edge don't dismiss.
+- **Popover positioning moved to compositor-thread transforms.**
+  Replaced the per-scroll `style.top`/`style.left` writes with a
+  single `transform: translate(...)`. Eliminates the one-frame lag
+  ("springy" feel) on smooth/momentum scrolling. Popover open/close
+  keyframes compose with the positioning transform via
+  `animation-composition: add`.
+- **`TurboOverlay.visit(url, options)` — open overlays from JavaScript.**
+  Programmatic counterpart to `modal_link_to` / `drawer_link_to` /
+  `popover_link_to` for non-anchor triggers (Google Maps markers, SVG
+  hit regions, custom elements). Full option parity with the link
+  helpers; popovers require an `anchor` element for positioning.
+  Exposed as a named export from the package and as `window.TurboOverlay`
+  for non-bundler callers. Reuses the existing fetch pipeline — same
+  headers, same loading placeholder, same lifecycle events.
 - **URL advance for modals and drawers.** Pass `advance: true` on
   `modal_link_to` / `drawer_link_to` (or set
   `c.modal.advance = true` / `c.drawer.advance = true` in the

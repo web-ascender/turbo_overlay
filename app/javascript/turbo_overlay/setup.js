@@ -6,6 +6,7 @@ import {
   setAdvanceUrl, clearAdvanceUrl, resetHistoryState, registerPopstateHandler,
   expectedPopstateCount, hasPushedOverlayOnStack
 } from "turbo_overlay/history"
+import { emitOverlayHeaders } from "turbo_overlay/options"
 
 // Global wiring for turbo_overlay.
 //
@@ -600,8 +601,24 @@ function registerFetchHook() {
       // trigger to anchor to. `getBoundingClientRect()` on a multi-line
       // anchor returns the union of all line boxes, which is too wide
       // to position against meaningfully.
-      link.__turboOverlayClickPoint = { x: event.clientX, y: event.clientY }
-      popoverTriggers.set(link.dataset.turboOverlayId, link)
+      //
+      // For JS-initiated opens via `TurboOverlay.visit`, the actual
+      // trigger is invisible — `visit.js` stashes the caller's anchor
+      // element on `__turboOverlayAnchor`. Substitute it here so
+      // positioning uses the anchor's rect and the popover_triggers
+      // registry points at the real element the user clicked.
+      const anchor = link.__turboOverlayAnchor
+      if (anchor) {
+        const rect = anchor.getBoundingClientRect()
+        anchor.__turboOverlayClickPoint = {
+          x: rect.left + rect.width / 2,
+          y: rect.top + rect.height / 2,
+        }
+        popoverTriggers.set(link.dataset.turboOverlayId, anchor)
+      } else {
+        link.__turboOverlayClickPoint = { x: event.clientX, y: event.clientY }
+        popoverTriggers.set(link.dataset.turboOverlayId, link)
+      }
     }
 
     const adv = resolveAdvanceUrl(link)
@@ -628,27 +645,7 @@ function registerFetchHook() {
 
     const headers = event.detail.fetchOptions.headers
     headers["X-Turbo-Overlay"] = trigger.dataset.turboOverlay
-    if (trigger.dataset.turboOverlayId) {
-      headers["X-Turbo-Overlay-Id"] = trigger.dataset.turboOverlayId
-    }
-    if (trigger.dataset.turboOverlayPosition) {
-      headers["X-Turbo-Overlay-Position"] = trigger.dataset.turboOverlayPosition
-    }
-    if (trigger.dataset.turboOverlayAlign) {
-      headers["X-Turbo-Overlay-Align"] = trigger.dataset.turboOverlayAlign
-    }
-    if (trigger.dataset.turboOverlayOffset) {
-      headers["X-Turbo-Overlay-Offset"] = trigger.dataset.turboOverlayOffset
-    }
-    if (trigger.dataset.turboOverlayBackdrop === "false") {
-      headers["X-Turbo-Overlay-Backdrop"] = "false"
-    }
-    if (trigger.dataset.turboOverlayClose === "false") {
-      headers["X-Turbo-Overlay-Close"] = "false"
-    }
-    if (trigger.dataset.turboOverlayKeepOpenOnRedirect === "true") {
-      headers["X-Turbo-Overlay-Keep-Open"] = "true"
-    }
+    emitOverlayHeaders(trigger.dataset, headers)
 
     // Sticky `data-turbo-overlay-id` on the trigger means a re-click
     // (or a re-submit) reuses the previous overlay id. If the previous

@@ -124,6 +124,37 @@ See [docs/popovers.md](docs/popovers.md) for per-link options
 (`position:`, `align:`, `offset:`, `backdrop:`) and the
 single-popover behavior.
 
+### Open an overlay from JavaScript
+
+For triggers that aren't anchors — a Google Maps marker, an SVG hit
+region, a custom element — call `TurboOverlay.visit(url, options)`.
+Full option parity with the link helpers, exposed as both a named
+export and a `window.TurboOverlay` global.
+
+```js
+// Modal from a map marker
+google.maps.event.addListener(marker, "click", () => {
+  TurboOverlay.visit("/places/123")
+})
+
+// Drawer with URL advance
+TurboOverlay.visit("/cart", { type: "drawer", advance: true })
+
+// Popover anchored to a non-anchor element — `anchor` is required
+button.addEventListener("click", (event) => {
+  TurboOverlay.visit("/preview/9", {
+    type: "popover",
+    anchor: event.currentTarget,
+    position: "top",
+  })
+})
+```
+
+Prefer the Rails link helpers for ordinary navigation; reach for
+`TurboOverlay.visit` only when the trigger isn't a link. See
+[docs/reference.md](docs/reference.md#javascript-api) for the full
+option list.
+
 ### Customize what the overlay renders
 
 The chrome yields a body and reads two `content_for` blocks. The

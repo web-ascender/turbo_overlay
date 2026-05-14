@@ -129,7 +129,17 @@ When a form inside an overlay submits:
 | `X-Turbo-Overlay-Offset`     | Popover pixel offset                                    |
 | `X-Turbo-Overlay-Backdrop`   | `false` to open non-modally                             |
 | `X-Turbo-Overlay-Close`      | `false` to suppress the chrome's close button           |
+| `X-Turbo-Overlay-Keep-Open`  | `true` to keep the overlay open across a form redirect  |
 | `X-Sec-Purpose: prefetch`    | Turbo's hover prefetch — the W3C `Sec-*` prefix is forbidden for JS-initiated fetch, so Turbo prepends `X-`. |
+
+The option ↔ dataset ↔ header round-trip is defined once in
+`app/javascript/turbo_overlay/options.js` and consumed by both
+`visit.js` (writes dataset on the synthesized trigger) and the
+`turbo:before-fetch-request` hook in `setup.js` (reads dataset →
+emits headers). The Ruby view helpers in
+`lib/turbo_overlay/helpers/view_helper.rb` write the same dataset
+names from the server side; adding a header-bearing option means
+touching the JS table and the Ruby helper in parallel.
 
 ## URL advance
 
@@ -332,6 +342,17 @@ overlay state to restore.
   never touches a specific element on connect.
 - **`popover_position.js`** — anchored-positioning math with
   cross-axis auto-flip on viewport overflow.
+- **`options.js`** — single source of truth for the option ↔ dataset
+  ↔ header table that overlay triggers participate in. Also holds
+  the validation and dataset-build helpers `visit()` uses. No
+  imports; unit-tested in `test/js/options.test.js`.
+- **`visit.js`** — `TurboOverlay.visit(url, options)`. Synthesizes a
+  hidden `<a>` carrying the right dataset attributes, appends it to
+  the document, clicks it, removes it. The existing click hook and
+  Turbo's `FormLinkClickObserver` route it through the same path a
+  real link click takes. Popovers get an `anchor` option whose
+  bounding rect feeds the popover positioner — `setup.js` swaps the
+  anchor in for the (invisible) synthesized link.
 
 ## Helpers used by shipped layouts
 

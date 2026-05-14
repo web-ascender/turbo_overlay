@@ -3,6 +3,7 @@ import "turbo_overlay/hint"
 import { registerConfirm } from "turbo_overlay/setup"
 import StackController from "turbo_overlay/stack_controller"
 import OverlayController from "turbo_overlay/overlay_controller"
+import { visit } from "turbo_overlay/visit"
 
 // Single entry point for the gem's Stimulus controllers.
 //
@@ -35,4 +36,18 @@ export function register(application, options = {}) {
   if (options.confirm) registerConfirm()
 }
 
-export { StackController, OverlayController, registerConfirm }
+export { StackController, OverlayController, registerConfirm, visit }
+
+// Expose a window global so non-bundler callers — inline `onclick`,
+// third-party callbacks (Google Maps markers, Leaflet popups), custom
+// elements that don't import from this package — can call
+// `TurboOverlay.visit(url, opts)` without a module import. Assigned at
+// import time, not inside `register()`, so it's available the moment
+// the gem's JS loads.
+if (typeof window !== "undefined") {
+  window.TurboOverlay = Object.assign(window.TurboOverlay || {}, {
+    visit,
+    register,
+    registerConfirm,
+  })
+}

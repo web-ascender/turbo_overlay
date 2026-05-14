@@ -116,3 +116,63 @@ document.addEventListener("turbo-overlay:shown", (event) => {
 })
 ```
 
+## JavaScript API
+
+The gem's JS module exposes two functions. Both are available as
+named exports from the package and as properties of a `window.TurboOverlay`
+global (assigned when the module loads, before `register()` is called).
+
+```js
+import { register, visit } from "turbo_overlay"
+// or, without a bundler:
+//   window.TurboOverlay.visit(...)
+```
+
+### `TurboOverlay.register(application, options?)`
+
+Registers the gem's two Stimulus controllers under their canonical
+identifiers (`turbo-overlay-stack`, `turbo-overlay`). Importing the
+package runs the page-level wiring (header injection, loading
+placeholders, the `turbo_stream.overlay` action) — `register` only
+handles the Stimulus pieces.
+
+| Option | Type | Default | Effect |
+| --- | --- | --- | --- |
+| `confirm` | boolean | `false` | Route `data-turbo-confirm` through the gem's themed overlay instead of `window.confirm`. Requires the confirm chrome partials copied by `turbo_overlay:install`. |
+
+### `TurboOverlay.visit(url, options?)`
+
+Opens an overlay from JavaScript — the programmatic counterpart to
+`modal_link_to` / `drawer_link_to` / `popover_link_to`. Use for
+non-anchor triggers (map markers, canvas hit-tests, custom elements).
+For ordinary HTML links, prefer the Rails helpers.
+
+```js
+TurboOverlay.visit("/places/123")                                // modal (default)
+TurboOverlay.visit("/cart",     { type: "drawer", advance: true })
+TurboOverlay.visit("/preview/9", { type: "popover", anchor: el, position: "top" })
+```
+
+| Option | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `type` | `"modal" \| "drawer" \| "popover" \| "hint"` | `"modal"` | Overlay variant. |
+| `id` | string | auto-generated | Reuse an existing overlay slot; re-issuing with the same id replaces the open overlay. |
+| `position` | `"top" \| "bottom" \| "left" \| "right"` | `"bottom"` | Popover side. |
+| `align` | `"start" \| "center" \| "end"` | `"start"` | Popover cross-axis alignment. |
+| `offset` | number-string | `"4"` | Pixel gap between anchor and popover. |
+| `backdrop` | boolean | `true` | Set `false` to render the modal/drawer without a backdrop. |
+| `close` | boolean | `true` | Set `false` to suppress the chrome's default close button. |
+| `keepOpenOnRedirect` | boolean | `false` | Keep the overlay open when a form submission inside it redirects. |
+| `advance` | `boolean \| string` | unset | Push browser history. Modal/drawer only — silently dropped for popover/hint. |
+| `anchor` | `Element` | — | **Required for `type: "popover"`.** Used for positioning and for the popover-trigger registry. |
+| `frame` | string | `"_top"` | Target `data-turbo-frame`. Default breaks out of any enclosing frame so the overlay stacks. |
+
+Throws `TypeError` if `url` is missing, `type` is unknown, or a popover
+is opened without an `anchor`.
+
+Behaviorally identical to clicking a `modal_link_to`/etc. trigger:
+the same headers, the same loading placeholder, the same stream
+response, the same lifecycle events. Internally implemented by
+synthesizing a hidden `<a>` and clicking it, so every existing hook
+(`turbo:before-fetch-request`, `turbo-overlay:shown`, etc.) fires
+exactly as it would for a real link.
