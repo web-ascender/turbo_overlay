@@ -156,6 +156,15 @@ Big iteration cycle ahead of the first public release. Highlights:
   precedence wins over the gem's copy).
 
 ### Added
+- **`modal_button_to` / `drawer_button_to` / `popover_button_to` — open
+  an overlay from a non-GET action.** `button_to` counterparts to the
+  existing link helpers; same option vocabulary. Use when the overlay
+  should be the result of a POST/PATCH/PUT/DELETE — creating a record,
+  deleting an item, kicking off a wizard. The submit hook reads the
+  form's overlay data attrs and emits the same `X-Turbo-Overlay-*`
+  request headers a `*_link_to` click would. `advance:` and hint
+  options aren't exposed (non-GET doesn't push history; hints are a
+  hover-on-link mechanism).
 - **Popovers auto-close when their anchor scrolls out of view.** A
   popover whose trigger isn't visible reads as a floating widget with
   no obvious connection to anything; matching Bootstrap / MUI /

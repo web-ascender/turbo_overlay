@@ -43,6 +43,24 @@ module TurboOverlay
         _overlay_dismiss_link_to(:modal, name, options, html_options, &block)
       end
 
+      # Render a `button_to` form whose POST/DELETE/PATCH/PUT response
+      # opens a modal overlay. Use this when opening the modal is the
+      # result of a non-GET action — creating a record, deleting an
+      # item, kicking off a wizard. The form carries the same overlay
+      # data attributes a `modal_link_to` link would, so the server
+      # sees identical `X-Turbo-Overlay-*` request headers and wraps
+      # the response in the modal layout.
+      #
+      #   <%= modal_button_to "Delete", widget_path(@w), method: :delete %>
+      #   <%= modal_button_to "Start wizard", wizards_path, method: :post %>
+      #
+      # Accepts the same overlay options as `modal_link_to`
+      # (`overlay_id:`, `close:`, `keep_overlay_open_on_redirect:`).
+      # `advance:` is not exposed — non-GET requests don't push history.
+      def modal_button_to(name = nil, options = nil, html_options = nil, &block)
+        _overlay_button_to(:modal, name, options, html_options, &block)
+      end
+
       # ----- Drawer-specific link helpers -----
 
       # Build a link that opens its target as a drawer overlay. Same
@@ -76,6 +94,13 @@ module TurboOverlay
         _overlay_dismiss_link_to(:drawer, name, options, html_options, &block)
       end
 
+      # `button_to` counterpart to `drawer_link_to` — see
+      # `modal_button_to`. Accepts `position:`, `backdrop:`, `close:`,
+      # and `keep_overlay_open_on_redirect:`.
+      def drawer_button_to(name = nil, options = nil, html_options = nil, &block)
+        _overlay_button_to(:drawer, name, options, html_options, &block)
+      end
+
       # ----- Popover-specific link helpers -----
 
       # Build a link that opens its target as a popover overlay
@@ -103,6 +128,15 @@ module TurboOverlay
       # Inside a popover, render a link styled as a "dismiss" trigger.
       def popover_dismiss_link_to(name = nil, options = nil, html_options = nil, &block)
         _overlay_dismiss_link_to(:popover, name, options, html_options, &block)
+      end
+
+      # `button_to` counterpart to `popover_link_to` — see
+      # `modal_button_to`. Accepts `position:`, `align:`, `offset:`,
+      # `close:`. The popover anchors to the rendered form (which
+      # wraps the button), so positioning works the same as for a
+      # `popover_link_to` link.
+      def popover_button_to(name = nil, options = nil, html_options = nil, &block)
+        _overlay_button_to(:popover, name, options, html_options, &block)
       end
 
       # ----- Hint-specific helpers -----
@@ -409,6 +443,19 @@ module TurboOverlay
         end
       end
 
+      def _overlay_button_to(type, name, options, html_options, &block)
+        if block_given?
+          html_options = options || {}
+          options      = name
+          options, html_options = _overlay_normalize_button_args(type, options, html_options)
+          button_to(options, html_options, &block)
+        else
+          html_options = (html_options || {}).dup
+          options, html_options = _overlay_normalize_button_args(type, options, html_options)
+          button_to(name, options, html_options)
+        end
+      end
+
       def _overlay_dismiss_link_to(type, name, options, html_options, &block)
         html_options = (html_options || {}).dup
 
@@ -481,6 +528,51 @@ module TurboOverlay
         # opens a new (stacked) overlay instead of replacing the current one.
         _assign_overlay_data(data, html_options, :turbo_frame, "data-turbo-frame", "_top")
         html_options[:data] = data unless data.empty?
+        _merge_aria_haspopup(html_options, "dialog")
+
+        [options, html_options]
+      end
+
+      # Counterpart to `_overlay_normalize_link_args` for `button_to`.
+      # Same overlay-trigger contract — same data attribute names, same
+      # encoding rules — but the data lives on the synthesized
+      # `<form>` (via `form: { data: { ... } }`) so the submit hook in
+      # setup.js picks it up. The button itself only carries
+      # `aria-haspopup="dialog"`.
+      #
+      # `advance:` and the hint options are intentionally not exposed:
+      # non-GET requests don't push history, and hints are a
+      # hover-on-link mechanism that doesn't translate to forms.
+      def _overlay_normalize_button_args(type, options, html_options)
+        html_options = (html_options || {}).dup
+        _,             overlay_id    = _pop_option(html_options, :overlay_id)
+        _,             position      = _pop_option(html_options, :position)
+        _,             align         = _pop_option(html_options, :align)
+        _,             offset        = _pop_option(html_options, :offset)
+        has_backdrop,  backdrop      = _pop_option(html_options, :backdrop)
+        has_close,     close_value   = _pop_option(html_options, :close)
+        has_keep_open, keep_open_val = _pop_option(html_options, :keep_overlay_open_on_redirect)
+
+        form_options = (html_options[:form] || {}).dup
+        form_data    = (form_options[:data] || {}).dup
+
+        # `_assign_overlay_data` writes through to `html_options` for
+        # the dashed-name fallback when no nested `data:` hash exists.
+        # We always nest under `form: { data: }` here, so just write
+        # the rails-style symbol keys directly.
+        form_data[:turbo_stream]                    = true                 unless form_data.key?(:turbo_stream)
+        form_data[:turbo_overlay]                   = type.to_s            unless form_data.key?(:turbo_overlay)
+        form_data[:turbo_overlay_id]                = overlay_id.to_s      if overlay_id
+        form_data[:turbo_overlay_position]          = position.to_s        if position
+        form_data[:turbo_overlay_align]             = align.to_s           if align
+        form_data[:turbo_overlay_offset]            = offset.to_s          if offset
+        form_data[:turbo_overlay_backdrop]          = "false"              if has_backdrop && backdrop == false
+        form_data[:turbo_overlay_close]             = "false"              if has_close && close_value == false
+        form_data[:turbo_overlay_keep_open_on_redirect] = "true"           if has_keep_open && keep_open_val == true
+        form_data[:turbo_frame]                     = "_top"               unless form_data.key?(:turbo_frame)
+
+        form_options[:data] = form_data
+        html_options[:form] = form_options
         _merge_aria_haspopup(html_options, "dialog")
 
         [options, html_options]

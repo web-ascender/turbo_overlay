@@ -971,6 +971,34 @@ class OverlayTest < ApplicationSystemTestCase
       "left popover gap should stay constant on scroll (before=#{before["gap"]}, after=#{after["gap"]})"
   end
 
+  test "modal_button_to opens a modal from a POST" do
+    visit "/"
+
+    assert_no_selector "dialog.turbo-overlay--modal[open]"
+    find("#modal-button-1").click
+
+    assert_selector "dialog.turbo-overlay--modal[open]"
+    assert_selector "dialog.turbo-overlay--modal [data-test-widget-show='Sprocket']"
+
+    find("dialog.turbo-overlay--modal[open]").send_keys :escape
+    assert_no_selector "dialog.turbo-overlay--modal[open]"
+  end
+
+  test "drawer_button_to opens a drawer from a POST" do
+    visit "/"
+    find("#drawer-button-1").click
+    assert_selector "dialog.turbo-overlay--drawer[open]"
+    assert_selector "dialog.turbo-overlay--drawer [data-test-widget-show='Sprocket']"
+  end
+
+  test "popover_button_to opens a popover anchored to its form" do
+    visit "/"
+    page.execute_script("document.getElementById('popover-button-1').scrollIntoView({ block: 'center' })")
+    find("#popover-button-1").click
+    assert_selector "dialog.turbo-overlay--popover:popover-open"
+    assert_selector "dialog.turbo-overlay--popover [data-test-widget-show='Sprocket']"
+  end
+
   test "popover auto-closes when its anchor scrolls out of view" do
     visit "/"
     page.execute_script("document.getElementById('popover-link-1').scrollIntoView({ block: 'center' })")

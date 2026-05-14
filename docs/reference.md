@@ -62,6 +62,9 @@ in `respond_to` work as expected — see
 | `drawer_link_to(name, path, overlay_id:, position:, backdrop:, close:, advance:, keep_overlay_open_on_redirect:, hint:, hint_url:, show_delay:, hide_delay:)` | stacked drawer |
 | `popover_link_to(name, path, overlay_id:, position:, align:, offset:, close:, keep_overlay_open_on_redirect:, hint:, hint_url:, show_delay:, hide_delay:)` | anchored popover (no `advance:` — popovers never push history) |
 | `hint_link_to(name, path, hint_url:, show_delay:, hide_delay:)` | plain `link_to` decorated with hint data attributes |
+| `modal_button_to(name, path, method:, overlay_id:, close:, keep_overlay_open_on_redirect:)` | `button_to` whose non-GET response opens a stacked modal |
+| `drawer_button_to(name, path, method:, overlay_id:, position:, backdrop:, close:, keep_overlay_open_on_redirect:)` | `button_to` opening a drawer |
+| `popover_button_to(name, path, method:, overlay_id:, position:, align:, offset:, close:)` | `button_to` opening an anchored popover (popover anchors to the form wrapping the button) |
 | `modal_dismiss_link_to(...)`            | dismiss link inside a modal                                            |
 | `drawer_dismiss_link_to(...)`           | dismiss link inside a drawer                                           |
 | `popover_dismiss_link_to(...)`          | dismiss link inside a popover                                          |

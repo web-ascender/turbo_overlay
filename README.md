@@ -124,6 +124,18 @@ See [docs/popovers.md](docs/popovers.md) for per-link options
 (`position:`, `align:`, `offset:`, `backdrop:`) and the
 single-popover behavior.
 
+For non-GET triggers — deleting an item, creating a record, kicking
+off a wizard — use the `button_to` counterparts:
+
+```erb
+<%= modal_button_to   "Delete", widget_path(@w), method: :delete %>
+<%= drawer_button_to  "Start wizard", wizards_path, method: :post %>
+<%= popover_button_to "Quick edit",   widget_path(@w), method: :patch %>
+```
+
+The form submits with the same `X-Turbo-Overlay-*` headers the link
+helpers send on click, so the controller renders identically.
+
 ### Open an overlay from JavaScript
 
 For triggers that aren't anchors — a Google Maps marker, an SVG hit

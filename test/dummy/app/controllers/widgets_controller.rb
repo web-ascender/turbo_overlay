@@ -59,6 +59,15 @@ class WidgetsController < ApplicationController
     render turbo_stream: turbo_stream.overlay(:close, id: turbo_overlay_id)
   end
 
+  # Drives the non-GET overlay-open system tests. A `modal_button_to`
+  # / `drawer_button_to` / `popover_button_to` POSTs here, the request
+  # carries the X-Turbo-Overlay-* headers as it would for a link, and
+  # the controller concern wraps `show.html.erb` in the overlay layout.
+  def preview
+    @widget = WIDGETS.fetch(params[:id])
+    render :show
+  end
+
   # Renders a turbo_stream that closes the current overlay. Drives the
   # "server-issued close" system test — exercises the full pipeline:
   # POST → turbo_stream.overlay(:close, id:) → JS stream action →

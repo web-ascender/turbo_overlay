@@ -56,6 +56,16 @@
 <%= modal_link_to "Bump counter advance", bump_form_widgets_path,
                   advance: true, id: "modal-bump-advance" %>
 
+<%# Drives the *_button_to non-GET overlay-open system tests. POSTs
+    to `widgets#preview`, which renders show.html.erb. The submit
+    hook in setup.js reads the form's data-turbo-overlay-* attrs and
+    adds the request headers, the controller concern wraps the
+    response in the overlay layout — same end state as a click on
+    `modal_link_to`, just from a non-GET trigger. %>
+<%= modal_button_to   "Modal button",   preview_widget_path("1"), id: "modal-button-1" %>
+<%= drawer_button_to  "Drawer button",  preview_widget_path("1"), id: "drawer-button-1" %>
+<%= popover_button_to "Popover button", preview_widget_path("1"), id: "popover-button-1" %>
+
 <%# Drives the TurboOverlay.visit (programmatic open) system tests.
     Non-anchor triggers — buttons whose click handlers call the JS
     API. Exercises the `window.TurboOverlay` global path. %>
