@@ -82,4 +82,36 @@ class StreamHelperTest < Minitest::Test
   def test_invalid_type_raises
     assert_raises(ArgumentError) { @builder.overlay(:close, type: :tooltip) }
   end
+
+  def test_close_with_visit_emits_visit_attribute
+    @builder.overlay(:close, visit: "/widgets")
+    assert_equal(
+      [["overlay", { message: "close", scope: "top", visit: "/widgets" }]],
+      @builder.calls
+    )
+  end
+
+  def test_close_with_visit_and_replace_action
+    @builder.overlay(:close, visit: "/widgets", visit_action: :replace)
+    assert_equal(
+      [["overlay", { message: "close", scope: "top", visit: "/widgets", :"visit-action" => "replace" }]],
+      @builder.calls
+    )
+  end
+
+  def test_close_with_visit_and_advance_action_emits_attribute
+    @builder.overlay(:close, visit: "/widgets", visit_action: :advance)
+    assert_equal(
+      [["overlay", { message: "close", scope: "top", visit: "/widgets", :"visit-action" => "advance" }]],
+      @builder.calls
+    )
+  end
+
+  def test_invalid_visit_action_raises
+    assert_raises(ArgumentError) { @builder.overlay(:close, visit: "/x", visit_action: :reload) }
+  end
+
+  def test_visit_action_without_visit_raises
+    assert_raises(ArgumentError) { @builder.overlay(:close, visit_action: :replace) }
+  end
 end

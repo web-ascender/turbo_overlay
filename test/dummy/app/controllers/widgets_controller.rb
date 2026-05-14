@@ -77,6 +77,15 @@ class WidgetsController < ApplicationController
     render turbo_stream: turbo_stream.overlay(:close, id: turbo_overlay_id)
   end
 
+  # Drives the server-driven post-close-visit system test. Closes the
+  # current overlay and asks the client to Turbo.visit a different
+  # path after the close animation resolves.
+  def close_and_visit
+    render turbo_stream: turbo_stream.overlay(
+      :close, id: turbo_overlay_id, visit: bump_form_widgets_path
+    )
+  end
+
   # Renders a form whose submit drives the smooth-redirect system
   # tests. Form posts to `bump`, which performs a plain HTTP redirect
   # to the index — the path the morph-and-close handler exercises.

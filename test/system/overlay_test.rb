@@ -971,6 +971,23 @@ class OverlayTest < ApplicationSystemTestCase
       "left popover gap should stay constant on scroll (before=#{before["gap"]}, after=#{after["gap"]})"
   end
 
+  test "turbo_stream.overlay close with visit: navigates the host after close" do
+    visit "/"
+    # Bearing is the only widget whose modal renders the
+    # "Save and visit elsewhere" button (see show.html.erb).
+    find("#modal-link-3").click
+    assert_selector "dialog.turbo-overlay--modal[open]"
+
+    within "dialog.turbo-overlay--modal[open]" do
+      click_on "Save and visit elsewhere"
+    end
+
+    # The stream closes the overlay AND requests Turbo.visit to the
+    # bump_form path. Both should happen — overlay gone, URL changed.
+    assert_no_selector "dialog.turbo-overlay--modal[open]"
+    assert_current_path "/widgets/bump_form"
+  end
+
   test "modal_button_to opens a modal from a POST" do
     visit "/"
 

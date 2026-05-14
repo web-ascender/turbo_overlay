@@ -73,7 +73,7 @@ in `respond_to` work as expected — see
 | `overlay_footer(value, &block)`         | sets `content_for :overlay_footer`                                     |
 | `overlay_close(show = true)`            | toggle the chrome's default close button for this render               |
 | `overlay_close?`                        | view-side predicate that folds in `<% overlay_close false %>` precedence |
-| `turbo_stream.overlay(:close, scope:, type:, id:)` | turbo-stream action; closes top, all, or one overlay. `:hide` and `:dismiss` are accepted aliases for `:close`. See [stack-scoped variants](#turbo_stream-overlay-close-variants). |
+| `turbo_stream.overlay(:close, scope:, type:, id:, visit:, visit_action:)` | turbo-stream action; closes top, all, or one overlay. `:hide` and `:dismiss` are accepted aliases for `:close`. Optional `visit:` runs a `Turbo.visit` on the host page after the close animation; `visit_action:` is `:advance` (default) or `:replace`. See [stack-scoped variants](#turbo_stream-overlay-close-variants). |
 
 ## `turbo_stream.overlay(:close)` variants
 
@@ -82,11 +82,21 @@ turbo_stream.overlay(:close)                              # top overlay
 turbo_stream.overlay(:close, scope: :all)                 # every open overlay
 turbo_stream.overlay(:close, scope: :all, type: :modal)   # all modals only
 turbo_stream.overlay(:close, id: "edit_user_42")          # specific id
+
+# Close + navigate the host page after the close animation:
+turbo_stream.overlay(:close, visit: widgets_path)
+turbo_stream.overlay(:close, visit: widgets_path, visit_action: :replace)
 ```
 
 `:hide` and `:dismiss` are accepted aliases for `:close`. The `type:`
 filter accepts `:modal`, `:drawer`, or `:popover` — hints don't
 participate in server-driven close.
+
+`visit:` runs `Turbo.visit(url, { action })` on the host page once
+the close animation resolves. `visit_action:` is `:advance` (default,
+pushes history) or `:replace` (rewrites the current entry). Use for
+stream-driven flows where there's no form submission to ride a
+redirect on — ActionCable broadcasts, async job completion, etc.
 
 ## JavaScript events
 

@@ -395,7 +395,9 @@ function registerStreamAction() {
     const detail = {
       scope: this.getAttribute("scope") || "top",
       type: this.getAttribute("type") || null,
-      id: this.getAttribute("overlay-id") || null
+      id: this.getAttribute("overlay-id") || null,
+      visit: this.getAttribute("visit") || null,
+      visitAction: this.getAttribute("visit-action") || null
     }
     window.dispatchEvent(new CustomEvent(`turbo-overlay:${message}`, { detail }))
   }

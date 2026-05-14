@@ -2,6 +2,7 @@ Rails.application.routes.draw do
   root "widgets#index"
   resources :widgets, only: [:index, :show, :new, :create, :destroy] do
     post :close, on: :member
+    post :close_and_visit, on: :member
     post :preview, on: :member
     collection do
       get  :bump_form

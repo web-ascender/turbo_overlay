@@ -156,6 +156,13 @@ Big iteration cycle ahead of the first public release. Highlights:
   precedence wins over the gem's copy).
 
 ### Added
+- **`turbo_stream.overlay(:close, visit: ...)` — server-driven
+  post-close navigation.** Pair a close stream with a `Turbo.visit`
+  to the host page that runs after the close animation completes.
+  Useful for stream-driven flows where there's no form submission
+  to ride a redirect on (ActionCable broadcasts, async job
+  completion). Accepts `visit:` (URL) and optional
+  `visit_action: :advance | :replace`.
 - **`modal_button_to` / `drawer_button_to` / `popover_button_to` — open
   an overlay from a non-GET action.** `button_to` counterparts to the
   existing link helpers; same option vocabulary. Use when the overlay

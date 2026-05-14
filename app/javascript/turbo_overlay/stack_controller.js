@@ -90,28 +90,38 @@ export default class extends Controller {
     const type = detail.type || null
     const id = detail.id || null
 
+    const closes = []
     if (id) {
       const entry = this.entries.find((e) => e.id === id)
       if (entry && entry.controller && typeof entry.controller.close === "function") {
-        entry.controller.close()
+        closes.push(entry.controller.close())
       }
-      return
-    }
-
-    if (scope === "all") {
+    } else if (scope === "all") {
       const targets = type
         ? this.entries.filter((e) => e.type === type)
         : this.entries.slice()
       for (let i = targets.length - 1; i >= 0; i--) {
         const c = targets[i].controller
-        if (c && typeof c.close === "function") c.close()
+        if (c && typeof c.close === "function") closes.push(c.close())
       }
-      return
+    } else {
+      const top = this.topEntry(type)
+      if (top && top.controller && typeof top.controller.close === "function") {
+        closes.push(top.controller.close())
+      }
     }
 
-    const top = this.topEntry(type)
-    if (top && top.controller && typeof top.controller.close === "function") {
-      top.controller.close()
+    // Server-requested post-close navigation. Await the close
+    // animation(s) so the new page doesn't paint behind a
+    // still-animating overlay. The visit defaults to "advance" — pass
+    // visit_action: :replace from the server when you want the
+    // current history entry rewritten (e.g., a stale URL the user
+    // shouldn't be able to back into).
+    if (detail.visit && typeof window !== "undefined" && window.Turbo &&
+        typeof window.Turbo.visit === "function") {
+      Promise.all(closes).then(() => {
+        window.Turbo.visit(detail.visit, { action: detail.visitAction || "advance" })
+      })
     }
   }
 }

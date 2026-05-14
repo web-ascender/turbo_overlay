@@ -27,4 +27,16 @@
                 close_widget_path(params[:id]),
                 method: :post,
                 form: { data: { turbo_stream: true } } %>
+
+  <%# Server-initiated close + post-close visit. Only rendered for
+      "Bearing" so the other system tests (which all open Sprocket or
+      Flywheel) don't get a second button_to inside the dialog —
+      Capybara's `send_keys :escape` doesn't navigate correctly when
+      two form-submitting buttons live in the same modal. %>
+  <% if @widget[:name] == "Bearing" %>
+    <%= button_to "Save and visit elsewhere",
+                  close_and_visit_widget_path(params[:id]),
+                  method: :post,
+                  form: { data: { turbo_stream: true } } %>
+  <% end %>
 </div>
