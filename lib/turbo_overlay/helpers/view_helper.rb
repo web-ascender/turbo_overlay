@@ -227,6 +227,12 @@ module TurboOverlay
           "turbo-overlay-advance-drawer": TurboOverlay.configuration.drawer.advance.to_s
         }
 
+        allowed_click_outside = TurboOverlay.configuration.allowed_click_outside_selectors
+        if allowed_click_outside.any?
+          data_attrs["turbo-overlay-stack-allowed-click-outside-selectors-value"] =
+            allowed_click_outside.to_json
+        end
+
         stack = content_tag(:div, "".html_safe,
           id: stack_id,
           class: "turbo-overlay-stack",

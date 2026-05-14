@@ -308,6 +308,8 @@ browser's `<dialog>` top layer regardless of theme.
   placeholders and themed confirm dialogs.
 - [Customization](docs/customization.md) — chrome partials, variant
   templates, stable ids, the full-page-render footgun.
+- [Third-party form widgets](docs/third-party-widgets.md) — using
+  Tom Select, flatpickr, Select2, Tippy inside overlays.
 - [Reference](docs/reference.md) — full configuration, helper
   reference, JavaScript events.
 - [Accessibility](docs/accessibility.md) — what the gem gives you,

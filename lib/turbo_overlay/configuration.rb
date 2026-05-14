@@ -101,8 +101,44 @@ module TurboOverlay
     # `<%= overlay_stack_tag %>`.
     attr_accessor :stack_id
 
+    # CSS selectors whose clicks should not dismiss an open overlay.
+    # The list is consulted by the JS dismissal guard for backdrop
+    # clicks (modal/drawer) and outside-clicks (popover). Use this for
+    # body-appended widgets — flatpickr calendars, Select2 dropdowns,
+    # Tippy tooltips, Tom Select — that render their UI as siblings of
+    # the overlay in `<body>` and would otherwise read as
+    # outside-the-dialog clicks.
+    #
+    # This is developer config, not request data: never populate from
+    # user input. Entries are interpreted as CSS selectors and matched
+    # against any element in the DOM.
+    attr_reader :allowed_click_outside_selectors
+
+    # Selectors that would allowlist the entire document and pin
+    # overlays open forever. Reject at config time so misuse fails at
+    # boot, not at dismiss time.
+    FORBIDDEN_ALLOWLIST_SELECTORS = %w[* body html :root].freeze
+    private_constant :FORBIDDEN_ALLOWLIST_SELECTORS
+
+    def allowed_click_outside_selectors=(list)
+      list = Array(list)
+      list.each do |selector|
+        unless selector.is_a?(String)
+          raise ArgumentError,
+            "allowed_click_outside_selectors entries must be String CSS selectors; got #{selector.inspect}"
+        end
+        if FORBIDDEN_ALLOWLIST_SELECTORS.include?(selector.strip)
+          raise ArgumentError,
+            "allowed_click_outside_selectors entry #{selector.inspect} would allowlist the entire document " \
+            "and pin overlays open forever. Use a more specific selector."
+        end
+      end
+      @allowed_click_outside_selectors = list
+    end
+
     def initialize
       @stack_id = "turbo_overlay_stack"
+      @allowed_click_outside_selectors = []
 
       @modal = ModalConfig.new(variant: :modal)
 

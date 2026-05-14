@@ -14,6 +14,10 @@ import { setStackController } from "turbo_overlay/history"
 // `turbo_overlay` (the gem's entry point).
 
 export default class extends Controller {
+  static values = {
+    allowedClickOutsideSelectors: { type: Array, default: [] }
+  }
+
   connect() {
     this.entries = []
 

@@ -43,6 +43,15 @@ export default class extends Controller {
       ? this.element
       : this.element.querySelector("dialog")
 
+    // Track every mousedown's target so the dismissal guard can
+    // distinguish "user clicked the backdrop" from "user dragged a
+    // text selection out of the dialog and released on the backdrop"
+    // (W3C clicks resolve to the LCA of mousedown and mouseup —
+    // dialog itself, in the drag case). Capture phase so we see the
+    // event before any other handler.
+    this._mousedownTracker = (event) => { this._lastMousedownTarget = event.target }
+    document.addEventListener("mousedown", this._mousedownTracker, true)
+
     this._captureOpenerUrl()
 
     if (this.stack && this.stack.has(this.idValue)) {
@@ -125,6 +134,12 @@ export default class extends Controller {
       document.removeEventListener("mousedown", this._outsideClickHandler, true)
       this._outsideClickHandler = null
     }
+    if (this._mousedownTracker) {
+      document.removeEventListener("mousedown", this._mousedownTracker, true)
+      this._mousedownTracker = null
+    }
+    this._lastMousedownTarget = null
+    this._allowedSelectors = null
     if (this._reflowHandler) {
       window.removeEventListener("scroll", this._reflowHandler, true)
       window.removeEventListener("resize", this._reflowHandler)
@@ -389,9 +404,13 @@ export default class extends Controller {
     this._outsideClickHandler = (event) => {
       if (!this.dialog) return
       const target = event.target
-      if (target === this.dialog) { this.cancel(event); return }
+      if (target === this.dialog) {
+        if (this._shouldSuppressDismiss(target)) return
+        this.cancel(event); return
+      }
       if (this.dialog.contains(target)) return
       if (this.anchor && this.anchor.contains && this.anchor.contains(target)) return
+      if (this._shouldSuppressDismiss(target)) return
       this.cancel(event)
     }
     document.addEventListener("mousedown", this._outsideClickHandler, true)
@@ -641,6 +660,7 @@ export default class extends Controller {
   // Opt out per-overlay with data-turbo-overlay-backdrop-dismiss-value="false".
   backdropClick(event) {
     if (!this.backdropDismissValue) return
+    if (this._shouldSuppressDismiss(event.target)) return
     const target = event.target
     if (target === this.dialog) {
       this.cancel(event)
@@ -649,6 +669,73 @@ export default class extends Controller {
     if (target && target.hasAttribute && target.hasAttribute("data-turbo-overlay-backdrop-zone")) {
       this.cancel(event)
     }
+  }
+
+  // Returns true when an apparent outside/backdrop click should NOT
+  // dismiss the overlay. Two cases:
+  //
+  // 1. Drag-out: the user mousedown'd inside the dialog content and
+  //    released on the backdrop. The W3C click target is the dialog
+  //    itself (LCA of mousedown/mouseup), so `backdropClick` would
+  //    otherwise treat it as a dismissal — but the user was selecting
+  //    text, not dismissing.
+  //
+  // 2. Allowlist match: the click landed on an element matching a
+  //    configured CSS selector (e.g. `.flatpickr-calendar`,
+  //    `.select2-container`). These widgets portal their UI to
+  //    `<body>` and read as outside-dialog clicks even when the user
+  //    is interacting with a widget rendered from inside the overlay.
+  _shouldSuppressDismiss(clickTarget) {
+    const mousedownTarget = this._lastMousedownTarget
+    if (mousedownTarget && this.dialog &&
+        this.dialog.contains(mousedownTarget) &&
+        mousedownTarget !== this.dialog) {
+      return true
+    }
+    if (this._isAllowlisted(mousedownTarget)) return true
+    if (this._isAllowlisted(clickTarget)) return true
+    return false
+  }
+
+  _isAllowlisted(target) {
+    if (!target || !target.closest) return false
+    const selectors = this._resolveAllowedSelectors()
+    if (!selectors.length) return false
+    for (const selector of selectors) {
+      try {
+        if (target.closest(selector)) return true
+      } catch (_) {
+        // Malformed selector. Skip it; a single bad entry must not
+        // break dismissal for everything else. Warn once per dialog.
+        if (!this._warnedSelectors) this._warnedSelectors = new Set()
+        if (!this._warnedSelectors.has(selector)) {
+          this._warnedSelectors.add(selector)
+          // eslint-disable-next-line no-console
+          console.warn(`[turbo_overlay] ignoring invalid allowed_click_outside_selectors entry: ${selector}`)
+        }
+      }
+    }
+    return false
+  }
+
+  _resolveAllowedSelectors() {
+    if (this._allowedSelectors) return this._allowedSelectors
+    const override = this.dialog && this.dialog.dataset
+      ? this.dialog.dataset.turboOverlayAllowClickOutside
+      : null
+    if (override != null) {
+      this._allowedSelectors = override
+        .split(",")
+        .map((s) => s.trim())
+        .filter((s) => s.length > 0)
+      return this._allowedSelectors
+    }
+    if (this.stack && Array.isArray(this.stack.allowedClickOutsideSelectorsValue)) {
+      this._allowedSelectors = this.stack.allowedClickOutsideSelectorsValue
+      return this._allowedSelectors
+    }
+    this._allowedSelectors = []
+    return this._allowedSelectors
   }
 
   // Returns a Promise that resolves after `_finalizeClose` runs. The

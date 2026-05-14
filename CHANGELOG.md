@@ -102,6 +102,24 @@ Big iteration cycle ahead of the first public release. Highlights:
   `"turbo_overlay/popover"`, `"turbo_overlay/hint"`.
 
 ### Fixed
+- **Drag-out text selections no longer dismiss the overlay.** Press,
+  drag, and release across the dialog boundary used to be reported by
+  the browser as a click on the dialog itself (W3C: click target is
+  the lowest common ancestor of mousedown and mouseup), which the
+  backdrop-click handler treated as a dismissal. The handler now
+  consults the mousedown target and suppresses dismissal when the
+  selection started inside the dialog content.
+
+- **Body-portaled widgets (flatpickr, Select2, Tippy, Tom Select) no
+  longer dismiss popovers.** Configure
+  `TurboOverlay.configuration.allowed_click_outside_selectors` with
+  the widget's portal selectors; clicks inside any matching element
+  are ignored by the popover's outside-click handler and the
+  modal/drawer backdrop-click handler. Per-overlay override via
+  `data-turbo-overlay-allow-click-outside` (CSV) on the dialog.
+  Malformed selectors are skipped with a one-time console warning, so
+  a single typo can't disable dismissal for the rest of the list.
+
 - **Hover prefetch of in-overlay links no longer replaces the open
   overlay.** Turbo's hover prefetch sends the enclosing frame's id
   in the `Turbo-Frame` header. The controller concern was falling

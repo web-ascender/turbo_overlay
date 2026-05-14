@@ -444,6 +444,105 @@ class OverlayTest < ApplicationSystemTestCase
     assert_no_selector "dialog.turbo-overlay--modal[open]"
   end
 
+  test "backdrop click does NOT dismiss when mousedown originated inside the dialog (drag-out)" do
+    visit "/"
+    click_on "Modal", match: :first
+    assert_selector "dialog.turbo-overlay--modal[open]"
+
+    # Simulate a user mousedown inside the dialog content (text
+    # selection), drag, mouseup on the backdrop. Per W3C, the
+    # subsequent `click` resolves with target === dialog (LCA of
+    # mousedown and mouseup), which would otherwise trip backdropClick.
+    page.execute_script(<<~JS)
+      const d = document.querySelector("dialog.turbo-overlay--modal[open]")
+      const inside = d.querySelector("*") || d
+      inside.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }))
+      d.dispatchEvent(new MouseEvent("click", { bubbles: true }))
+    JS
+
+    # Modal must remain open — drag-out from dialog content must not
+    # be treated as a backdrop dismiss.
+    assert_selector "dialog.turbo-overlay--modal[open]"
+  end
+
+  test "popover outside-click is suppressed for elements matching the allowlist" do
+    visit "/"
+    click_on "Popover", match: :first
+    assert_selector "dialog.turbo-overlay--popover:popover-open"
+
+    # Set the per-overlay allowlist via the dialog's override
+    # attribute (avoids touching global config). Append a sibling node
+    # to <body> that mimics a portaled widget (flatpickr/Select2), and
+    # dispatch a mousedown on it.
+    page.execute_script(<<~JS)
+      const d = document.querySelector("dialog.turbo-overlay--popover:popover-open")
+      d.dataset.turboOverlayAllowClickOutside = ".test-portaled"
+      const portal = document.createElement("div")
+      portal.className = "test-portaled"
+      portal.id = "test-portaled-node"
+      document.body.appendChild(portal)
+      portal.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }))
+    JS
+
+    # Popover stays open — click on allowlisted body-portaled element
+    # must not dismiss.
+    assert_selector "dialog.turbo-overlay--popover:popover-open"
+
+    # And a non-allowlisted outside click still dismisses.
+    page.execute_script(<<~JS)
+      const other = document.createElement("div")
+      other.id = "not-allowlisted"
+      document.body.appendChild(other)
+      other.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }))
+    JS
+
+    assert_no_selector "dialog.turbo-overlay--popover:popover-open"
+  end
+
+  test "popover allowlist reads from the stack controller's value when no per-dialog override is set" do
+    visit "/"
+
+    # Seed the stack-level allowlist before opening the popover so the
+    # cached read on first dismiss picks it up.
+    page.execute_script(<<~JS)
+      const stack = document.querySelector("[data-controller~='turbo-overlay-stack']")
+      stack.setAttribute(
+        "data-turbo-overlay-stack-allowed-click-outside-selectors-value",
+        JSON.stringify([".stack-portaled"])
+      )
+    JS
+
+    click_on "Popover", match: :first
+    assert_selector "dialog.turbo-overlay--popover:popover-open"
+
+    page.execute_script(<<~JS)
+      const portal = document.createElement("div")
+      portal.className = "stack-portaled"
+      document.body.appendChild(portal)
+      portal.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }))
+    JS
+
+    assert_selector "dialog.turbo-overlay--popover:popover-open"
+  end
+
+  test "malformed allowlist selector is ignored without breaking dismissal" do
+    visit "/"
+    click_on "Popover", match: :first
+    assert_selector "dialog.turbo-overlay--popover:popover-open"
+
+    page.execute_script(<<~JS)
+      const d = document.querySelector("dialog.turbo-overlay--popover:popover-open")
+      d.dataset.turboOverlayAllowClickOutside = "((("
+      const other = document.createElement("div")
+      document.body.appendChild(other)
+      other.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }))
+    JS
+
+    # Malformed selector must be skipped (not abort dismissal); the
+    # popover dismisses for the non-allowlisted outside click.
+    assert_no_selector "dialog.turbo-overlay--popover:popover-open"
+  end
+
   test "close: false suppresses the chrome's default close button" do
     visit "/"
     click_on "Modal without close"

@@ -34,6 +34,29 @@ TurboOverlay.configure do |config|
     h.show_delay_ms = 250          # hover must persist this long
     h.hide_delay_ms = 120          # grace window after mouseleave
   end
+
+  # Selectors whose clicks should NOT dismiss an open overlay. Use for
+  # body-appended widgets (flatpickr, Select2, Tippy, Tom Select) whose
+  # dropdowns render as siblings of the overlay in <body> and would
+  # otherwise read as outside-the-dialog clicks. The list is consulted
+  # by both the popover outside-click handler and the modal/drawer
+  # backdrop-click handler.
+  config.allowed_click_outside_selectors = [
+    ".flatpickr-calendar",       # flatpickr date pickers
+    ".select2-container--open",  # Select2 dropdowns
+    ".tippy-box",                # Tippy tooltips/menus
+    ".ts-dropdown"               # Tom Select dropdowns
+  ]
+  # Per-overlay override: developers who eject a chrome partial can
+  # add `data-turbo-overlay-allow-click-outside="csv,of,selectors"` on
+  # the <dialog>. When present, it replaces (not merges with) the
+  # global list for that overlay.
+  #
+  # Security note: this list is developer config, not request data.
+  # Never populate it from user input — entries are interpreted as CSS
+  # selectors and matched against any element in the DOM. Selectors
+  # that would allowlist the entire document (`*`, `body`, `html`,
+  # `:root`) are rejected at boot to avoid pinning the overlay open.
 end
 ```
 
