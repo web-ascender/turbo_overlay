@@ -419,6 +419,17 @@ export default class extends Controller {
   // UI, and native iOS UIPopover all collapse on this signal. A short
   // debounce avoids closing on momentum-scroll frames that briefly
   // clip the anchor edge before settling back into view.
+  //
+  // The reflow handler keeps repositioning the popover during the
+  // debounce and the close animation — that's deliberate. Top-layer
+  // popovers are positioned in viewport coordinates; without
+  // continuous updates the popover stays glued to the screen while
+  // the anchor scrolls past it (the "sticky-nav" look). Continuing to
+  // track means the popover scrolls offscreen alongside the anchor,
+  // and the close animation plays as it goes.
+  //
+  // 50ms = ~3 frames at 60Hz, enough to ride out a one-frame inertial
+  // overshoot but short enough that the dismissal feels responsive.
   _installAnchorVisibilityObserver() {
     if (typeof IntersectionObserver === "undefined") return
     if (!this.anchor || typeof this.anchor.getBoundingClientRect !== "function") return
@@ -436,7 +447,7 @@ export default class extends Controller {
         this._anchorOutTimer = setTimeout(() => {
           this._anchorOutTimer = null
           if (this.dialog && this._isShown()) this.cancel()
-        }, 120)
+        }, 50)
       }
     }, { threshold: 0 })
     this._anchorObserver.observe(this.anchor)

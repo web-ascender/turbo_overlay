@@ -160,8 +160,10 @@ Big iteration cycle ahead of the first public release. Highlights:
   popover whose trigger isn't visible reads as a floating widget with
   no obvious connection to anything; matching Bootstrap / MUI /
   native iOS UIPopover, the popover now collapses when its anchor
-  exits the viewport. Short debounce (~120ms) so momentum scrolls
-  that briefly clip the edge don't dismiss.
+  exits the viewport. Short ~50ms debounce so momentum scrolls that
+  briefly clip the edge don't dismiss. The popover continues to track
+  the anchor through the dismissal so it slides offscreen alongside
+  the trigger rather than getting glued to the viewport.
 - **Popover positioning moved to compositor-thread transforms.**
   Replaced the per-scroll `style.top`/`style.left` writes with a
   single `transform: translate(...)`. Eliminates the one-frame lag
