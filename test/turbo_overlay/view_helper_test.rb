@@ -390,6 +390,48 @@ class ViewHelperTest < Minitest::Test
     refute html_options[:data].key?(:turbo_overlay_close)
   end
 
+  # ---- keep_overlay_open_on_redirect ----
+
+  def test_modal_link_to_with_keep_open_true_sets_data_attribute
+    view = FakeView.new
+    view.modal_link_to("Wizard", "/wizards/1", keep_overlay_open_on_redirect: true)
+
+    _, _, html_options = view.link_to_args
+    assert_equal "true", html_options[:data][:turbo_overlay_keep_open_on_redirect]
+  end
+
+  def test_drawer_link_to_with_keep_open_true_sets_data_attribute
+    view = FakeView.new
+    view.drawer_link_to("Wizard", "/wizards/1", keep_overlay_open_on_redirect: true)
+
+    _, _, html_options = view.link_to_args
+    assert_equal "true", html_options[:data][:turbo_overlay_keep_open_on_redirect]
+  end
+
+  def test_popover_link_to_with_keep_open_true_sets_data_attribute
+    view = FakeView.new
+    view.popover_link_to("Quick edit", "/things/1/edit", keep_overlay_open_on_redirect: true)
+
+    _, _, html_options = view.link_to_args
+    assert_equal "true", html_options[:data][:turbo_overlay_keep_open_on_redirect]
+  end
+
+  def test_modal_link_to_omits_keep_open_when_not_provided
+    view = FakeView.new
+    view.modal_link_to("Open", "/things/1")
+
+    _, _, html_options = view.link_to_args
+    refute html_options[:data].key?(:turbo_overlay_keep_open_on_redirect)
+  end
+
+  def test_modal_link_to_omits_keep_open_when_false
+    view = FakeView.new
+    view.modal_link_to("Open", "/things/1", keep_overlay_open_on_redirect: false)
+
+    _, _, html_options = view.link_to_args
+    refute html_options[:data].key?(:turbo_overlay_keep_open_on_redirect)
+  end
+
   # ---- advance ----
 
   def test_modal_link_to_with_advance_true_emits_true_data_attribute

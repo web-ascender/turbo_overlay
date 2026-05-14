@@ -5,6 +5,33 @@
 Big iteration cycle ahead of the first public release. Highlights:
 
 ### Changed
+- **Form submissions inside an overlay close it on redirect by default.**
+  When a descendant form submits and the response is a followed
+  redirect (`fetchResponse.redirected === true`), the overlay closes
+  and the browser visits the redirect target via `Turbo.visit`. Apps
+  previously relying on explicit `turbo_stream.overlay(:close)`
+  responses keep working unchanged — the stream-action path runs
+  before any redirect would. Validation failures
+  (`:unprocessable_entity`, 422) don't redirect, so in-place form
+  re-renders are untouched. Two opt-outs, finest-grained wins:
+  - **Per-overlay (link helper):**
+    `modal_link_to "Wizard", path, keep_overlay_open_on_redirect: true`
+    (also on `drawer_link_to` and `popover_link_to`). Round-trips
+    through the `X-Turbo-Overlay-Keep-Open` request header to a
+    `data-turbo-overlay-keep-open-on-redirect="true"` attribute on
+    the `<dialog>`.
+  - **Per-form (data attribute):**
+    `<form data-turbo-overlay-keep-open-on-redirect="true">` opts
+    out a single form while sibling forms in the same overlay still
+    close on redirect.
+  Detection is a per-dialog `turbo:submit-end` listener installed
+  in the gem's Stimulus controller — scoped to descendants of the
+  dialog, auto-cleaned on disconnect, never document-scoped. The
+  decision lives in `app/javascript/turbo_overlay/submit_close.js`
+  (`shouldCloseOnRedirect`) as a pure function. Hosts whose form
+  redirects previously fell into a broken frame-replacement state
+  (the redirect target had no matching `turbo_overlay_<type>_<id>`
+  frame) get correct behavior now.
 - **In-overlay form re-renders now morph the dialog in place.**
   `overlay_response_wrapper` emits a `<turbo-stream action="replace"
   method="morph">` on a frame re-render (form validation failure

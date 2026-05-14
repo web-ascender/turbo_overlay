@@ -57,9 +57,10 @@ in `respond_to` work as expected — see
 | `turbo_overlay_offset`                  | Per-link popover pixel offset, or `nil`                                |
 | `turbo_overlay_backdrop?`               | `false` only when the link opened with `backdrop: false`; else `true`  |
 | `turbo_overlay_close?`                  | `false` only when the link opened with `close: false`; else `true`     |
-| `modal_link_to(name, path, overlay_id:, close:, advance:, hint:, hint_url:, show_delay:, hide_delay:)` | `link_to` that opens the target as a stacked modal |
-| `drawer_link_to(name, path, overlay_id:, position:, backdrop:, close:, advance:, hint:, hint_url:, show_delay:, hide_delay:)` | stacked drawer |
-| `popover_link_to(name, path, overlay_id:, position:, align:, offset:, close:, hint:, hint_url:, show_delay:, hide_delay:)` | anchored popover (no `advance:` — popovers never push history) |
+| `turbo_overlay_keep_open_on_redirect?`  | `true` only when the link opened with `keep_overlay_open_on_redirect: true`; else `false` |
+| `modal_link_to(name, path, overlay_id:, close:, advance:, keep_overlay_open_on_redirect:, hint:, hint_url:, show_delay:, hide_delay:)` | `link_to` that opens the target as a stacked modal |
+| `drawer_link_to(name, path, overlay_id:, position:, backdrop:, close:, advance:, keep_overlay_open_on_redirect:, hint:, hint_url:, show_delay:, hide_delay:)` | stacked drawer |
+| `popover_link_to(name, path, overlay_id:, position:, align:, offset:, close:, keep_overlay_open_on_redirect:, hint:, hint_url:, show_delay:, hide_delay:)` | anchored popover (no `advance:` — popovers never push history) |
 | `hint_link_to(name, path, hint_url:, show_delay:, hide_delay:)` | plain `link_to` decorated with hint data attributes |
 | `modal_dismiss_link_to(...)`            | dismiss link inside a modal                                            |
 | `drawer_dismiss_link_to(...)`           | dismiss link inside a drawer                                           |
@@ -69,7 +70,20 @@ in `respond_to` work as expected — see
 | `overlay_footer(value, &block)`         | sets `content_for :overlay_footer`                                     |
 | `overlay_close(show = true)`            | toggle the chrome's default close button for this render               |
 | `overlay_close?`                        | view-side predicate that folds in `<% overlay_close false %>` precedence |
-| `turbo_stream.overlay(:close, scope:, type:, id:)` | turbo-stream action; closes top, all, or one overlay. `:hide` and `:dismiss` are accepted aliases for `:close`. |
+| `turbo_stream.overlay(:close, scope:, type:, id:)` | turbo-stream action; closes top, all, or one overlay. `:hide` and `:dismiss` are accepted aliases for `:close`. See [stack-scoped variants](#turbo_stream-overlay-close-variants). |
+
+## `turbo_stream.overlay(:close)` variants
+
+```ruby
+turbo_stream.overlay(:close)                              # top overlay
+turbo_stream.overlay(:close, scope: :all)                 # every open overlay
+turbo_stream.overlay(:close, scope: :all, type: :modal)   # all modals only
+turbo_stream.overlay(:close, id: "edit_user_42")          # specific id
+```
+
+`:hide` and `:dismiss` are accepted aliases for `:close`. The `type:`
+filter accepts `:modal`, `:drawer`, or `:popover` — hints don't
+participate in server-driven close.
 
 ## JavaScript events
 

@@ -9,6 +9,7 @@
         data-controller="turbo-overlay"
         data-turbo-overlay-id-value="<%= turbo_overlay_id %>"
         data-turbo-overlay-type-value="modal"
+        <% if turbo_overlay_keep_open_on_redirect? %>data-turbo-overlay-keep-open-on-redirect="true"<% end %>
         data-action="cancel->turbo-overlay#cancel click->turbo-overlay#backdropClick"
         aria-labelledby="turbo-modal-title-<%= turbo_overlay_id %>"
         <% end %>>

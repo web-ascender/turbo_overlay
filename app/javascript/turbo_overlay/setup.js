@@ -647,6 +647,9 @@ function registerFetchHook() {
     if (trigger.dataset.turboOverlayClose === "false") {
       headers["X-Turbo-Overlay-Close"] = "false"
     }
+    if (trigger.dataset.turboOverlayKeepOpenOnRedirect === "true") {
+      headers["X-Turbo-Overlay-Keep-Open"] = "true"
+    }
 
     // Sticky `data-turbo-overlay-id` on the trigger means a re-click
     // (or a re-submit) reuses the previous overlay id. If the previous

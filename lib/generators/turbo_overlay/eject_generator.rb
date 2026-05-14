@@ -61,6 +61,8 @@ module TurboOverlay
           "app/javascript/turbo_overlay/hint.js"
         copy_gem_file "app/javascript/turbo_overlay/popover_position.js",
           "app/javascript/turbo_overlay/popover_position.js"
+        copy_gem_file "app/javascript/turbo_overlay/submit_close.js",
+          "app/javascript/turbo_overlay/submit_close.js"
 
         say <<~MSG, :yellow
 

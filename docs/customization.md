@@ -135,23 +135,33 @@ logic per chrome.
 
 ### Closing on success, redirecting on failure
 
-The most common controller pattern: a `create`/`update` that closes
-the overlay on success when one is open, and falls through to a
-normal redirect for full-page callers.
+For most `create`/`update` actions, a plain `redirect_to` is all you
+need — the overlay closes on redirect by default and the browser
+visits the target:
 
 ```ruby
 def create
   @user = User.new(user_params)
-
   if @user.save
-    if overlay_request?
-      render turbo_stream: [
-        turbo_stream.overlay(:close, id: turbo_overlay_id),
-        turbo_stream.prepend("users", partial: "users/user", locals: { user: @user })
-      ]
-    else
-      redirect_to @user, notice: "Created."
-    end
+    redirect_to @user, notice: "Created."   # overlay closes; lands on /users/:id
+  else
+    render :new, status: :unprocessable_entity   # form re-renders in place
+  end
+end
+```
+
+Reach for a turbo-stream response when you want to update other parts
+of the page **without** navigating away — e.g. closing the overlay
+and prepending the new record to a list on the host page:
+
+```ruby
+def create
+  @user = User.new(user_params)
+  if @user.save
+    render turbo_stream: [
+      turbo_stream.prepend("users", partial: "users/user", locals: { user: @user }),
+      turbo_stream.overlay(:close)
+    ]
   else
     render :new, status: :unprocessable_entity
   end
@@ -219,15 +229,32 @@ On validation failure, just
 open and re-renders the form with errors in place. No special
 handling required.
 
-## Closing is always explicit
+## Closing behavior
 
-> **For modals, drawers, and popovers**, this gem does *not*
-> auto-close click-opened overlays on `turbo:submit-end`. A
-> submission only closes the overlay if the response includes
-> `turbo_stream.overlay(:close, …)`. That avoids surprise dismissals
-> when a form inside the overlay should leave it open (wizard step,
-> search, inline edit).
->
-> **Hints are the exception** — they open from hover state and
-> dismiss purely client-side on mouseout (with a grace window).
-> There's no `turbo_stream.overlay(:close, type: :hint)` path.
+There are three close paths for modals, drawers, and popovers:
+
+1. **The user dismisses** — ESC key, backdrop click, or the chrome's
+   close button. Always available.
+2. **A form submission redirects** — the overlay closes and the
+   browser visits the redirect target. This is the default; opt out
+   when you need to keep the overlay open across a redirect (wizard
+   steps, multi-step inline edits) via
+   `keep_overlay_open_on_redirect: true` on the trigger link or
+   `data-turbo-overlay-keep-open-on-redirect="true"` on the form.
+   Detection is a per-dialog `turbo:submit-end` listener that fires
+   only when `fetchResponse.redirected === true` — raw 2xx responses
+   don't trigger it, so searches/inline edits returning 200 stay open.
+3. **The server explicitly closes** —
+   `turbo_stream.overlay(:close, …)` from a non-redirect response.
+   Useful when an action needs to update other parts of the page in
+   the same response (see [Closing on success, redirecting on
+   failure](#closing-on-success-redirecting-on-failure)).
+
+Validation failures (`render :new, status: :unprocessable_entity`)
+are 422 responses — they don't redirect, so the overlay stays open
+and the form re-renders in place. No special handling required.
+
+**Hints work differently** — they open from hover state and dismiss
+purely client-side on mouseout (with a grace window). There's no
+`turbo_stream.overlay(:close, type: :hint)` path and no submit-end
+close behavior (hints don't host forms).

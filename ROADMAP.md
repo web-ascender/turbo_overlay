@@ -135,3 +135,39 @@ override, but a declarative opt-out is one line of JS:
 - Link helper option: `autofocus: false`
 - Sensible defaults per overlay type (popovers/hints default off?
   needs a design pass)
+
+## 14. Controller-class-method opt-out for keep-open-on-redirect
+
+Today's close-on-redirect default has two opt-outs: per-overlay (link
+helper) and per-form (form data attribute). A third level —
+controller-class-method — would let an app declare keep-open behavior
+at the action level:
+
+```ruby
+class WizardsController < ApplicationController
+  keep_overlay_open_on_redirect :step1, :step2
+end
+```
+
+Useful when the same action is opened from multiple links and the
+keep-open behavior is really a property of the action, not of the
+trigger.
+
+The natural mechanism — set a response header on the `redirect_to`
+response — is invisible to `fetch` after it follows the redirect, so
+the implementation needs one of:
+
+1. **Flash-based signaling.** The redirecting action sets
+   `flash[:_turbo_overlay_keep_open] = true`; the redirect target's
+   `after_action` reads it back and sets the
+   `X-Turbo-Overlay-Keep-Open` response header; client reads it from
+   the final response. Server-only, but uses flash for non-message
+   state and depends on the redirect target including the concern.
+2. **`redirect_to_in_overlay` helper.** A parallel `redirect_to` that
+   emits a turbo-stream visit action targeting the overlay's frame
+   instead of issuing an HTTP redirect. No session side-effects, but
+   introduces a parallel redirect API the developer has to remember.
+
+Deferred until the per-overlay opt-out shows wear in practice. The
+wizard-style use case is fully covered by per-overlay opt-out today
+when the wizard is opened from a single link.

@@ -5,3 +5,4 @@ pin "turbo_overlay/overlay_controller", to: "turbo_overlay/overlay_controller.js
 pin "turbo_overlay/hint", to: "turbo_overlay/hint.js", preload: true
 pin "turbo_overlay/popover_position", to: "turbo_overlay/popover_position.js", preload: true
 pin "turbo_overlay/history", to: "turbo_overlay/history.js", preload: true
+pin "turbo_overlay/submit_close", to: "turbo_overlay/submit_close.js", preload: true

@@ -134,39 +134,61 @@ See [docs/customization.md](docs/customization.md) for the
 overlay-template footgun, chrome partial structure, close-button
 suppression, and stable overlay ids.
 
-### Close the overlay from server code
+### Close the overlay
 
-`turbo_stream.overlay(:close)` closes the top overlay. A submission
-only closes the overlay if the response says so — there's no implicit
-close on `turbo:submit-end`, so wizard steps and inline edits stay
-open by default.
+Two paths, both supported.
+
+**Implicit (the default).** A form submission inside an overlay that
+redirects closes the overlay and visits the redirect target. Most
+Rails CRUD actions need no overlay-specific code:
 
 ```ruby
 def create
   @user = User.new(user_params)
-
   if @user.save
-    render turbo_stream: [
-      turbo_stream.update("flash", partial: "shared/flash"),
-      turbo_stream.overlay(:close)
-    ]
+    redirect_to users_path                       # overlay closes; browser lands on /users
   else
     render :new, status: :unprocessable_entity   # form re-renders in place
   end
 end
 ```
 
-Variants:
+Validation failures (`:unprocessable_entity`, 422) don't redirect, so
+the form re-renders in the overlay with errors in place.
+
+**Explicit.** `turbo_stream.overlay(:close)` closes the top overlay
+from any non-redirect response. Useful when the action wants to
+update other parts of the page in the same response:
 
 ```ruby
-turbo_stream.overlay(:close)                              # top overlay
-turbo_stream.overlay(:close, scope: :all)                 # every open overlay
-turbo_stream.overlay(:close, scope: :all, type: :modal)   # all modals
-turbo_stream.overlay(:close, id: "edit_user_42")          # specific id
+def create
+  @user = User.new(user_params)
+  if @user.save
+    render turbo_stream: [
+      turbo_stream.update("flash", partial: "shared/flash"),
+      turbo_stream.overlay(:close)
+    ]
+  else
+    render :new, status: :unprocessable_entity
+  end
+end
 ```
 
-On validation failure the overlay stays open and re-renders the
-form with errors in place. No special handling required.
+Stack-scoped variants (close all, close by id, filter by type) are
+documented in [docs/reference.md](docs/reference.md#turbo_streamoverlayclose-variants).
+
+**Keep the overlay open on redirect.** Wizard steps and inline edits
+that follow the POST-then-redirect idiom opt out at one of two levels
+— finest-grained wins:
+
+```erb
+<%# Per-overlay: every form inside this overlay survives its redirects %>
+<%= modal_link_to "Start Wizard", new_wizard_path, keep_overlay_open_on_redirect: true %>
+
+<%# Per-form: this one form opts out; siblings still close %>
+<%= form_with(model: @step,
+              data: { "turbo-overlay-keep-open-on-redirect" => true }) do |f| %>
+```
 
 ESC and clicking the backdrop dismiss the top overlay out of the
 box. Opt a specific overlay out with

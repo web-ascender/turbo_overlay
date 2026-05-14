@@ -456,6 +456,9 @@ module TurboOverlay
         has_advance  = html_options.key?(:advance) || html_options.key?("advance")
         advance_val  = html_options.delete(:advance)
         advance_val  = html_options.delete("advance") if advance_val.nil? && has_advance
+        has_keep_open = html_options.key?(:keep_overlay_open_on_redirect) || html_options.key?("keep_overlay_open_on_redirect")
+        keep_open_val = html_options.delete(:keep_overlay_open_on_redirect)
+        keep_open_val = html_options.delete("keep_overlay_open_on_redirect") if keep_open_val.nil? && has_keep_open
 
         data = (html_options[:data] || {}).dup
         data[:turbo_stream] = true unless data.key?(:turbo_stream) || html_options.key?("data-turbo-stream")
@@ -469,6 +472,9 @@ module TurboOverlay
         end
         if has_close && close_value == false && !data.key?(:turbo_overlay_close) && !html_options.key?("data-turbo-overlay-close")
           data[:turbo_overlay_close] = "false"
+        end
+        if has_keep_open && keep_open_val == true && !data.key?(:turbo_overlay_keep_open_on_redirect) && !html_options.key?("data-turbo-overlay-keep-open-on-redirect")
+          data[:turbo_overlay_keep_open_on_redirect] = "true"
         end
         if has_hint && hint_value && !data.key?(:turbo_overlay_hint) && !html_options.key?("data-turbo-overlay-hint")
           data[:turbo_overlay_hint] = "true"

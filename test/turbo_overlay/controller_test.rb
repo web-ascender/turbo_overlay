@@ -304,6 +304,25 @@ class ControllerTest < Minitest::Test
     refute @controller.turbo_overlay_close?
   end
 
+  # ---- keep-open-on-redirect ----
+
+  def test_keep_open_on_redirect_defaults_to_false
+    with_headers("X-Turbo-Overlay" => "modal")
+    refute @controller.turbo_overlay_keep_open_on_redirect?
+  end
+
+  def test_keep_open_on_redirect_true_when_header_says_true
+    with_headers("X-Turbo-Overlay" => "modal",
+                 "X-Turbo-Overlay-Keep-Open" => "true")
+    assert @controller.turbo_overlay_keep_open_on_redirect?
+  end
+
+  def test_keep_open_on_redirect_false_for_any_other_value
+    with_headers("X-Turbo-Overlay" => "modal",
+                 "X-Turbo-Overlay-Keep-Open" => "false")
+    refute @controller.turbo_overlay_keep_open_on_redirect?
+  end
+
   # ---- prefetch + hintable ----
 
   def test_prefetch_request_via_x_sec_purpose

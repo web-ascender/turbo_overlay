@@ -1,5 +1,6 @@
 import { Controller } from "@hotwired/stimulus"
 import { computePopoverPosition } from "turbo_overlay/popover_position"
+import { shouldCloseOnRedirect } from "turbo_overlay/submit_close"
 import {
   getAdvanceUrl, clearAdvanceUrl,
   markPushed, isPushed, clearPushed, livePushedCount,
@@ -100,9 +101,14 @@ export default class extends Controller {
 
     this._dispatch("shown")
     this._maybeAdvanceHistory()
+    this._installSubmitEndHandler()
   }
 
   disconnect() {
+    if (this._submitEndHandler && this.dialog) {
+      this.dialog.removeEventListener("turbo:submit-end", this._submitEndHandler)
+      this._submitEndHandler = null
+    }
     if (this._escHandler) {
       document.removeEventListener("keydown", this._escHandler)
       this._escHandler = null
@@ -135,6 +141,31 @@ export default class extends Controller {
       this.cancel(event)
     }
     document.addEventListener("keydown", this._escHandler)
+  }
+
+  // Close-on-redirect: when a descendant form submits and Turbo
+  // followed a redirect to the final response, dismiss this overlay
+  // and visit the redirect target as a normal page navigation. The
+  // listener is scoped to this dialog (not document) so stacking
+  // works — only the dialog containing the form closes — and so the
+  // listener auto-cleans on disconnect. The pure decision lives in
+  // submit_close.js for testability and so the rules are documented
+  // in one place.
+  _installSubmitEndHandler() {
+    if (!this.dialog) return
+    this._submitEndHandler = (event) => {
+      if (!shouldCloseOnRedirect({
+        form: event.target,
+        dialog: this.dialog,
+        fetchResponse: event.detail && event.detail.fetchResponse
+      })) return
+      const url = event.detail.fetchResponse.response && event.detail.fetchResponse.response.url
+      this.close(event)
+      if (url && typeof window !== "undefined" && window.Turbo && typeof window.Turbo.visit === "function") {
+        window.Turbo.visit(url)
+      }
+    }
+    this.dialog.addEventListener("turbo:submit-end", this._submitEndHandler)
   }
 
   _connectPopover() {
@@ -203,6 +234,7 @@ export default class extends Controller {
     window.addEventListener("resize", this._reflowHandler)
 
     this._dispatch("shown")
+    this._installSubmitEndHandler()
   }
 
   // Inside a popover, a plain `link_to` would otherwise navigate

@@ -18,6 +18,7 @@
         data-turbo-overlay-position-value="<%= position %>"
         data-turbo-overlay-align-value="<%= align %>"
         data-turbo-overlay-offset-value="<%= offset %>"
+        <% if turbo_overlay_keep_open_on_redirect? %>data-turbo-overlay-keep-open-on-redirect="true"<% end %>
         data-action="cancel->turbo-overlay#cancel"
         aria-labelledby="turbo-popover-title-<%= turbo_overlay_id %>"
         <% end %>>

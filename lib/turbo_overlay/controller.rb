@@ -25,8 +25,9 @@ module TurboOverlay
     OVERLAY_POSITION_HEADER = "X-Turbo-Overlay-Position".freeze
     OVERLAY_ALIGN_HEADER    = "X-Turbo-Overlay-Align".freeze
     OVERLAY_OFFSET_HEADER   = "X-Turbo-Overlay-Offset".freeze
-    OVERLAY_BACKDROP_HEADER = "X-Turbo-Overlay-Backdrop".freeze
-    OVERLAY_CLOSE_HEADER    = "X-Turbo-Overlay-Close".freeze
+    OVERLAY_BACKDROP_HEADER  = "X-Turbo-Overlay-Backdrop".freeze
+    OVERLAY_CLOSE_HEADER     = "X-Turbo-Overlay-Close".freeze
+    OVERLAY_KEEP_OPEN_HEADER = "X-Turbo-Overlay-Keep-Open".freeze
 
     # Whitelists for values that originate from request headers and get
     # reflected into rendered chrome (CSS class tokens, DOM ids,
@@ -52,8 +53,8 @@ module TurboOverlay
         :overlay_request?, :turbo_overlay_id, :turbo_overlay_type,
         :turbo_overlay_position, :turbo_overlay_align,
         :turbo_overlay_offset, :turbo_overlay_backdrop?,
-        :turbo_overlay_close?, :overlay_prefetch_request?,
-        :overlay_hintable_request?
+        :turbo_overlay_close?, :turbo_overlay_keep_open_on_redirect?,
+        :overlay_prefetch_request?, :overlay_hintable_request?
     end
 
     # ----- modal -----
@@ -208,6 +209,18 @@ module TurboOverlay
       @_turbo_overlay_close = _resolve_overlay_close
     end
 
+    # Whether the overlay should stay open when a form descendant
+    # submits and the response is a redirect. Defaults to `false`
+    # (close-on-redirect is the gem's default); becomes `true` when
+    # the trigger link passed `keep_overlay_open_on_redirect: true`
+    # (carried in the `X-Turbo-Overlay-Keep-Open` header). The chrome
+    # partials reflect this onto the `<dialog>` as a data attribute
+    # the per-dialog submit-end listener reads.
+    def turbo_overlay_keep_open_on_redirect?
+      return @_turbo_overlay_keep_open if defined?(@_turbo_overlay_keep_open)
+      @_turbo_overlay_keep_open = _resolve_overlay_keep_open_on_redirect
+    end
+
     # True for the initial open of an overlay (an `X-Turbo-Overlay`
     # request that is not a form re-render inside an existing
     # overlay frame). Used internally to decide between turbo-stream
@@ -318,6 +331,11 @@ module TurboOverlay
     def _resolve_overlay_close
       return true unless respond_to?(:request) && request
       request.headers[OVERLAY_CLOSE_HEADER].to_s != "false"
+    end
+
+    def _resolve_overlay_keep_open_on_redirect
+      return false unless respond_to?(:request) && request
+      request.headers[OVERLAY_KEEP_OPEN_HEADER].to_s == "true"
     end
 
     def _turbo_overlay_set_variant
