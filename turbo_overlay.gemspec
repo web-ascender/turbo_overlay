@@ -16,7 +16,7 @@ Gem::Specification.new do |spec|
     closing overlays. Themes for Tailwind, Bootstrap 5, Bootstrap 3, and plain
     CSS are installable via generator.
   DESC
-  spec.homepage    = "https://github.com/jmschneider/turbo_overlay"
+  spec.homepage    = "https://github.com/web-ascender/turbo_overlay"
   spec.license     = "MIT"
   spec.required_ruby_version = ">= 3.0"
 
